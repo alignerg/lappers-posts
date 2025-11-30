@@ -108,9 +108,6 @@ public class ChatMessageTests
     [Fact(DisplayName = "ChatMessage is immutable")]
     public void ChatMessage_RecordType_IsImmutable()
     {
-        var timestamp = DateTimeOffset.UtcNow;
-        var message = new ChatMessage(timestamp, "John", "Hello");
-
         Assert.True(typeof(ChatMessage).IsSealed);
     }
 }
