@@ -50,7 +50,7 @@ public sealed class ChatExport
         }
 
         Id = id;
-        _messages = [.. messages];
+        _messages = new List<ChatMessage>(messages);
         Metadata = metadata;
     }
 

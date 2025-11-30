@@ -15,6 +15,8 @@ namespace WhatsAppArchiver.Domain.ValueObjects;
 /// </remarks>
 public sealed record MessageId
 {
+    private const int HashDisplayLength = 8;
+
     /// <summary>
     /// Gets the timestamp component of the message identifier.
     /// </summary>
@@ -78,5 +80,5 @@ public sealed record MessageId
     /// Returns a string representation of the MessageId.
     /// </summary>
     /// <returns>A string combining the timestamp and content hash.</returns>
-    public override string ToString() => $"{Timestamp:O}_{ContentHash[..8]}";
+    public override string ToString() => $"{Timestamp:O}_{ContentHash[..HashDisplayLength]}";
 }
