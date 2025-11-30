@@ -15,14 +15,15 @@ namespace WhatsAppArchiver.Infrastructure.GoogleDocs;
 /// This adapter implements the <see cref="IGoogleDocsService"/> interface using
 /// Google Docs API v1 with service account credentials. It provides retry policies
 /// with exponential backoff for transient API failures.
+/// Implements both <see cref="IDisposable"/> and <see cref="IAsyncDisposable"/> for proper resource cleanup.
 /// </remarks>
 /// <example>
 /// <code>
-/// var adapter = new GoogleDocsServiceAccountAdapter("path/to/credentials.json");
+/// await using var adapter = new GoogleDocsServiceAccountAdapter("path/to/credentials.json");
 /// await adapter.AppendAsync("document-id", "New content");
 /// </code>
 /// </example>
-public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDisposable
+public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDisposable, IAsyncDisposable
 {
     private readonly DocsService _docsService;
     private readonly ResiliencePipeline _resiliencePipeline;
@@ -152,6 +153,16 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
             _docsService.Dispose();
             _disposed = true;
         }
+    }
+
+    /// <summary>
+    /// Asynchronously disposes the resources used by this adapter.
+    /// </summary>
+    /// <returns>A task representing the asynchronous dispose operation.</returns>
+    public ValueTask DisposeAsync()
+    {
+        Dispose();
+        return ValueTask.CompletedTask;
     }
 
     /// <summary>

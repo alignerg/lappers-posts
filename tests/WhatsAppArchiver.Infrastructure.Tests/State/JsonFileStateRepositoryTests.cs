@@ -18,12 +18,9 @@ public class JsonFileStateRepositoryTests : IDisposable
 
     public void Dispose()
     {
-        foreach (var file in _tempFiles)
+        foreach (var file in _tempFiles.Where(File.Exists))
         {
-            if (File.Exists(file))
-            {
-                File.Delete(file);
-            }
+            File.Delete(file);
         }
 
         if (Directory.Exists(_testDirectory))
@@ -258,7 +255,7 @@ public class JsonFileStateRepositoryTests : IDisposable
         var filePath = CreateTestFilePath();
         var repository = new JsonFileStateRepository(filePath);
         var checkpoint = ProcessingCheckpoint.Create("doc-123");
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
@@ -270,7 +267,7 @@ public class JsonFileStateRepositoryTests : IDisposable
     {
         var filePath = CreateTestFilePath();
         var repository = new JsonFileStateRepository(filePath);
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>

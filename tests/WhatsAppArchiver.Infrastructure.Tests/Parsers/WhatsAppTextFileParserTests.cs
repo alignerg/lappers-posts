@@ -15,12 +15,9 @@ public class WhatsAppTextFileParserTests : IDisposable
 
     public void Dispose()
     {
-        foreach (var file in _tempFiles)
+        foreach (var file in _tempFiles.Where(File.Exists))
         {
-            if (File.Exists(file))
-            {
-                File.Delete(file);
-            }
+            File.Delete(file);
         }
 
         if (Directory.Exists(_testDataDirectory))
@@ -238,7 +235,7 @@ public class WhatsAppTextFileParserTests : IDisposable
         var content = "25/12/2024 14:30 - John: Hello";
         var filePath = CreateTestFile(content);
         var parser = new WhatsAppTextFileParser();
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
 
         await Assert.ThrowsAsync<OperationCanceledException>(() =>

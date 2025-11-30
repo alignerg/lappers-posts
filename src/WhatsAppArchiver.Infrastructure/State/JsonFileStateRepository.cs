@@ -16,21 +16,23 @@ namespace WhatsAppArchiver.Infrastructure.State;
 /// This implementation uses System.Text.Json for serialization and implements
 /// atomic writes (write to temp file, then rename) for data integrity.
 /// File locking is used to prevent concurrent access issues.
+/// Implements <see cref="IDisposable"/> to release resources.
 /// </remarks>
 /// <example>
 /// <code>
-/// var repository = new JsonFileStateRepository("state.json");
+/// using var repository = new JsonFileStateRepository("state.json");
 /// var checkpoint = await repository.GetCheckpointAsync("doc-123");
 /// checkpoint.MarkAsProcessed(messageId);
 /// await repository.SaveCheckpointAsync(checkpoint);
 /// </code>
 /// </example>
-public sealed class JsonFileStateRepository : IProcessingStateService
+public sealed class JsonFileStateRepository : IProcessingStateService, IDisposable
 {
     private readonly string _filePath;
     private readonly ResiliencePipeline _resiliencePipeline;
     private readonly SemaphoreSlim _fileLock = new(1, 1);
     private readonly JsonSerializerOptions _jsonOptions;
+    private bool _disposed;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="JsonFileStateRepository"/> class.
@@ -69,6 +71,20 @@ public sealed class JsonFileStateRepository : IProcessingStateService
         ArgumentNullException.ThrowIfNull(resiliencePipeline);
 
         _resiliencePipeline = resiliencePipeline;
+    }
+
+    /// <summary>
+    /// Disposes the resources used by the repository.
+    /// </summary>
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _fileLock.Dispose();
+        _disposed = true;
     }
 
     /// <inheritdoc/>
@@ -135,9 +151,12 @@ public sealed class JsonFileStateRepository : IProcessingStateService
     /// <returns>A unique key string.</returns>
     private static string CreateCheckpointKey(string documentId, SenderFilter? senderFilter)
     {
+        // Normalize both documentId and senderName to lower invariant for consistent key generation.
+        var normalizedDocumentId = documentId.ToLowerInvariant();
+
         return senderFilter is null
-            ? documentId
-            : $"{documentId}:{senderFilter.SenderName.ToLowerInvariant()}";
+            ? normalizedDocumentId
+            : $"{normalizedDocumentId}:{senderFilter.SenderName.ToLowerInvariant()}";
     }
 
     /// <summary>
@@ -328,7 +347,7 @@ public sealed class JsonFileStateRepository : IProcessingStateService
 
             if (string.IsNullOrEmpty(stringValue))
             {
-                return DateTimeOffset.MinValue;
+                throw new JsonException("DateTimeOffset value cannot be null or empty.");
             }
 
             if (DateTimeOffset.TryParse(stringValue, out var result))
@@ -336,7 +355,7 @@ public sealed class JsonFileStateRepository : IProcessingStateService
                 return result;
             }
 
-            return DateTimeOffset.MinValue;
+            throw new JsonException($"Unable to parse '{stringValue}' as a DateTimeOffset.");
         }
 
         public override void Write(Utf8JsonWriter writer, DateTimeOffset value, JsonSerializerOptions options)
