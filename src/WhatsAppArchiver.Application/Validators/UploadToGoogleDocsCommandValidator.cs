@@ -47,8 +47,8 @@ public sealed class UploadToGoogleDocsCommandValidator : AbstractValidator<Uploa
             return false;
         }
 
-        var invalidChars = Path.GetInvalidPathChars();
+        var invalidChars = new HashSet<char>(Path.GetInvalidPathChars());
 
-        return !filePath.Any(c => invalidChars.Contains(c));
+        return !filePath.Any(invalidChars.Contains);
     }
 }
