@@ -162,6 +162,7 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
     public ValueTask DisposeAsync()
     {
         Dispose();
+        GC.SuppressFinalize(this);
         return ValueTask.CompletedTask;
     }
 

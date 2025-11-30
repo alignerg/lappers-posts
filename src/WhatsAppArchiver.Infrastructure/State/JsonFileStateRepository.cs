@@ -85,6 +85,7 @@ public sealed class JsonFileStateRepository : IProcessingStateService, IDisposab
 
         _fileLock.Dispose();
         _disposed = true;
+        GC.SuppressFinalize(this);
     }
 
     /// <inheritdoc/>
@@ -151,7 +152,7 @@ public sealed class JsonFileStateRepository : IProcessingStateService, IDisposab
     /// <returns>A unique key string.</returns>
     private static string CreateCheckpointKey(string documentId, SenderFilter? senderFilter)
     {
-        // Normalize both documentId and senderName to lower invariant for consistent key generation.
+        // Normalize both documentId and senderName to lowercase invariant for consistent key generation.
         var normalizedDocumentId = documentId.ToLowerInvariant();
 
         return senderFilter is null
