@@ -1,0 +1,130 @@
+using System.Text;
+using WhatsAppArchiver.Application.Commands;
+using WhatsAppArchiver.Application.Services;
+using WhatsAppArchiver.Domain.Entities;
+using WhatsAppArchiver.Domain.Formatting;
+using WhatsAppArchiver.Domain.Specifications;
+
+namespace WhatsAppArchiver.Application.Handlers;
+
+/// <summary>
+/// Handles the <see cref="UploadToGoogleDocsCommand"/> by coordinating chat parsing,
+/// formatting, and uploading to Google Docs.
+/// </summary>
+/// <remarks>
+/// This handler orchestrates the complete workflow of:
+/// <list type="number">
+/// <item>Parsing the chat export file</item>
+/// <item>Filtering messages by sender</item>
+/// <item>Retrieving/creating a processing checkpoint</item>
+/// <item>Formatting and uploading only unprocessed messages</item>
+/// <item>Updating the checkpoint transactionally</item>
+/// </list>
+/// </remarks>
+/// <example>
+/// <code>
+/// var handler = new UploadToGoogleDocsCommandHandler(
+///     chatParser, googleDocsService, processingStateService);
+/// var command = new UploadToGoogleDocsCommand(
+///     "path/to/chat.txt", "John Doe", "doc-123", MessageFormatType.Default);
+/// var count = await handler.HandleAsync(command);
+/// Console.WriteLine($"Uploaded {count} messages");
+/// </code>
+/// </example>
+public sealed class UploadToGoogleDocsCommandHandler
+{
+    private readonly IChatParser _chatParser;
+    private readonly IGoogleDocsService _googleDocsService;
+    private readonly IProcessingStateService _processingStateService;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="UploadToGoogleDocsCommandHandler"/> class.
+    /// </summary>
+    /// <param name="chatParser">The chat parser service.</param>
+    /// <param name="googleDocsService">The Google Docs service.</param>
+    /// <param name="processingStateService">The processing state service.</param>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when any of the parameters is null.
+    /// </exception>
+    public UploadToGoogleDocsCommandHandler(
+        IChatParser chatParser,
+        IGoogleDocsService googleDocsService,
+        IProcessingStateService processingStateService)
+    {
+        ArgumentNullException.ThrowIfNull(chatParser);
+        ArgumentNullException.ThrowIfNull(googleDocsService);
+        ArgumentNullException.ThrowIfNull(processingStateService);
+
+        _chatParser = chatParser;
+        _googleDocsService = googleDocsService;
+        _processingStateService = processingStateService;
+    }
+
+    /// <summary>
+    /// Handles the upload to Google Docs command asynchronously.
+    /// </summary>
+    /// <param name="command">The command containing upload parameters.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>The number of messages uploaded.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="command"/> is null.</exception>
+    public async Task<int> HandleAsync(
+        UploadToGoogleDocsCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+
+        var chatExport = await _chatParser.ParseAsync(command.FilePath, cancellationToken);
+
+        var senderFilter = SenderFilter.Create(command.Sender);
+        var filteredMessages = chatExport.FilterMessages(senderFilter).ToList();
+
+        var checkpoint = await _processingStateService.GetCheckpointAsync(
+            command.DocumentId,
+            senderFilter,
+            cancellationToken);
+
+        var unprocessedMessages = filteredMessages
+            .Where(m => !checkpoint.HasBeenProcessed(m.Id))
+            .OrderBy(m => m.Timestamp)
+            .ToList();
+
+        if (unprocessedMessages.Count == 0)
+        {
+            return 0;
+        }
+
+        var formatter = FormatterFactory.Create(command.FormatterType);
+        var content = FormatMessages(unprocessedMessages, formatter);
+
+        await _googleDocsService.AppendAsync(command.DocumentId, content, cancellationToken);
+
+        foreach (var message in unprocessedMessages)
+        {
+            checkpoint.MarkAsProcessed(message.Id);
+        }
+
+        await _processingStateService.SaveCheckpointAsync(checkpoint, cancellationToken);
+
+        return unprocessedMessages.Count;
+    }
+
+    /// <summary>
+    /// Formats a collection of messages using the specified formatter.
+    /// </summary>
+    /// <param name="messages">The messages to format.</param>
+    /// <param name="formatter">The formatter to use.</param>
+    /// <returns>The formatted content as a single string.</returns>
+    private static string FormatMessages(
+        IEnumerable<ChatMessage> messages,
+        IMessageFormatter formatter)
+    {
+        var builder = new StringBuilder();
+
+        foreach (var message in messages)
+        {
+            builder.AppendLine(formatter.FormatMessage(message));
+        }
+
+        return builder.ToString();
+    }
+}
