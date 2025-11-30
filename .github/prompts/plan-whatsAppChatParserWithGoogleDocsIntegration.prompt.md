@@ -1,0 +1,19 @@
+# Plan: WhatsApp Chat Parser with Google Docs Integration
+
+Build a DDD-architected .NET 10 console application from scratch that parses WhatsApp text exports, tracks processing state for idempotent operation, filters messages by a single sender, formats output using a strategy pattern, and uploads to Google Docs using service account authentication.
+
+## Steps
+
+1. **Create Solution and Project Structure** - Initialize `WhatsAppArchiver.sln` at workspace root with four projects: `WhatsAppArchiver.Domain`, `WhatsAppArchiver.Application`, `WhatsAppArchiver.Infrastructure`, `WhatsAppArchiver.Console` under `src/`, and three test projects: `WhatsAppArchiver.Domain.Tests`, `WhatsAppArchiver.Application.Tests`, `WhatsAppArchiver.Infrastructure.Tests` under `tests/`, targeting .NET 10 with NuGet packages (Google.Apis.Docs.v1, Polly, FluentValidation, System.CommandLine, Serilog, xUnit)
+
+2. **Implement Domain Layer with Core Entities** - Define immutable records following DDD: `ChatMessage` (timestamp, sender, content), `MessageId` (composite: timestamp + content hash), `ChatExport` (aggregate root with messages collection and parsing metadata), `ProcessingCheckpoint` (entity: lastProcessedTimestamp, documentId, processedMessageIds set, senderFilter), `SenderFilter` (specification pattern for single sender case-insensitive matching), with invariant validation in constructors
+
+3. **Add Message Formatting Strategy Pattern to Domain** - Create `IMessageFormatter` interface in domain layer with `FormatMessage(ChatMessage)` method, implement `DefaultMessageFormatter` (`[{timestamp}] {sender}: {content}`), `CompactMessageFormatter` (`{sender}: {content}`), `VerboseMessageFormatter` (includes date, time, and sender metadata), and `FormatterFactory` using strategy pattern to enable runtime selection via configuration or command-line arguments
+
+4. **Build Application Layer with CQRS** - Create command handlers: `ParseChatCommandHandler` (orchestrates parsing with `IChatParser`), `UploadToGoogleDocsCommandHandler` (coordinates upload using selected `IMessageFormatter`, updates checkpoint transactionally), define service interfaces: `IProcessingStateService`, `IChatParser`, `IGoogleDocsService`, with FluentValidation for command DTOs ensuring valid file paths and single sender validation
+
+5. **Implement Infrastructure Adapters** - Build `WhatsAppTextFileParser` (regex parsing for `DD/MM/YYYY HH:mm` and `M/D/YY, H:mm AM/PM` formats), `GoogleDocsServiceAccountAdapter` (Google.Apis.Docs.v1 batch paragraph insertion accepting formatted strings), `JsonFileStateRepository` (atomic writes with System.Text.Json and file locking for `processingState.json`), all with Polly retry policies (exponential backoff: 2s, 4s, 8s delays)
+
+6. **Create Console Host with Formatter Selection** - Build `Program.cs` using Microsoft.Extensions.Hosting with System.CommandLine CLI (`--chat-file`, `--sender`, `--doc-id`, `--formatter [default|compact|verbose]`, `--config`), DI container registration with formatter factory, Serilog configuration (Console + rolling file sinks), `appsettings.json` for Google service account path and default formatter selection, graceful shutdown handling, and structured logging with correlation IDs
+
+7. **Implement Idempotent Processing and Tests** - Add duplicate detection via `MessageId` comparison against `ProcessingCheckpoint.processedMessageIds`, transactional state updates (persist only after Google Docs API confirmation), rollback mechanism on failure, `processingState.json` schema (lastProcessedTimestamp, messageIds, documentId, senderFilter, lastSuccessfulRunUtc); write xUnit tests for domain aggregates/formatters, command handler tests with Moq, infrastructure integration tests (parser with sample exports, Google Docs API with test document), following `MethodName_Condition_ExpectedResult` naming for 85%+ coverage
