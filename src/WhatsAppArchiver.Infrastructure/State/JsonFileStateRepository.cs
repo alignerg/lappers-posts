@@ -272,13 +272,24 @@ public sealed class JsonFileStateRepository : IProcessingStateService
         public ProcessingCheckpoint ToEntity(SenderFilter? senderFilter)
         {
             var messageIds = ProcessedMessageIds.Select(dto => dto.ToEntity());
+            var resolvedFilter = ResolveSenderFilter(senderFilter);
 
             return new ProcessingCheckpoint(
                 Id,
                 DocumentId,
                 LastProcessedTimestamp,
                 messageIds,
-                senderFilter ?? (SenderFilterName is not null ? SenderFilter.Create(SenderFilterName) : null));
+                resolvedFilter);
+        }
+
+        private SenderFilter? ResolveSenderFilter(SenderFilter? providedFilter)
+        {
+            if (providedFilter is not null)
+            {
+                return providedFilter;
+            }
+
+            return SenderFilterName is not null ? SenderFilter.Create(SenderFilterName) : null;
         }
     }
 
@@ -313,7 +324,19 @@ public sealed class JsonFileStateRepository : IProcessingStateService
     {
         public override DateTimeOffset Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return DateTimeOffset.Parse(reader.GetString() ?? string.Empty);
+            var stringValue = reader.GetString();
+
+            if (string.IsNullOrEmpty(stringValue))
+            {
+                return DateTimeOffset.MinValue;
+            }
+
+            if (DateTimeOffset.TryParse(stringValue, out var result))
+            {
+                return result;
+            }
+
+            return DateTimeOffset.MinValue;
         }
 
         public override void Write(Utf8JsonWriter writer, DateTimeOffset value, JsonSerializerOptions options)
