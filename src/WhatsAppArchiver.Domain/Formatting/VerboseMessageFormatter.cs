@@ -7,8 +7,8 @@ namespace WhatsAppArchiver.Domain.Formatting;
 /// </summary>
 /// <remarks>
 /// Formats messages with comprehensive date, time, and sender information.
-/// The format includes the full date, time with timezone, and sender details
-/// on separate lines for maximum readability.
+/// The format includes the date in DD/MM/YYYY format, time in HH:mm:ss format,
+/// and sender details on separate lines for maximum readability.
 /// </remarks>
 /// <example>
 /// <code>
@@ -16,8 +16,8 @@ namespace WhatsAppArchiver.Domain.Formatting;
 /// var message = ChatMessage.Create(DateTimeOffset.UtcNow, "John Doe", "Hello!");
 /// string formatted = formatter.FormatMessage(message);
 /// // Result:
-/// // Date: Monday, January 15, 2024
-/// // Time: 10:30:00 AM +00:00
+/// // Date: 15/01/2024
+/// // Time: 10:30:00
 /// // From: John Doe
 /// // Message: Hello!
 /// </code>
@@ -31,8 +31,8 @@ public sealed class VerboseMessageFormatter : IMessageFormatter
         ArgumentNullException.ThrowIfNull(message);
 
         return $"""
-            Date: {message.Timestamp:dddd, MMMM dd, yyyy}
-            Time: {message.Timestamp:hh:mm:ss tt zzz}
+            Date: {message.Timestamp:dd/MM/yyyy}
+            Time: {message.Timestamp:HH:mm:ss}
             From: {message.Sender}
             Message: {message.Content}
             """;

@@ -15,7 +15,7 @@ public class DefaultMessageFormatterTests
 
         var result = _formatter.FormatMessage(message);
 
-        Assert.Equal("[2024-01-15T10:30:00.0000000+00:00] John Doe: Hello, World!", result);
+        Assert.Equal("[15/01/2024, 10:30:00] John Doe: Hello, World!", result);
     }
 
     [Fact(DisplayName = "FormatMessage with null message throws ArgumentNullException")]
@@ -26,15 +26,15 @@ public class DefaultMessageFormatterTests
         Assert.Equal("message", exception.ParamName);
     }
 
-    [Fact(DisplayName = "FormatMessage includes ISO 8601 timestamp format")]
-    public void FormatMessage_ValidMessage_IncludesIso8601Timestamp()
+    [Fact(DisplayName = "FormatMessage includes DD/MM/YYYY, HH:mm:ss timestamp format")]
+    public void FormatMessage_ValidMessage_IncludesDdMmYyyyTimestamp()
     {
         var timestamp = new DateTimeOffset(2024, 6, 20, 14, 45, 30, TimeSpan.FromHours(2));
         var message = ChatMessage.Create(timestamp, "Alice", "Test message");
 
         var result = _formatter.FormatMessage(message);
 
-        Assert.Contains("2024-06-20T14:45:30.0000000+02:00", result);
+        Assert.Contains("20/06/2024, 14:45:30", result);
     }
 
     [Fact(DisplayName = "FormatMessage preserves sender and content exactly")]

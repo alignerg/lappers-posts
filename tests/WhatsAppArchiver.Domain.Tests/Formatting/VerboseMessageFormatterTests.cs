@@ -29,18 +29,15 @@ public class VerboseMessageFormatterTests
         Assert.Equal("message", exception.ParamName);
     }
 
-    [Fact(DisplayName = "FormatMessage includes full date with day of week")]
-    public void FormatMessage_ValidMessage_IncludesFullDateWithDayOfWeek()
+    [Fact(DisplayName = "FormatMessage includes date in DD/MM/YYYY format")]
+    public void FormatMessage_ValidMessage_IncludesDateInDdMmYyyyFormat()
     {
         var timestamp = new DateTimeOffset(2024, 1, 15, 10, 30, 0, TimeSpan.Zero);
         var message = ChatMessage.Create(timestamp, "Alice", "Test");
 
         var result = _formatter.FormatMessage(message);
 
-        Assert.Contains("Monday", result);
-        Assert.Contains("January", result);
-        Assert.Contains("15", result);
-        Assert.Contains("2024", result);
+        Assert.Contains("Date: 15/01/2024", result);
     }
 
     [Fact(DisplayName = "FormatMessage includes sender in From field")]
@@ -65,14 +62,14 @@ public class VerboseMessageFormatterTests
         Assert.Contains($"Message: {content}", result);
     }
 
-    [Fact(DisplayName = "FormatMessage includes timezone offset")]
-    public void FormatMessage_ValidMessage_IncludesTimezoneOffset()
+    [Fact(DisplayName = "FormatMessage includes time in HH:mm:ss format")]
+    public void FormatMessage_ValidMessage_IncludesTimeInHhMmSsFormat()
     {
-        var timestamp = new DateTimeOffset(2024, 1, 15, 10, 30, 0, TimeSpan.FromHours(5));
+        var timestamp = new DateTimeOffset(2024, 1, 15, 10, 30, 45, TimeSpan.Zero);
         var message = ChatMessage.Create(timestamp, "User", "Content");
 
         var result = _formatter.FormatMessage(message);
 
-        Assert.Contains("+05:00", result);
+        Assert.Contains("Time: 10:30:45", result);
     }
 }
