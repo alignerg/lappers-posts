@@ -151,7 +151,7 @@ public class ParseChatCommandHandlerTests
     {
         var filePath = "/path/to/chat.txt";
         var command = new ParseChatCommand(filePath);
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
         var expectedExport = CreateChatExport();
 
         _chatParserMock

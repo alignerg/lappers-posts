@@ -13,55 +13,24 @@ namespace WhatsAppArchiver.Application.Commands;
 /// <example>
 /// <code>
 /// var command = new UploadToGoogleDocsCommand(
-///     filePath: "path/to/chat.txt",
-///     sender: "John Doe",
-///     documentId: "abc123",
-///     formatterType: MessageFormatType.Default);
+///     FilePath: "path/to/chat.txt",
+///     Sender: "John Doe",
+///     DocumentId: "abc123",
+///     FormatterType: MessageFormatType.Default);
 /// await handler.HandleAsync(command);
 /// </code>
 /// </example>
-public sealed record UploadToGoogleDocsCommand
-{
-    /// <summary>
-    /// Gets the path to the chat export file.
-    /// </summary>
-    public string FilePath { get; }
-
-    /// <summary>
-    /// Gets the sender name to filter messages by.
-    /// </summary>
-    /// <remarks>
-    /// Only messages from this sender will be uploaded to the document.
-    /// The matching is case-insensitive.
-    /// </remarks>
-    public string Sender { get; }
-
-    /// <summary>
-    /// Gets the Google Docs document identifier.
-    /// </summary>
-    public string DocumentId { get; }
-
-    /// <summary>
-    /// Gets the message formatting type to use.
-    /// </summary>
-    public MessageFormatType FormatterType { get; }
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="UploadToGoogleDocsCommand"/> record.
-    /// </summary>
-    /// <param name="filePath">The path to the chat export file.</param>
-    /// <param name="sender">The sender name to filter messages by.</param>
-    /// <param name="documentId">The Google Docs document identifier.</param>
-    /// <param name="formatterType">The message formatting type to use.</param>
-    public UploadToGoogleDocsCommand(
-        string filePath,
-        string sender,
-        string documentId,
-        MessageFormatType formatterType = MessageFormatType.Default)
-    {
-        FilePath = filePath;
-        Sender = sender;
-        DocumentId = documentId;
-        FormatterType = formatterType;
-    }
-}
+/// <param name="FilePath">The path to the chat export file.</param>
+/// <param name="Sender">
+/// The sender name to filter messages by.
+/// Only messages from this sender will be uploaded to the document.
+/// The matching is case-insensitive.
+/// </param>
+/// <param name="DocumentId">The Google Docs document identifier.</param>
+/// <param name="FormatterType">The message formatting type to use.</param>
+public sealed record UploadToGoogleDocsCommand(
+    string FilePath,
+    string Sender,
+    string DocumentId,
+    MessageFormatType FormatterType = MessageFormatType.Default
+);

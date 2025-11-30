@@ -282,7 +282,7 @@ public class UploadToGoogleDocsCommandHandlerTests
         var metadata = new ParsingMetadata("chat.txt", DateTimeOffset.Now, 1, 1, 0);
         var chatExport = new ChatExport(Guid.NewGuid(), messages, metadata);
         var checkpoint = ProcessingCheckpoint.Create(command.DocumentId, SenderFilter.Create(command.Sender));
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
 
         _chatParserMock
             .Setup(x => x.ParseAsync(command.FilePath, cts.Token))
