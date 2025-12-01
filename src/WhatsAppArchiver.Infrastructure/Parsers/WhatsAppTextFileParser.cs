@@ -14,7 +14,7 @@ namespace WhatsAppArchiver.Infrastructure.Parsers;
 /// </summary>
 /// <remarks>
 /// This parser handles the standard WhatsApp text export format:
-/// <c>DD/MM/YYYY HH:mm - Sender: Message content</c>
+/// <c>[DD/MM/YYYY, HH:mm:ss] Sender: Message content</c>
 /// Multi-line messages (lines without timestamps) are treated as continuations
 /// of the previous message. Implements retry policies for transient I/O failures.
 /// </remarks>
@@ -26,7 +26,7 @@ namespace WhatsAppArchiver.Infrastructure.Parsers;
 /// </example>
 public sealed partial class WhatsAppTextFileParser : IChatParser
 {
-    // Pattern: DD/MM/YYYY HH:mm - Sender: Message
+    // Pattern: [DD/MM/YYYY, HH:mm:ss] Sender: Message
     private static readonly Regex MessagePattern = CreateMessagePattern();
 
     private readonly ResiliencePipeline _resiliencePipeline;
@@ -172,7 +172,7 @@ public sealed partial class WhatsAppTextFileParser : IChatParser
         var sender = match.Groups["sender"].Value;
         var content = match.Groups["content"].Value;
 
-        // Parse the timestamp: DD/MM/YYYY HH:mm
+        // Parse the timestamp: DD/MM/YYYY, HH:mm:ss
         var dateTimeStr = $"{dateStr} {timeStr}";
         var timestamp = ParseTimestamp(dateTimeStr);
 
@@ -180,14 +180,14 @@ public sealed partial class WhatsAppTextFileParser : IChatParser
     }
 
     /// <summary>
-    /// Parses a timestamp string in the format DD/MM/YYYY HH:mm.
+    /// Parses a timestamp string in the format DD/MM/YYYY HH:mm:ss.
     /// </summary>
     /// <param name="dateTimeStr">The datetime string to parse.</param>
     /// <returns>The parsed DateTimeOffset.</returns>
     private static DateTimeOffset ParseTimestamp(string dateTimeStr)
     {
         // Try multiple formats to be flexible
-        string[] formats = ["dd/MM/yyyy HH:mm", "d/M/yyyy HH:mm", "d/M/yyyy H:mm"];
+        string[] formats = ["dd/MM/yyyy HH:mm:ss", "d/M/yyyy HH:mm:ss", "d/M/yyyy H:mm:ss", "dd/MM/yyyy HH:mm", "d/M/yyyy HH:mm", "d/M/yyyy H:mm"];
 
         if (DateTimeOffset.TryParseExact(
             dateTimeStr,
@@ -211,7 +211,7 @@ public sealed partial class WhatsAppTextFileParser : IChatParser
     /// <summary>
     /// Generates the message pattern regex at compile time.
     /// </summary>
-    [GeneratedRegex(@"^(?<date>\d{1,2}/\d{1,2}/\d{4})\s+(?<time>\d{1,2}:\d{2})\s+-\s+(?<sender>[^:]+):\s+(?<content>.*)$")]
+    [GeneratedRegex(@"^\[(?<date>\d{1,2}/\d{1,2}/\d{4}),\s+(?<time>\d{1,2}:\d{2}:\d{2})\]\s+(?<sender>[^:]+):\s+(?<content>.*)$")]
     private static partial Regex CreateMessagePattern();
 
     /// <summary>

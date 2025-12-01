@@ -40,7 +40,7 @@ public class WhatsAppTextFileParserTests : IDisposable
     [Fact(DisplayName = "ParseAsync with valid single message parses correctly")]
     public async Task ParseAsync_ValidSingleMessage_ParsesCorrectly()
     {
-        var content = "25/12/2024 14:30 - John Doe: Hello, World!";
+        var content = "[25/12/2024, 14:30:00] John Doe: Hello, World!";
         var filePath = CreateTestFile(content);
         var parser = new WhatsAppTextFileParser();
 
@@ -54,15 +54,16 @@ public class WhatsAppTextFileParserTests : IDisposable
         Assert.Equal(25, result.Messages[0].Timestamp.Day);
         Assert.Equal(14, result.Messages[0].Timestamp.Hour);
         Assert.Equal(30, result.Messages[0].Timestamp.Minute);
+        Assert.Equal(0, result.Messages[0].Timestamp.Second);
     }
 
     [Fact(DisplayName = "ParseAsync with multiple messages parses all messages")]
     public async Task ParseAsync_MultipleMessages_ParsesAllMessages()
     {
         var content = """
-            25/12/2024 14:30 - John: Hello
-            25/12/2024 14:31 - Jane: Hi there
-            25/12/2024 14:32 - John: How are you?
+            [25/12/2024, 14:30:00] John: Hello
+            [25/12/2024, 14:31:00] Jane: Hi there
+            [25/12/2024, 14:32:00] John: How are you?
             """;
         var filePath = CreateTestFile(content);
         var parser = new WhatsAppTextFileParser();
@@ -79,10 +80,10 @@ public class WhatsAppTextFileParserTests : IDisposable
     public async Task ParseAsync_MultiLineMessage_ConcatenatesContent()
     {
         var content = """
-            25/12/2024 14:30 - John: First line
+            [25/12/2024, 14:30:00] John: First line
             Second line of the message
             Third line
-            25/12/2024 14:31 - Jane: Single line
+            [25/12/2024, 14:31:00] Jane: Single line
             """;
         var filePath = CreateTestFile(content);
         var parser = new WhatsAppTextFileParser();
@@ -100,9 +101,9 @@ public class WhatsAppTextFileParserTests : IDisposable
     public async Task ParseAsync_EmptyLines_IgnoresThem()
     {
         var content = """
-            25/12/2024 14:30 - John: Hello
+            [25/12/2024, 14:30:00] John: Hello
 
-            25/12/2024 14:31 - Jane: Hi
+            [25/12/2024, 14:31:00] Jane: Hi
             """;
         var filePath = CreateTestFile(content);
         var parser = new WhatsAppTextFileParser();
@@ -116,8 +117,8 @@ public class WhatsAppTextFileParserTests : IDisposable
     public async Task ParseAsync_ValidFile_SetsMetadataCorrectly()
     {
         var content = """
-            25/12/2024 14:30 - John: Hello
-            25/12/2024 14:31 - Jane: Hi
+            [25/12/2024, 14:30:00] John: Hello
+            [25/12/2024, 14:31:00] Jane: Hi
             """;
         var fileName = "chat_export.txt";
         var filePath = CreateTestFile(content, fileName);
@@ -162,7 +163,7 @@ public class WhatsAppTextFileParserTests : IDisposable
     [Fact(DisplayName = "ParseAsync with single digit date and time parses correctly")]
     public async Task ParseAsync_SingleDigitDateTime_ParsesCorrectly()
     {
-        var content = "5/1/2024 9:05 - John: Morning message";
+        var content = "[5/1/2024, 09:05:30] John: Morning message";
         var filePath = CreateTestFile(content);
         var parser = new WhatsAppTextFileParser();
 
@@ -172,12 +173,15 @@ public class WhatsAppTextFileParserTests : IDisposable
         Assert.Equal(2024, result.Messages[0].Timestamp.Year);
         Assert.Equal(1, result.Messages[0].Timestamp.Month);
         Assert.Equal(5, result.Messages[0].Timestamp.Day);
+        Assert.Equal(9, result.Messages[0].Timestamp.Hour);
+        Assert.Equal(5, result.Messages[0].Timestamp.Minute);
+        Assert.Equal(30, result.Messages[0].Timestamp.Second);
     }
 
     [Fact(DisplayName = "ParseAsync with message containing colons parses correctly")]
     public async Task ParseAsync_MessageWithColons_ParsesCorrectly()
     {
-        var content = "25/12/2024 14:30 - John: Time is: 14:30:00";
+        var content = "[25/12/2024, 14:30:00] John: Time is: 14:30:00";
         var filePath = CreateTestFile(content);
         var parser = new WhatsAppTextFileParser();
 
@@ -190,7 +194,7 @@ public class WhatsAppTextFileParserTests : IDisposable
     [Fact(DisplayName = "ParseAsync with sender containing special characters parses correctly")]
     public async Task ParseAsync_SenderWithSpecialCharacters_ParsesCorrectly()
     {
-        var content = "25/12/2024 14:30 - João da Silva: Olá!";
+        var content = "[25/12/2024, 14:30:00] João da Silva: Olá!";
         var filePath = CreateTestFile(content);
         var parser = new WhatsAppTextFileParser();
 
@@ -217,8 +221,8 @@ public class WhatsAppTextFileParserTests : IDisposable
     public async Task ParseAsync_MultipleMessages_GeneratesUniqueMessageIds()
     {
         var content = """
-            25/12/2024 14:30 - John: Hello
-            25/12/2024 14:31 - Jane: World
+            [25/12/2024, 14:30:00] John: Hello
+            [25/12/2024, 14:31:00] Jane: World
             """;
         var filePath = CreateTestFile(content);
         var parser = new WhatsAppTextFileParser();
@@ -232,7 +236,7 @@ public class WhatsAppTextFileParserTests : IDisposable
     [Fact(DisplayName = "ParseAsync respects cancellation token")]
     public async Task ParseAsync_CancelledToken_ThrowsOperationCanceledException()
     {
-        var content = "25/12/2024 14:30 - John: Hello";
+        var content = "[25/12/2024, 14:30:00] John: Hello";
         var filePath = CreateTestFile(content);
         var parser = new WhatsAppTextFileParser();
         using var cts = new CancellationTokenSource();
@@ -246,11 +250,11 @@ public class WhatsAppTextFileParserTests : IDisposable
     public async Task ParseAsync_RealWorldExport_ParsesCorrectly()
     {
         var content = """
-            01/01/2024 00:01 - Messages and calls are end-to-end encrypted. No one outside of this chat, not even WhatsApp, can read or listen to them. Tap to learn more.
-            01/01/2024 10:30 - Alice: Happy New Year! 🎉
-            01/01/2024 10:31 - Bob: Happy New Year to you too!
+            [01/01/2024, 00:01:00] Messages and calls are end-to-end encrypted. No one outside of this chat, not even WhatsApp, can read or listen to them. Tap to learn more.
+            [01/01/2024, 10:30:00] Alice: Happy New Year! 🎉
+            [01/01/2024, 10:31:00] Bob: Happy New Year to you too!
             Hope 2024 is amazing!
-            01/01/2024 10:32 - Alice: Thank you! 💕
+            [01/01/2024, 10:32:00] Alice: Thank you! 💕
             """;
         var filePath = CreateTestFile(content);
         var parser = new WhatsAppTextFileParser();
