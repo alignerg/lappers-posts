@@ -195,8 +195,8 @@ public sealed partial class WhatsAppTextFileParser : IChatParser
     /// <exception cref="FormatException">Thrown when the timestamp cannot be parsed.</exception>
     private static DateTimeOffset ParseTimestamp(string dateTimeStr)
     {
-        // Try multiple formats to be flexible
-        string[] formats = ["dd/MM/yyyy HH:mm:ss", "d/M/yyyy HH:mm:ss", "d/M/yyyy H:mm:ss", "dd/MM/yyyy HH:mm", "d/M/yyyy HH:mm", "d/M/yyyy H:mm"];
+        // Only allow formats with seconds to match the regex pattern requirement
+        string[] formats = ["dd/MM/yyyy HH:mm:ss", "d/M/yyyy HH:mm:ss", "d/M/yyyy H:mm:ss"];
 
         if (DateTimeOffset.TryParseExact(
             dateTimeStr,

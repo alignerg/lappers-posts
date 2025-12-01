@@ -27,7 +27,7 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
 {
     private readonly DocsService _docsService;
     private readonly ResiliencePipeline _resiliencePipeline;
-    private bool _disposed;
+    private int _disposed; // 0 = false, 1 = true (for thread-safe disposal)
 
     /// <summary>
     /// Initializes a new instance of the <see cref="GoogleDocsServiceAccountAdapter"/> class.
@@ -80,24 +80,37 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
     /// <exception cref="ArgumentException">Thrown when documentId is null or empty.</exception>
     public async Task UploadAsync(string documentId, string content, CancellationToken cancellationToken = default)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(_disposed == 1, this);
         ValidateDocumentId(documentId);
 
-        var requests = new List<Request>
+        // Get the document to find the actual end index for safe deletion
+        var document = await _resiliencePipeline.ExecuteAsync(
+            async ct =>
+            {
+                var request = _docsService.Documents.Get(documentId);
+                return await request.ExecuteAsync(ct);
+            },
+            cancellationToken);
+
+        var endIndex = document.Body?.Content?.LastOrDefault()?.EndIndex ?? 1;
+
+        var requests = new List<Request>();
+
+        // Only delete if there is content to delete (endIndex > 1)
+        if (endIndex > 1)
         {
-            // First, delete all content
-            new Request
+            requests.Add(new Request
             {
                 DeleteContentRange = new DeleteContentRangeRequest
                 {
                     Range = new Google.Apis.Docs.v1.Data.Range
                     {
                         StartIndex = 1,
-                        EndIndex = int.MaxValue
+                        EndIndex = (int)endIndex - 1
                     }
                 }
-            }
-        };
+            });
+        }
 
         // Then insert new content
         if (!string.IsNullOrEmpty(content))
@@ -105,14 +118,17 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
             requests.Add(CreateInsertTextRequest(content, 1));
         }
 
-        await ExecuteBatchUpdateAsync(documentId, requests, cancellationToken);
+        if (requests.Count > 0)
+        {
+            await ExecuteBatchUpdateAsync(documentId, requests, cancellationToken);
+        }
     }
 
     /// <inheritdoc/>
     /// <exception cref="ArgumentException">Thrown when documentId is null or empty.</exception>
     public async Task AppendAsync(string documentId, string content, CancellationToken cancellationToken = default)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(_disposed == 1, this);
         ValidateDocumentId(documentId);
 
         if (string.IsNullOrEmpty(content))
@@ -145,13 +161,13 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
 
     /// <summary>
     /// Disposes the resources used by this adapter.
+    /// Uses thread-safe disposal pattern with Interlocked.Exchange.
     /// </summary>
     public void Dispose()
     {
-        if (!_disposed)
+        if (Interlocked.Exchange(ref _disposed, 1) == 0)
         {
             _docsService.Dispose();
-            _disposed = true;
             GC.SuppressFinalize(this);
         }
     }

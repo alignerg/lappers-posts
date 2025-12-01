@@ -94,6 +94,8 @@ public sealed class JsonFileStateRepository : IProcessingStateService, IDisposab
         SenderFilter? senderFilter = null,
         CancellationToken cancellationToken = default)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         if (string.IsNullOrWhiteSpace(documentId))
         {
             throw new ArgumentException("Document ID cannot be null or whitespace.", nameof(documentId));
@@ -125,6 +127,7 @@ public sealed class JsonFileStateRepository : IProcessingStateService, IDisposab
         ProcessingCheckpoint checkpoint,
         CancellationToken cancellationToken = default)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(checkpoint);
 
         await _fileLock.WaitAsync(cancellationToken);
