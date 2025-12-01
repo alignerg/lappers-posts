@@ -127,8 +127,16 @@ public sealed partial class WhatsAppTextFileParser : IChatParser
                     }
                 }
 
-                // Start a new message
-                currentBuilder = CreateBuilderFromMatch(match);
+                // Start a new message - handle potential timestamp parsing failures
+                try
+                {
+                    currentBuilder = CreateBuilderFromMatch(match);
+                }
+                catch (FormatException)
+                {
+                    failedLineCount++;
+                    currentBuilder = null;
+                }
             }
             else if (currentBuilder is not null)
             {
@@ -184,6 +192,7 @@ public sealed partial class WhatsAppTextFileParser : IChatParser
     /// </summary>
     /// <param name="dateTimeStr">The datetime string to parse.</param>
     /// <returns>The parsed DateTimeOffset.</returns>
+    /// <exception cref="FormatException">Thrown when the timestamp cannot be parsed.</exception>
     private static DateTimeOffset ParseTimestamp(string dateTimeStr)
     {
         // Try multiple formats to be flexible
@@ -205,7 +214,7 @@ public sealed partial class WhatsAppTextFileParser : IChatParser
             return result;
         }
 
-        return DateTimeOffset.MinValue;
+        throw new FormatException($"Unable to parse timestamp '{dateTimeStr}'. Expected format: DD/MM/YYYY HH:mm:ss");
     }
 
     /// <summary>

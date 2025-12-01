@@ -150,6 +150,11 @@ public sealed class JsonFileStateRepository : IProcessingStateService, IDisposab
     /// <param name="documentId">The document ID.</param>
     /// <param name="senderFilter">The optional sender filter.</param>
     /// <returns>A unique key string.</returns>
+    /// <remarks>
+    /// Key generation is case-insensitive: both documentId and senderName are normalized
+    /// to lowercase invariant. This means "DOC-123" and "doc-123" are treated as the same
+    /// document, and "John" and "JOHN" are treated as the same sender.
+    /// </remarks>
     private static string CreateCheckpointKey(string documentId, SenderFilter? senderFilter)
     {
         // Normalize both documentId and senderName to lowercase invariant for consistent key generation.
@@ -193,6 +198,11 @@ public sealed class JsonFileStateRepository : IProcessingStateService, IDisposab
     /// </summary>
     /// <param name="state">The state to save.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
+    /// <remarks>
+    /// This implementation uses File.Move with overwrite to provide atomic file replacement.
+    /// On Windows NTFS, this operation is atomic. On other file systems, atomicity may vary.
+    /// If a failure occurs during the write, the temp file is cleaned up automatically.
+    /// </remarks>
     private async Task SaveStateAtomicallyAsync(StateContainer state, CancellationToken cancellationToken)
     {
         var directory = Path.GetDirectoryName(_filePath);

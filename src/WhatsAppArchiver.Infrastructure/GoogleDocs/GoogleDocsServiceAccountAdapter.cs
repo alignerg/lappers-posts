@@ -80,8 +80,8 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
     /// <exception cref="ArgumentException">Thrown when documentId is null or empty.</exception>
     public async Task UploadAsync(string documentId, string content, CancellationToken cancellationToken = default)
     {
-        ValidateDocumentId(documentId);
         ObjectDisposedException.ThrowIf(_disposed, this);
+        ValidateDocumentId(documentId);
 
         var requests = new List<Request>
         {
@@ -112,8 +112,8 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
     /// <exception cref="ArgumentException">Thrown when documentId is null or empty.</exception>
     public async Task AppendAsync(string documentId, string content, CancellationToken cancellationToken = default)
     {
-        ValidateDocumentId(documentId);
         ObjectDisposedException.ThrowIf(_disposed, this);
+        ValidateDocumentId(documentId);
 
         if (string.IsNullOrEmpty(content))
         {
@@ -152,6 +152,7 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
         {
             _docsService.Dispose();
             _disposed = true;
+            GC.SuppressFinalize(this);
         }
     }
 
@@ -162,7 +163,6 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
     public ValueTask DisposeAsync()
     {
         Dispose();
-        GC.SuppressFinalize(this);
         return ValueTask.CompletedTask;
     }
 
