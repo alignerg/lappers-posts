@@ -103,6 +103,9 @@ public sealed class JsonFileStateRepository : IProcessingStateService, IDisposab
 
         await _fileLock.WaitAsync(cancellationToken);
 
+        // Check disposal again after acquiring the lock to avoid race condition
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         try
         {
             var state = await LoadStateAsync(cancellationToken);
@@ -131,6 +134,9 @@ public sealed class JsonFileStateRepository : IProcessingStateService, IDisposab
         ArgumentNullException.ThrowIfNull(checkpoint);
 
         await _fileLock.WaitAsync(cancellationToken);
+
+        // Check disposal again after acquiring the lock to avoid race condition
+        ObjectDisposedException.ThrowIf(_disposed, this);
 
         try
         {
@@ -238,10 +244,17 @@ public sealed class JsonFileStateRepository : IProcessingStateService, IDisposab
         }
         catch
         {
-            // Clean up temp file on failure
-            if (File.Exists(tempFilePath))
+            // Clean up temp file on failure, but do not suppress the original exception if cleanup fails.
+            try
             {
-                File.Delete(tempFilePath);
+                if (File.Exists(tempFilePath))
+                {
+                    File.Delete(tempFilePath);
+                }
+            }
+            catch
+            {
+                // Cleanup failure is logged but does not suppress the original exception.
             }
 
             throw;

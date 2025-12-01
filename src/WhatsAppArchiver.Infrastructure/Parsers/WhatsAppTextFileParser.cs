@@ -208,12 +208,6 @@ public sealed partial class WhatsAppTextFileParser : IChatParser
             return result;
         }
 
-        // If none of the formats work, try generic parsing
-        if (DateTimeOffset.TryParse(dateTimeStr, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out result))
-        {
-            return result;
-        }
-
         throw new FormatException($"Unable to parse timestamp '{dateTimeStr}'. Expected format: DD/MM/YYYY HH:mm:ss");
     }
 

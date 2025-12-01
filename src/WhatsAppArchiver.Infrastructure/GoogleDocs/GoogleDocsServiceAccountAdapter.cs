@@ -176,10 +176,22 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
     /// Asynchronously disposes the resources used by this adapter.
     /// </summary>
     /// <returns>A task representing the asynchronous dispose operation.</returns>
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
-        Dispose();
-        return ValueTask.CompletedTask;
+        if (Interlocked.Exchange(ref _disposed, 1) == 0)
+        {
+            // If DocsService supports IAsyncDisposable, use it; otherwise, fallback to Dispose()
+            if (_docsService is IAsyncDisposable asyncDisposable)
+            {
+                await asyncDisposable.DisposeAsync();
+            }
+            else
+            {
+                _docsService.Dispose();
+            }
+
+            GC.SuppressFinalize(this);
+        }
     }
 
     /// <summary>
@@ -200,7 +212,6 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
                                           or System.Net.HttpStatusCode.TooManyRequests
                                           or System.Net.HttpStatusCode.InternalServerError)
                     .Handle<HttpRequestException>()
-                    .Handle<TaskCanceledException>(ex => !ex.CancellationToken.IsCancellationRequested)
             })
             .Build();
     }
