@@ -1,4 +1,6 @@
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Polly;
 using Polly.Retry;
 using WhatsAppArchiver.Application.Services;
@@ -27,7 +29,7 @@ public sealed class WhatsAppTextFileParser : IChatParser
     /// Example match: [25/12/2024, 09:15:00] John Smith: Hello everyone!
     /// </summary>
     private static readonly Regex DatePattern24Hour = new(
-        @"^\[(\d{1,2}/\d{1,2}/\d{4}),\s*(\d{1,2}:\d{2}:\d{2})\]\s*(.+?):\s*(.+)$",
+        @"^\[(\d{1,2}/\d{1,2}/\d{4}),\s*(\d{1,2}:\d{2}:\d{2})\]\s*([^:]+):\s*(.+)$",
         RegexOptions.Compiled);
 
     /// <summary>
@@ -36,7 +38,7 @@ public sealed class WhatsAppTextFileParser : IChatParser
     /// Example match: [1/5/24, 8:30:00 AM] Sarah Wilson: Good morning!
     /// </summary>
     private static readonly Regex DatePattern12Hour = new(
-        @"^\[(\d{1,2}/\d{1,2}/\d{2,4}),\s*(\d{1,2}:\d{2}:\d{2}\s*(?:AM|PM))\]\s*(.+?):\s*(.+)$",
+        @"^\[(\d{1,2}/\d{1,2}/\d{2,4}),\s*(\d{1,2}:\d{2}:\d{2}\s*(?:AM|PM))\]\s*([^:]+):\s*(.+)$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     // Pattern to detect if a line starts with a timestamp (for continuation detection)
@@ -45,12 +47,23 @@ public sealed class WhatsAppTextFileParser : IChatParser
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private readonly ResiliencePipeline _resiliencePipeline;
+    private readonly ILogger<WhatsAppTextFileParser> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WhatsAppTextFileParser"/> class.
     /// </summary>
     public WhatsAppTextFileParser()
+        : this(NullLogger<WhatsAppTextFileParser>.Instance)
     {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="WhatsAppTextFileParser"/> class with a logger.
+    /// </summary>
+    /// <param name="logger">The logger instance for diagnostic output.</param>
+    public WhatsAppTextFileParser(ILogger<WhatsAppTextFileParser> logger)
+    {
+        _logger = logger ?? NullLogger<WhatsAppTextFileParser>.Instance;
         _resiliencePipeline = new ResiliencePipelineBuilder()
             .AddRetry(new RetryStrategyOptions
             {
@@ -63,7 +76,7 @@ public sealed class WhatsAppTextFileParser : IChatParser
     }
 
     /// <inheritdoc/>
-    public async Task<ChatExport> ParseAsync(string filePath, CancellationToken cancellationToken = default)
+    public async Task<ChatExport> ParseAsync(string filePath, TimeSpan? timeZoneOffset = null, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(filePath))
         {
@@ -74,6 +87,9 @@ public sealed class WhatsAppTextFileParser : IChatParser
         {
             throw new FileNotFoundException("The specified file does not exist.", filePath);
         }
+
+        var offset = timeZoneOffset ?? TimeSpan.Zero;
+        _logger.LogDebug("Parsing file {FilePath} with timezone offset {Offset}", filePath, offset);
 
         var lines = await _resiliencePipeline.ExecuteAsync(
             async ct => await File.ReadAllLinesAsync(filePath, ct),
@@ -94,16 +110,13 @@ public sealed class WhatsAppTextFileParser : IChatParser
             if (TimestampStartPattern.IsMatch(line))
             {
                 // Save the previous message if exists
-                if (currentMessage is not null)
+                if (currentMessage is not null && !TryAddFinalMessage(messages, currentMessage, currentContent, i))
                 {
-                    if (!TryAddFinalMessage(messages, currentMessage, currentContent))
-                    {
-                        failedLineCount++;
-                    }
+                    failedLineCount++;
                 }
 
                 // Try to parse as a new message
-                var (message, isSuccess) = TryParseMessageLine(line);
+                var (message, isSuccess) = TryParseMessageLine(line, offset, i + 1);
 
                 if (isSuccess && message is not null)
                 {
@@ -132,12 +145,9 @@ public sealed class WhatsAppTextFileParser : IChatParser
         }
 
         // Don't forget the last message
-        if (currentMessage is not null && currentContent.Count > 0)
+        if (currentMessage is not null && !TryAddFinalMessage(messages, currentMessage, currentContent, lines.Length))
         {
-            if (!TryAddFinalMessage(messages, currentMessage, currentContent))
-            {
-                failedLineCount++;
-            }
+            failedLineCount++;
         }
 
         var metadata = ParsingMetadata.Create(
@@ -147,10 +157,14 @@ public sealed class WhatsAppTextFileParser : IChatParser
             messages.Count,
             failedLineCount);
 
+        _logger.LogInformation(
+            "Parsed {ParsedCount} messages from {TotalLines} lines with {FailedCount} failures",
+            messages.Count, totalLines, failedLineCount);
+
         return ChatExport.Create(messages, metadata);
     }
 
-    private static bool TryAddFinalMessage(List<ChatMessage> messages, ChatMessage currentMessage, List<string> currentContent)
+    private bool TryAddFinalMessage(List<ChatMessage> messages, ChatMessage currentMessage, List<string> currentContent, int lineNumber)
     {
         var finalContent = string.Join(Environment.NewLine, currentContent);
         try
@@ -161,40 +175,47 @@ public sealed class WhatsAppTextFileParser : IChatParser
                 finalContent));
             return true;
         }
-        catch (ArgumentException)
+        catch (ArgumentException ex)
         {
+            _logger.LogWarning(
+                ex,
+                "Failed to create message at line {LineNumber}: {Message} (Parameter: {ParamName})",
+                lineNumber,
+                ex.Message,
+                ex.ParamName);
             return false;
         }
     }
 
-    private static (ChatMessage? Message, bool IsSuccess) TryParseMessageLine(string line)
+    private (ChatMessage? Message, bool IsSuccess) TryParseMessageLine(string line, TimeSpan offset, int lineNumber)
     {
         // Try 24-hour format first (DD/MM/YYYY)
         var match = DatePattern24Hour.Match(line);
         if (match.Success)
         {
-            return TryCreateMessage(match, is24HourFormat: true);
+            return TryCreateMessage(match, is24HourFormat: true, offset, lineNumber);
         }
 
         // Try 12-hour format (M/D/YY)
         match = DatePattern12Hour.Match(line);
         if (match.Success)
         {
-            return TryCreateMessage(match, is24HourFormat: false);
+            return TryCreateMessage(match, is24HourFormat: false, offset, lineNumber);
         }
 
         return (null, false);
     }
 
-    private static (ChatMessage? Message, bool IsSuccess) TryCreateMessage(Match match, bool is24HourFormat)
+    private (ChatMessage? Message, bool IsSuccess) TryCreateMessage(Match match, bool is24HourFormat, TimeSpan offset, int lineNumber)
     {
         var dateStr = match.Groups[1].Value;
         var timeStr = match.Groups[2].Value;
         var sender = match.Groups[3].Value.Trim();
         var content = match.Groups[4].Value;
 
-        if (!TryParseDateTime(dateStr, timeStr, is24HourFormat, out var timestamp))
+        if (!TryParseDateTime(dateStr, timeStr, is24HourFormat, offset, out var timestamp))
         {
+            _logger.LogDebug("Failed to parse date/time at line {LineNumber}: {Date} {Time}", lineNumber, dateStr, timeStr);
             return (null, false);
         }
 
@@ -203,13 +224,19 @@ public sealed class WhatsAppTextFileParser : IChatParser
             var message = ChatMessage.Create(timestamp, sender, content);
             return (message, true);
         }
-        catch (ArgumentException)
+        catch (ArgumentException ex)
         {
+            _logger.LogWarning(
+                ex,
+                "Failed to create message at line {LineNumber}: {Message} (Parameter: {ParamName})",
+                lineNumber,
+                ex.Message,
+                ex.ParamName);
             return (null, false);
         }
     }
 
-    private static bool TryParseDateTime(string dateStr, string timeStr, bool is24HourFormat, out DateTimeOffset result)
+    private static bool TryParseDateTime(string dateStr, string timeStr, bool is24HourFormat, TimeSpan offset, out DateTimeOffset result)
     {
         result = default;
 
@@ -226,10 +253,11 @@ public sealed class WhatsAppTextFileParser : IChatParser
             return false;
         }
 
-        // Handle 2-digit years
+        // Handle 2-digit years using a pivot year of 50:
+        // 00-49 => 2000-2049, 50-99 => 1950-1999
         if (year < 100)
         {
-            year += 2000;
+            year += (year < 50) ? 2000 : 1900;
         }
 
         int day, month;
@@ -262,11 +290,12 @@ public sealed class WhatsAppTextFileParser : IChatParser
         try
         {
             var dateTime = new DateTime(year, month, day, time.Hours, time.Minutes, time.Seconds);
-            result = new DateTimeOffset(dateTime, TimeSpan.Zero);
+            result = new DateTimeOffset(dateTime, offset);
             return true;
         }
-        catch
+        catch (ArgumentOutOfRangeException)
         {
+            // Invalid date/time values; treat as parse failure.
             return false;
         }
     }

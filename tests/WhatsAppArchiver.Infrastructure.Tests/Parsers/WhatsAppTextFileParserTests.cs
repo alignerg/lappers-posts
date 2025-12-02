@@ -100,7 +100,10 @@ public class WhatsAppTextFileParserTests
         // because they don't have the sender: content format
         result.Metadata.FailedLineCount.Should().BeGreaterThan(0);
 
-        // The total lines minus continuation lines should match parsed + failed
+        // The sample-edge-cases.txt file contains 28 lines in total, including continuation lines.
+        // Note: TotalLines counts all lines (including continuations), while ParsedMessageCount
+        // counts successful messages and FailedLineCount counts lines that couldn't be parsed
+        // as new messages (excluding continuation lines which are attached to previous messages).
         result.Metadata.TotalLines.Should().Be(28);
     }
 
@@ -122,7 +125,10 @@ public class WhatsAppTextFileParserTests
         }
         finally
         {
-            File.Delete(tempFile);
+            if (File.Exists(tempFile))
+            {
+                File.Delete(tempFile);
+            }
         }
     }
 
@@ -230,6 +236,37 @@ public class WhatsAppTextFileParserTests
         specialCharsMessage!.Content.Should().Contain("@#$%^&*()[]{}|;:'\"");
     }
 
+    [Fact(DisplayName = "ParseAsync with timezone offset applies correct offset to timestamps")]
+    public async Task ParseAsync_WithTimezoneOffset_AppliesCorrectOffset()
+    {
+        var filePath = Path.Combine(_sampleDataPath, "sample-dd-mm-yyyy.txt");
+        var offset = TimeSpan.FromHours(5); // UTC+5
+
+        var result = await _parser.ParseAsync(filePath, offset);
+
+        result.Should().NotBeNull();
+        result.Messages.Should().NotBeEmpty();
+
+        // Verify that the offset is applied correctly
+        var firstMessage = result.Messages.First();
+        firstMessage.Timestamp.Offset.Should().Be(offset);
+    }
+
+    [Fact(DisplayName = "ParseAsync without timezone offset uses UTC")]
+    public async Task ParseAsync_WithoutTimezoneOffset_UsesUtc()
+    {
+        var filePath = Path.Combine(_sampleDataPath, "sample-dd-mm-yyyy.txt");
+
+        var result = await _parser.ParseAsync(filePath);
+
+        result.Should().NotBeNull();
+        result.Messages.Should().NotBeEmpty();
+
+        // Verify that UTC (zero offset) is used by default
+        var firstMessage = result.Messages.First();
+        firstMessage.Timestamp.Offset.Should().Be(TimeSpan.Zero);
+    }
+
     private static string GetSampleDataPath()
     {
         // Search for the SampleData directory by walking up from the current directory
@@ -260,12 +297,10 @@ public class WhatsAppTextFileParserTests
             Path.Combine(outputDir, "..", "..", "..", "..", "SampleData")
         };
 
-        foreach (var path in relativePaths)
+        var foundPath = relativePaths.FirstOrDefault(path => Directory.Exists(path));
+        if (foundPath is not null)
         {
-            if (Directory.Exists(path))
-            {
-                return Path.GetFullPath(path);
-            }
+            return Path.GetFullPath(foundPath);
         }
 
         throw new DirectoryNotFoundException(

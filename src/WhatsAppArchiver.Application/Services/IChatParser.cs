@@ -26,6 +26,10 @@ public interface IChatParser
     /// Parses a WhatsApp chat export file and returns the resulting aggregate.
     /// </summary>
     /// <param name="filePath">The path to the chat export file.</param>
+    /// <param name="timeZoneOffset">
+    /// The timezone offset for the export file timestamps. WhatsApp exports typically contain
+    /// timestamps in the local timezone of the device that created the export. If null, UTC is assumed.
+    /// </param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>
     /// A <see cref="ChatExport"/> aggregate containing all parsed messages
@@ -33,5 +37,5 @@ public interface IChatParser
     /// </returns>
     /// <exception cref="ArgumentException">Thrown when <paramref name="filePath"/> is null or empty.</exception>
     /// <exception cref="FileNotFoundException">Thrown when the specified file does not exist.</exception>
-    Task<ChatExport> ParseAsync(string filePath, CancellationToken cancellationToken = default);
+    Task<ChatExport> ParseAsync(string filePath, TimeSpan? timeZoneOffset = null, CancellationToken cancellationToken = default);
 }
