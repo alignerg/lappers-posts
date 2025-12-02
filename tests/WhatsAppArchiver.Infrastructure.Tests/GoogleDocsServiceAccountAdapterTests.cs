@@ -64,6 +64,7 @@ public class GoogleDocsServiceAccountAdapterTests
     public void Constructor_NullCredentialFilePath_ThrowsArgumentException()
     {
         var factoryMock = new Mock<IGoogleDocsClientFactory>();
+        factoryMock.Setup(f => f.Create(It.IsAny<string>())).Returns(Mock.Of<IGoogleDocsClientWrapper>());
 
         var act = () => new GoogleDocsServiceAccountAdapter(
             null!,
@@ -77,6 +78,7 @@ public class GoogleDocsServiceAccountAdapterTests
     public void Constructor_EmptyCredentialFilePath_ThrowsArgumentException()
     {
         var factoryMock = new Mock<IGoogleDocsClientFactory>();
+        factoryMock.Setup(f => f.Create(It.IsAny<string>())).Returns(Mock.Of<IGoogleDocsClientWrapper>());
 
         var act = () => new GoogleDocsServiceAccountAdapter(
             string.Empty,
@@ -168,6 +170,8 @@ public class GoogleDocsServiceAccountAdapterTests
                 return Task.CompletedTask;
             });
 
+        // MaxRetryAttempts = 3 means up to 4 total calls (1 initial + 3 retries)
+        // We succeed on call #3, which is the 2nd retry after 2 failures
         var retryPipeline = new ResiliencePipelineBuilder()
             .AddRetry(new Polly.Retry.RetryStrategyOptions
             {
@@ -185,6 +189,7 @@ public class GoogleDocsServiceAccountAdapterTests
 
         await adapter.UploadAsync("doc-123", "content");
 
+        // 3 calls: 1 initial + 2 retries, succeeded on the 3rd attempt
         callCount.Should().Be(3);
     }
 
@@ -223,6 +228,15 @@ public class GoogleDocsServiceAccountAdapterTests
     public async Task AppendAsync_NullDocumentId_ThrowsArgumentException()
     {
         var act = () => _adapter.AppendAsync(null!, "content");
+
+        await act.Should().ThrowAsync<ArgumentException>()
+            .WithParameterName("documentId");
+    }
+
+    [Fact(DisplayName = "AppendAsync with empty document ID throws ArgumentException")]
+    public async Task AppendAsync_EmptyDocumentId_ThrowsArgumentException()
+    {
+        var act = () => _adapter.AppendAsync(string.Empty, "content");
 
         await act.Should().ThrowAsync<ArgumentException>()
             .WithParameterName("documentId");
@@ -288,10 +302,10 @@ public class GoogleDocsServiceAccountAdapterTests
 
         insertTextRequests.Should().HaveCount(3);
         
-        var combinedText = string.Concat(insertTextRequests);
-        combinedText.Should().Contain("Line 1");
-        combinedText.Should().Contain("Line 2");
-        combinedText.Should().Contain("Line 3");
+        // Requests are inserted in reverse order (Line 3, Line 2, Line 1) for correct document assembly
+        // When reversed and concatenated, they should produce the original content
+        var combinedText = string.Concat(insertTextRequests.AsEnumerable().Reverse());
+        combinedText.Should().Be("Line 1\nLine 2\nLine 3");
     }
 
     [Fact(DisplayName = "UploadAsync includes delete request to clear existing content")]
@@ -362,4 +376,64 @@ public class GoogleDocsServiceAccountAdapterTests
                 cts.Token),
             Times.Once);
     }
+
+    #region GoogleDocsClientFactory Tests
+
+    [Fact(DisplayName = "Factory Create with null credential file path throws ArgumentNullException")]
+    public void FactoryCreate_NullCredentialFilePath_ThrowsArgumentNullException()
+    {
+        var factory = new GoogleDocsClientFactory();
+
+        var act = () => factory.Create(null!);
+
+        act.Should().Throw<ArgumentNullException>()
+            .WithParameterName("credentialFilePath");
+    }
+
+    [Fact(DisplayName = "Factory Create with empty credential file path throws ArgumentException")]
+    public void FactoryCreate_EmptyCredentialFilePath_ThrowsArgumentException()
+    {
+        var factory = new GoogleDocsClientFactory();
+
+        var act = () => factory.Create(string.Empty);
+
+        act.Should().Throw<ArgumentException>()
+            .WithParameterName("credentialFilePath");
+    }
+
+    [Fact(DisplayName = "Factory Create with whitespace credential file path throws ArgumentException")]
+    public void FactoryCreate_WhitespaceCredentialFilePath_ThrowsArgumentException()
+    {
+        var factory = new GoogleDocsClientFactory();
+
+        var act = () => factory.Create("   ");
+
+        act.Should().Throw<ArgumentException>()
+            .WithParameterName("credentialFilePath");
+    }
+
+    [Fact(DisplayName = "Factory Create with non-existent file throws FileNotFoundException")]
+    public void FactoryCreate_NonExistentFile_ThrowsFileNotFoundException()
+    {
+        var factory = new GoogleDocsClientFactory();
+        var nonExistentPath = "/path/to/non-existent/credentials.json";
+
+        var act = () => factory.Create(nonExistentPath);
+
+        act.Should().Throw<FileNotFoundException>();
+    }
+
+    [Fact(DisplayName = "Factory Create with directory traversal throws ArgumentException")]
+    public void FactoryCreate_DirectoryTraversal_ThrowsArgumentException()
+    {
+        var factory = new GoogleDocsClientFactory();
+        var traversalPath = "/path/../to/../credentials.json";
+
+        var act = () => factory.Create(traversalPath);
+
+        act.Should().Throw<ArgumentException>()
+            .WithParameterName("credentialFilePath");
+    }
+
+    #endregion
 }

@@ -20,16 +20,17 @@ namespace WhatsAppArchiver.Infrastructure;
 /// </remarks>
 /// <example>
 /// <code>
-/// var adapter = new GoogleDocsServiceAccountAdapter(
+/// using var adapter = new GoogleDocsServiceAccountAdapter(
 ///     credentialFilePath: "/path/to/credentials.json",
 ///     clientFactory: new GoogleDocsClientFactory());
 /// await adapter.UploadAsync("doc-123", "Hello World");
 /// </code>
 /// </example>
-public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService
+public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDisposable
 {
     private readonly IGoogleDocsClientWrapper _clientWrapper;
     private readonly ResiliencePipeline _resiliencePipeline;
+    private bool _disposed;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="GoogleDocsServiceAccountAdapter"/> class.
@@ -73,11 +74,14 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService
     }
 
     /// <inheritdoc />
+    /// <exception cref="ArgumentException">Thrown when <paramref name="documentId"/> is null or empty.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="content"/> is null.</exception>
     public async Task UploadAsync(
         string documentId,
         string content,
         CancellationToken cancellationToken = default)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         ValidateDocumentId(documentId);
         ArgumentNullException.ThrowIfNull(content);
 
@@ -95,11 +99,14 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService
     }
 
     /// <inheritdoc />
+    /// <exception cref="ArgumentException">Thrown when <paramref name="documentId"/> is null or empty.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="content"/> is null.</exception>
     public async Task AppendAsync(
         string documentId,
         string content,
         CancellationToken cancellationToken = default)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         ValidateDocumentId(documentId);
         ArgumentNullException.ThrowIfNull(content);
 
@@ -124,12 +131,17 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService
     /// <returns>A list of requests for batch update.</returns>
     private static List<Request> CreateBatchInsertRequests(string content, bool clearExisting)
     {
-        var requests = new List<Request>();
+        // Split content into paragraphs for batch insertion
+        var paragraphs = content.Split(["\r\n", "\n"], StringSplitOptions.None);
+        
+        // Pre-allocate list with initial capacity for performance
+        var requests = new List<Request>(paragraphs.Length + (clearExisting ? 1 : 0));
 
         if (clearExisting)
         {
             // Add delete request to clear existing content
             // The range starts at index 1 (after document start) to preserve the document
+            // Note: The API will automatically adjust EndIndex if it exceeds document length
             requests.Add(new Request
             {
                 DeleteContentRange = new DeleteContentRangeRequest
@@ -143,15 +155,17 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService
             });
         }
 
-        // Split content into paragraphs for batch insertion
-        var paragraphs = content.Split(["\r\n", "\n"], StringSplitOptions.None);
+        // Detect if the original content ends with a newline
+        var endsWithNewline = content.EndsWith('\n') || content.EndsWith("\r\n");
 
         // Insert paragraphs in reverse order since we're inserting at index 1
         // This maintains the correct order in the final document
         for (var i = paragraphs.Length - 1; i >= 0; i--)
         {
             var paragraphText = paragraphs[i];
-            if (i < paragraphs.Length - 1)
+
+            // Append newline for all but the last paragraph, and for the last if original content ended with newline
+            if (i < paragraphs.Length - 1 || (i == paragraphs.Length - 1 && endsWithNewline))
             {
                 paragraphText += "\n";
             }
@@ -189,7 +203,7 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService
                         IsTransientError(ex.HttpStatusCode))
                     .Handle<HttpRequestException>()
                     .Handle<TaskCanceledException>(ex => 
-                        ex.CancellationToken == default)
+                        ex.CancellationToken == CancellationToken.None)
             })
             .Build();
     }
@@ -225,6 +239,18 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService
                 nameof(documentId));
         }
     }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _clientWrapper.Dispose();
+        _disposed = true;
+    }
 }
 
 /// <summary>
@@ -249,7 +275,7 @@ public interface IGoogleDocsClientFactory
 /// <remarks>
 /// This abstraction enables testing by allowing mock implementations.
 /// </remarks>
-public interface IGoogleDocsClientWrapper
+public interface IGoogleDocsClientWrapper : IDisposable
 {
     /// <summary>
     /// Executes a batch update on a Google Docs document.
@@ -270,11 +296,44 @@ public interface IGoogleDocsClientWrapper
 public sealed class GoogleDocsClientFactory : IGoogleDocsClientFactory
 {
     /// <inheritdoc />
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="credentialFilePath"/> is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="credentialFilePath"/> is empty or contains directory traversal patterns.</exception>
+    /// <exception cref="FileNotFoundException">Thrown when the credential file does not exist.</exception>
     public IGoogleDocsClientWrapper Create(string credentialFilePath)
     {
         ArgumentNullException.ThrowIfNull(credentialFilePath);
 
-        using var stream = new FileStream(credentialFilePath, FileMode.Open, FileAccess.Read);
+        if (string.IsNullOrWhiteSpace(credentialFilePath))
+        {
+            throw new ArgumentException(
+                "Credential file path cannot be empty or whitespace.",
+                nameof(credentialFilePath));
+        }
+
+        // Normalize path and validate against directory traversal attacks
+        var normalizedPath = Path.GetFullPath(credentialFilePath);
+        if (credentialFilePath.Contains(".."))
+        {
+            throw new ArgumentException(
+                "Credential file path cannot contain directory traversal patterns.",
+                nameof(credentialFilePath));
+        }
+
+        // Verify file exists before attempting to open
+        if (!File.Exists(normalizedPath))
+        {
+            throw new FileNotFoundException(
+                $"Credential file not found: {normalizedPath}",
+                normalizedPath);
+        }
+
+        using var stream = new FileStream(
+            normalizedPath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            bufferSize: 4096,
+            FileOptions.SequentialScan);
 
         // Use ServiceAccountCredential for secure credential loading
         // The FromServiceAccountData method returns a credential that can be converted to GoogleCredential
@@ -301,6 +360,7 @@ public sealed class GoogleDocsClientFactory : IGoogleDocsClientFactory
 internal sealed class GoogleDocsClientWrapper : IGoogleDocsClientWrapper
 {
     private readonly DocsService _docsService;
+    private bool _disposed;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="GoogleDocsClientWrapper"/> class.
@@ -317,6 +377,8 @@ internal sealed class GoogleDocsClientWrapper : IGoogleDocsClientWrapper
         IList<Request> requests,
         CancellationToken cancellationToken)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         var batchUpdateRequest = new BatchUpdateDocumentRequest
         {
             Requests = requests
@@ -324,5 +386,17 @@ internal sealed class GoogleDocsClientWrapper : IGoogleDocsClientWrapper
 
         var request = _docsService.Documents.BatchUpdate(batchUpdateRequest, documentId);
         await request.ExecuteAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _docsService.Dispose();
+        _disposed = true;
     }
 }
