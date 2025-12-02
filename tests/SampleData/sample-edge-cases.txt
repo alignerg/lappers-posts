@@ -1,0 +1,28 @@
+15/03/2024 10:00 - Messages and calls are end-to-end encrypted. No one outside of this chat, not even WhatsApp, can read or listen to them. Tap to learn more.
+15/03/2024 10:01 - Emma Thompson: Hello everyone! This is a new group 👋
+15/03/2024 10:02 - David Lee: Hey Emma! Thanks for adding me 🙏
+15/03/2024 10:05 - Emma Thompson: Here's a long message that spans
+multiple lines because I have a lot
+to say about this topic and I want
+to make sure everyone understands
+the full context of the situation.
+15/03/2024 10:10 - David Lee: 🎉🎊🥳🎁🎄🎃🎆🎇✨🌟
+15/03/2024 10:11 - +44 7911 123456: Just joined! Who's here?
+15/03/2024 10:12 - Emma Thompson created group "Project Team"
+15/03/2024 10:13 - David Lee changed the subject from "Project Team" to "Super Project Team 🚀"
+15/03/2024 10:15 - Emma Thompson: Here are some special chars: @#$%^&*()[]{}|;:'",.<>?/\`~
+15/03/2024 10:16 - David Lee: Testing URLs: https://example.com/path?query=value&other=123
+15/03/2024 10:17 - Emma Thompson: Email test: test@example.com
+15/03/2024 10:18 - +44 7911 123456: "Quoted text" and 'single quotes' work too
+15/03/2024 10:20 - David Lee left
+15/03/2024 10:21 - Emma Thompson: Oh no, David left! 😢
+15/03/2024 10:22 - Emma Thompson added David Lee
+15/03/2024 10:23 - David Lee: I'm back! Had connection issues
+The app crashed for a moment
+but everything is fine now
+15/03/2024 10:25 - Emma Thompson: Glad to hear that! Let's continue our discussion
+about the project timeline and deliverables.
+15/03/2024 10:30 - +44 7911 123456: Testing tabsandwhitespace
+15/03/2024 10:31 - David Lee: Numbers: 12345 67890
+15/03/2024 10:32 - Emma Thompson: Math symbols: ± × ÷ ≠ ≤ ≥ ∞
+15/03/2024 10:33 - David Lee: International: Ñoño señor café naïve résumé 日本語 中文 한국어
