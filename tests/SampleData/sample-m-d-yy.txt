@@ -1,10 +1,10 @@
-1/5/24, 8:30 AM - Sarah Wilson: Hey, are you coming to the meeting?
-1/5/24, 8:32 AM - Michael Brown: Yes, running 5 min late
-1/5/24, 9:00 AM - Sarah Wilson: No worries, we just started
-1/5/24, 11:45 AM - Michael Brown: Lunch break! 🍕
-1/5/24, 2:15 PM - Sarah Wilson: Back to work
-1/5/24, 5:00 PM - Michael Brown: Finally done for the day!
-12/31/24, 11:58 PM - Sarah Wilson: Happy New Year everyone! 🎆
-1/1/25, 12:00 AM - Michael Brown: 🎉🎉🎉
-1/1/25, 12:01 AM - Sarah Wilson: 2025 is here!
-2/14/25, 7:30 PM - Michael Brown: Happy Valentine's Day! ❤️
+[1/5/24, 8:30:00 AM] Sarah Wilson: Hey, are you coming to the meeting?
+[1/5/24, 8:32:15 AM] Michael Brown: Yes, running 5 min late
+[1/5/24, 9:00:00 AM] Sarah Wilson: No worries, we just started
+[1/5/24, 11:45:30 AM] Michael Brown: Lunch break! 🍕
+[1/5/24, 2:15:00 PM] Sarah Wilson: Back to work
+[1/5/24, 5:00:00 PM] Michael Brown: Finally done for the day!
+[12/31/24, 11:58:45 PM] Sarah Wilson: Happy New Year everyone! 🎆
+[1/1/25, 12:00:00 AM] Michael Brown: 🎉🎉🎉
+[1/1/25, 12:01:30 AM] Sarah Wilson: 2025 is here!
+[2/14/25, 7:30:00 PM] Michael Brown: Happy Valentine's Day! ❤️
