@@ -1,0 +1,313 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+using Polly;
+using Polly.Retry;
+
+using WhatsAppArchiver.Application.Services;
+using WhatsAppArchiver.Domain.Entities;
+using WhatsAppArchiver.Domain.Specifications;
+using WhatsAppArchiver.Domain.ValueObjects;
+
+namespace WhatsAppArchiver.Infrastructure.Repositories;
+
+/// <summary>
+/// File-based implementation of <see cref="IProcessingStateService"/> using JSON serialization.
+/// </summary>
+/// <remarks>
+/// <para>
+/// This repository persists processing checkpoints to the file system using JSON format.
+/// It provides reliable state persistence with the following features:
+/// </para>
+/// <list type="bullet">
+/// <item><description>Atomic writes using temporary file + rename pattern</description></item>
+/// <item><description>File locking with exclusive access to prevent concurrent modifications</description></item>
+/// <item><description>Retry policy using Polly for transient I/O failures</description></item>
+/// </list>
+/// <para>
+/// The checkpoint files are named using the pattern: {documentId}_{senderName}.json
+/// where senderName is normalized to lowercase with spaces replaced by underscores.
+/// </para>
+/// </remarks>
+/// <example>
+/// <code>
+/// var repository = new JsonFileStateRepository("/path/to/checkpoints");
+/// var checkpoint = await repository.GetCheckpointAsync("doc-123", senderFilter);
+/// checkpoint.MarkAsProcessed(messageId);
+/// await repository.SaveCheckpointAsync(checkpoint);
+/// </code>
+/// </example>
+public sealed class JsonFileStateRepository : IProcessingStateService
+{
+    private const int MaxRetryAttempts = 3;
+    private static readonly TimeSpan RetryDelay = TimeSpan.FromMilliseconds(100);
+
+    private readonly string _basePath;
+    private readonly ResiliencePipeline _resiliencePipeline;
+    private readonly JsonSerializerOptions _jsonOptions;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="JsonFileStateRepository"/> class.
+    /// </summary>
+    /// <param name="basePath">The base directory path where checkpoint files will be stored.</param>
+    /// <exception cref="ArgumentException">Thrown when basePath is null or whitespace.</exception>
+    public JsonFileStateRepository(string basePath)
+    {
+        if (string.IsNullOrWhiteSpace(basePath))
+        {
+            throw new ArgumentException("Base path cannot be null or whitespace.", nameof(basePath));
+        }
+
+        _basePath = basePath;
+        _resiliencePipeline = CreateResiliencePipeline();
+        _jsonOptions = CreateJsonSerializerOptions();
+    }
+
+    /// <summary>
+    /// Retrieves the processing checkpoint for the specified document and sender.
+    /// </summary>
+    /// <param name="documentId">The unique identifier of the document being processed.</param>
+    /// <param name="senderFilter">Optional sender filter to scope the checkpoint.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>
+    /// The existing checkpoint if found, or a new checkpoint if none exists for the given parameters.
+    /// </returns>
+    /// <exception cref="ArgumentException">Thrown when documentId is null or whitespace.</exception>
+    /// <exception cref="JsonException">Thrown when the checkpoint file contains invalid JSON.</exception>
+    public async Task<ProcessingCheckpoint> GetCheckpointAsync(
+        string documentId,
+        SenderFilter? senderFilter = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(documentId))
+        {
+            throw new ArgumentException("Document ID cannot be null or whitespace.", nameof(documentId));
+        }
+
+        var filePath = GetFilePath(documentId, senderFilter);
+
+        if (!File.Exists(filePath))
+        {
+            return ProcessingCheckpoint.Create(documentId, senderFilter);
+        }
+
+        return await _resiliencePipeline.ExecuteAsync(async token =>
+        {
+            return await LoadCheckpointAsync(filePath, senderFilter, token);
+        }, cancellationToken);
+    }
+
+    /// <summary>
+    /// Persists the processing checkpoint state using atomic file write operations.
+    /// </summary>
+    /// <param name="checkpoint">The checkpoint to persist.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <exception cref="ArgumentNullException">Thrown when checkpoint is null.</exception>
+    public async Task SaveCheckpointAsync(
+        ProcessingCheckpoint checkpoint,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(checkpoint);
+
+        var filePath = GetFilePath(checkpoint.DocumentId, checkpoint.SenderFilter);
+        var directoryPath = Path.GetDirectoryName(filePath);
+
+        if (!string.IsNullOrEmpty(directoryPath))
+        {
+            Directory.CreateDirectory(directoryPath);
+        }
+
+        await _resiliencePipeline.ExecuteAsync(async token =>
+        {
+            await SaveCheckpointAtomicallyAsync(checkpoint, filePath, token);
+        }, cancellationToken);
+    }
+
+    private async Task<ProcessingCheckpoint> LoadCheckpointAsync(
+        string filePath,
+        SenderFilter? senderFilter,
+        CancellationToken cancellationToken)
+    {
+        await using var fileStream = new FileStream(
+            filePath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            bufferSize: 4096,
+            useAsync: true);
+
+        var dto = await JsonSerializer.DeserializeAsync<CheckpointDto>(
+            fileStream,
+            _jsonOptions,
+            cancellationToken) ?? throw new JsonException("Failed to deserialize checkpoint: result was null.");
+
+        return dto.ToDomain(senderFilter);
+    }
+
+    private async Task SaveCheckpointAtomicallyAsync(
+        ProcessingCheckpoint checkpoint,
+        string filePath,
+        CancellationToken cancellationToken)
+    {
+        var tempFilePath = $"{filePath}.tmp";
+
+        try
+        {
+            await using (var fileStream = new FileStream(
+                tempFilePath,
+                FileMode.Create,
+                FileAccess.Write,
+                FileShare.None,
+                bufferSize: 4096,
+                useAsync: true))
+            {
+                var dto = CheckpointDto.FromDomain(checkpoint);
+                await JsonSerializer.SerializeAsync(fileStream, dto, _jsonOptions, cancellationToken);
+                await fileStream.FlushAsync(cancellationToken);
+            }
+
+            File.Move(tempFilePath, filePath, overwrite: true);
+        }
+        catch
+        {
+            if (File.Exists(tempFilePath))
+            {
+                try
+                {
+                    File.Delete(tempFilePath);
+                }
+                catch
+                {
+                    // Ignore cleanup errors
+                }
+            }
+
+            throw;
+        }
+    }
+
+    private string GetFilePath(string documentId, SenderFilter? senderFilter)
+    {
+        var sanitizedDocumentId = SanitizeFileName(documentId);
+        var fileName = senderFilter is not null
+            ? $"{sanitizedDocumentId}_{SanitizeFileName(senderFilter.SenderName)}.json"
+            : $"{sanitizedDocumentId}.json";
+
+        return Path.Combine(_basePath, fileName);
+    }
+
+    private static string SanitizeFileName(string name)
+    {
+        var invalidChars = Path.GetInvalidFileNameChars();
+        var sanitized = name.ToLowerInvariant().Replace(' ', '_');
+
+        foreach (var invalidChar in invalidChars)
+        {
+            sanitized = sanitized.Replace(invalidChar, '_');
+        }
+
+        return sanitized;
+    }
+
+    private static ResiliencePipeline CreateResiliencePipeline()
+    {
+        return new ResiliencePipelineBuilder()
+            .AddRetry(new RetryStrategyOptions
+            {
+                MaxRetryAttempts = MaxRetryAttempts,
+                Delay = RetryDelay,
+                BackoffType = DelayBackoffType.Exponential,
+                ShouldHandle = new PredicateBuilder().Handle<IOException>()
+            })
+            .Build();
+    }
+
+    private static JsonSerializerOptions CreateJsonSerializerOptions()
+    {
+        return new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        };
+    }
+
+    /// <summary>
+    /// Data transfer object for serializing ProcessingCheckpoint to JSON.
+    /// </summary>
+    private sealed class CheckpointDto
+    {
+        [JsonPropertyName("id")]
+        public Guid Id { get; set; }
+
+        [JsonPropertyName("documentId")]
+        public string DocumentId { get; set; } = string.Empty;
+
+        [JsonPropertyName("lastProcessedTimestamp")]
+        public DateTimeOffset? LastProcessedTimestamp { get; set; }
+
+        [JsonPropertyName("processedMessageIds")]
+        public List<MessageIdDto> ProcessedMessageIds { get; set; } = [];
+
+        [JsonPropertyName("senderName")]
+        public string? SenderName { get; set; }
+
+        public static CheckpointDto FromDomain(ProcessingCheckpoint checkpoint)
+        {
+            return new CheckpointDto
+            {
+                Id = checkpoint.Id,
+                DocumentId = checkpoint.DocumentId,
+                LastProcessedTimestamp = checkpoint.LastProcessedTimestamp,
+                ProcessedMessageIds = checkpoint.ProcessedMessageIds
+                    .Select(MessageIdDto.FromDomain)
+                    .ToList(),
+                SenderName = checkpoint.SenderFilter?.SenderName
+            };
+        }
+
+        public ProcessingCheckpoint ToDomain(SenderFilter? providedSenderFilter)
+        {
+            var messageIds = ProcessedMessageIds
+                .Select(dto => dto.ToDomain())
+                .ToList();
+
+            var senderFilter = providedSenderFilter ?? (SenderName is not null
+                ? new SenderFilter(SenderName)
+                : null);
+
+            return new ProcessingCheckpoint(
+                Id,
+                DocumentId,
+                LastProcessedTimestamp,
+                messageIds,
+                senderFilter);
+        }
+    }
+
+    /// <summary>
+    /// Data transfer object for serializing MessageId to JSON.
+    /// </summary>
+    private sealed class MessageIdDto
+    {
+        [JsonPropertyName("timestamp")]
+        public DateTimeOffset Timestamp { get; set; }
+
+        [JsonPropertyName("contentHash")]
+        public string ContentHash { get; set; } = string.Empty;
+
+        public static MessageIdDto FromDomain(MessageId messageId)
+        {
+            return new MessageIdDto
+            {
+                Timestamp = messageId.Timestamp,
+                ContentHash = messageId.ContentHash
+            };
+        }
+
+        public MessageId ToDomain()
+        {
+            return new MessageId(Timestamp, ContentHash);
+        }
+    }
+}
