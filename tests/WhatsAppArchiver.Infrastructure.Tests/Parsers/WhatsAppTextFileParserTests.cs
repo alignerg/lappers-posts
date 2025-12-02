@@ -232,23 +232,43 @@ public class WhatsAppTextFileParserTests
 
     private static string GetSampleDataPath()
     {
-        // Navigate from test output directory to SampleData
-        var currentDir = Directory.GetCurrentDirectory();
-        var sampleDataPath = Path.Combine(currentDir, "..", "..", "..", "..", "..", "tests", "SampleData");
+        // Search for the SampleData directory by walking up from the current directory
+        var currentDir = new DirectoryInfo(Directory.GetCurrentDirectory());
 
-        if (Directory.Exists(sampleDataPath))
+        while (currentDir is not null)
         {
-            return Path.GetFullPath(sampleDataPath);
+            var testsDir = Path.Combine(currentDir.FullName, "tests", "SampleData");
+            if (Directory.Exists(testsDir))
+            {
+                return testsDir;
+            }
+
+            var sampleDataDir = Path.Combine(currentDir.FullName, "SampleData");
+            if (Directory.Exists(sampleDataDir))
+            {
+                return sampleDataDir;
+            }
+
+            currentDir = currentDir.Parent;
         }
 
-        // Fallback: try relative to project structure
-        sampleDataPath = Path.Combine(currentDir, "..", "..", "..", "..", "SampleData");
-        if (Directory.Exists(sampleDataPath))
+        // Fallback: try relative paths from test output directory
+        var outputDir = Directory.GetCurrentDirectory();
+        var relativePaths = new[]
         {
-            return Path.GetFullPath(sampleDataPath);
+            Path.Combine(outputDir, "..", "..", "..", "..", "..", "tests", "SampleData"),
+            Path.Combine(outputDir, "..", "..", "..", "..", "SampleData")
+        };
+
+        foreach (var path in relativePaths)
+        {
+            if (Directory.Exists(path))
+            {
+                return Path.GetFullPath(path);
+            }
         }
 
-        // Last resort: use absolute path
-        return "/home/runner/work/lappers-posts/lappers-posts/tests/SampleData";
+        throw new DirectoryNotFoundException(
+            "Could not find SampleData directory. Searched from: " + Directory.GetCurrentDirectory());
     }
 }

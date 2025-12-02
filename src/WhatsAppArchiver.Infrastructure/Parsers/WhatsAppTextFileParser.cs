@@ -21,12 +21,20 @@ namespace WhatsAppArchiver.Infrastructure.Parsers;
 /// </remarks>
 public sealed class WhatsAppTextFileParser : IChatParser
 {
-    // Pattern for DD/MM/YYYY, HH:mm:ss format (24-hour)
+    /// <summary>
+    /// Regex pattern for DD/MM/YYYY, HH:mm:ss format (24-hour).
+    /// Groups: 1=date (DD/MM/YYYY), 2=time (HH:mm:ss), 3=sender, 4=content.
+    /// Example match: [25/12/2024, 09:15:00] John Smith: Hello everyone!
+    /// </summary>
     private static readonly Regex DatePattern24Hour = new(
         @"^\[(\d{1,2}/\d{1,2}/\d{4}),\s*(\d{1,2}:\d{2}:\d{2})\]\s*(.+?):\s*(.+)$",
         RegexOptions.Compiled);
 
-    // Pattern for M/D/YY, h:mm:ss AM/PM format (12-hour)
+    /// <summary>
+    /// Regex pattern for M/D/YY, h:mm:ss AM/PM format (12-hour).
+    /// Groups: 1=date (M/D/YY), 2=time (h:mm:ss AM/PM), 3=sender, 4=content.
+    /// Example match: [1/5/24, 8:30:00 AM] Sarah Wilson: Good morning!
+    /// </summary>
     private static readonly Regex DatePattern12Hour = new(
         @"^\[(\d{1,2}/\d{1,2}/\d{2,4}),\s*(\d{1,2}:\d{2}:\d{2}\s*(?:AM|PM))\]\s*(.+?):\s*(.+)$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -88,15 +96,7 @@ public sealed class WhatsAppTextFileParser : IChatParser
                 // Save the previous message if exists
                 if (currentMessage is not null)
                 {
-                    var finalContent = string.Join(Environment.NewLine, currentContent);
-                    try
-                    {
-                        messages.Add(ChatMessage.Create(
-                            currentMessage.Timestamp,
-                            currentMessage.Sender,
-                            finalContent));
-                    }
-                    catch (ArgumentException)
+                    if (!TryAddFinalMessage(messages, currentMessage, currentContent))
                     {
                         failedLineCount++;
                     }
@@ -134,15 +134,7 @@ public sealed class WhatsAppTextFileParser : IChatParser
         // Don't forget the last message
         if (currentMessage is not null && currentContent.Count > 0)
         {
-            var finalContent = string.Join(Environment.NewLine, currentContent);
-            try
-            {
-                messages.Add(ChatMessage.Create(
-                    currentMessage.Timestamp,
-                    currentMessage.Sender,
-                    finalContent));
-            }
-            catch (ArgumentException)
+            if (!TryAddFinalMessage(messages, currentMessage, currentContent))
             {
                 failedLineCount++;
             }
@@ -156,6 +148,23 @@ public sealed class WhatsAppTextFileParser : IChatParser
             failedLineCount);
 
         return ChatExport.Create(messages, metadata);
+    }
+
+    private static bool TryAddFinalMessage(List<ChatMessage> messages, ChatMessage currentMessage, List<string> currentContent)
+    {
+        var finalContent = string.Join(Environment.NewLine, currentContent);
+        try
+        {
+            messages.Add(ChatMessage.Create(
+                currentMessage.Timestamp,
+                currentMessage.Sender,
+                finalContent));
+            return true;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
     }
 
     private static (ChatMessage? Message, bool IsSuccess) TryParseMessageLine(string line)
@@ -245,7 +254,6 @@ public sealed class WhatsAppTextFileParser : IChatParser
         }
 
         // Parse time
-        var timeFormat = is24HourFormat ? "H:mm:ss" : "h:mm:ss tt";
         if (!TimeSpan.TryParse(is24HourFormat ? timeStr : ConvertTo24HourTime(timeStr), out var time))
         {
             return false;
