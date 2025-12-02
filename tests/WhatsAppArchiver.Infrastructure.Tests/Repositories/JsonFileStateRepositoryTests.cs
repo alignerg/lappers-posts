@@ -154,10 +154,12 @@ public sealed class JsonFileStateRepositoryTests : IDisposable
         root.GetProperty("id").GetGuid().Should().Be(checkpointId);
         root.GetProperty("documentId").GetString().Should().Be("serialization-test");
         root.GetProperty("senderName").GetString().Should().Be("John Doe");
+        root.GetProperty("lastProcessedTimestamp").GetDateTimeOffset().Should().Be(timestamp);
 
         var messageIds = root.GetProperty("processedMessageIds");
         messageIds.GetArrayLength().Should().Be(1);
         messageIds[0].GetProperty("contentHash").GetString().Should().Be("ABC123DEF456GHI789");
+        messageIds[0].GetProperty("timestamp").GetDateTimeOffset().Should().Be(timestamp);
     }
 
     [Fact(DisplayName = "Constructor with null base path throws ArgumentException")]
@@ -295,5 +297,23 @@ public sealed class JsonFileStateRepositoryTests : IDisposable
 
         loadedAlice.ProcessedCount.Should().Be(1);
         loadedBob.ProcessedCount.Should().Be(2);
+    }
+
+    [Fact(DisplayName = "SaveCheckpointAsync with invalid filename characters sanitizes correctly")]
+    public async Task SaveCheckpointAsync_InvalidFilenameCharacters_SanitizesCorrectly()
+    {
+        var senderFilter = new SenderFilter("User/With Spaces");
+        var checkpoint = ProcessingCheckpoint.Create("doc/with/slashes", senderFilter);
+
+        await _repository.SaveCheckpointAsync(checkpoint);
+
+        var files = Directory.GetFiles(_testDirectory, "doc_with_slashes_*.json");
+        files.Should().HaveCount(1);
+        
+        var loadedCheckpoint = await _repository.GetCheckpointAsync("doc/with/slashes", senderFilter);
+        loadedCheckpoint.Should().NotBeNull();
+        loadedCheckpoint.DocumentId.Should().Be("doc/with/slashes");
+        loadedCheckpoint.SenderFilter.Should().NotBeNull();
+        loadedCheckpoint.SenderFilter!.SenderName.Should().Be("User/With Spaces");
     }
 }

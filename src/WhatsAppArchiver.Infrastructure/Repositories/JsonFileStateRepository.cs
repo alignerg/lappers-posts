@@ -1,5 +1,9 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 using Polly;
 using Polly.Retry;
@@ -45,13 +49,15 @@ public sealed class JsonFileStateRepository : IProcessingStateService
     private readonly string _basePath;
     private readonly ResiliencePipeline _resiliencePipeline;
     private readonly JsonSerializerOptions _jsonOptions;
+    private readonly ILogger<JsonFileStateRepository> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="JsonFileStateRepository"/> class.
     /// </summary>
     /// <param name="basePath">The base directory path where checkpoint files will be stored.</param>
+    /// <param name="logger">Optional logger for diagnostic output.</param>
     /// <exception cref="ArgumentException">Thrown when basePath is null or whitespace.</exception>
-    public JsonFileStateRepository(string basePath)
+    public JsonFileStateRepository(string basePath, ILogger<JsonFileStateRepository>? logger = null)
     {
         if (string.IsNullOrWhiteSpace(basePath))
         {
@@ -61,6 +67,7 @@ public sealed class JsonFileStateRepository : IProcessingStateService
         _basePath = basePath;
         _resiliencePipeline = CreateResiliencePipeline();
         _jsonOptions = CreateJsonSerializerOptions();
+        _logger = logger ?? NullLogger<JsonFileStateRepository>.Instance;
     }
 
     /// <summary>
@@ -176,10 +183,11 @@ public sealed class JsonFileStateRepository : IProcessingStateService
                 {
                     File.Delete(tempFilePath);
                 }
-                catch
+                catch (Exception cleanupEx)
                 {
-                    // Cleanup errors are intentionally ignored to preserve the original exception.
+                    // Intentionally ignored: cleanup is best-effort and should not mask the original exception.
                     // The temporary file may be cleaned up on next operation or by the OS.
+                    _logger.LogWarning(cleanupEx, "Failed to cleanup temporary file '{TempFilePath}' during error recovery", tempFilePath);
                 }
             }
 
@@ -197,17 +205,23 @@ public sealed class JsonFileStateRepository : IProcessingStateService
         return Path.Combine(_basePath, fileName);
     }
 
+    /// <summary>
+    /// Sanitizes a string for safe use as a file name by replacing invalid characters and spaces with underscores.
+    /// </summary>
+    /// <param name="name">The input string to sanitize.</param>
+    /// <returns>A sanitized, lowercase string safe for use as a file name.</returns>
     private static string SanitizeFileName(string name)
     {
         var invalidChars = Path.GetInvalidFileNameChars();
-        var sanitized = name.ToLowerInvariant().Replace(' ', '_');
+        var invalidCharSet = new HashSet<char>(invalidChars);
+        var sb = new StringBuilder(name.Length);
 
-        foreach (var invalidChar in invalidChars)
+        foreach (var c in name.ToLowerInvariant())
         {
-            sanitized = sanitized.Replace(invalidChar, '_');
+            sb.Append(c == ' ' || invalidCharSet.Contains(c) ? '_' : c);
         }
 
-        return sanitized;
+        return sb.ToString();
     }
 
     private static ResiliencePipeline CreateResiliencePipeline()
@@ -273,7 +287,7 @@ public sealed class JsonFileStateRepository : IProcessingStateService
                 .Select(dto => dto.ToDomain())
                 .ToList();
 
-            var senderFilter = providedSenderFilter ?? (SenderName is not null
+            var senderFilter = providedSenderFilter ?? (!string.IsNullOrWhiteSpace(SenderName)
                 ? new SenderFilter(SenderName)
                 : null);
 
