@@ -202,6 +202,8 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
                     .Handle<Google.GoogleApiException>(ex =>
                         IsTransientError(ex.HttpStatusCode))
                     .Handle<HttpRequestException>()
+                    // Retry TaskCanceledException only if it's a timeout, not user cancellation
+                    // Timeouts have CancellationToken.None, while user cancellation has the caller's token
                     .Handle<TaskCanceledException>(ex => 
                         ex.CancellationToken == CancellationToken.None)
             })
@@ -310,14 +312,17 @@ public sealed class GoogleDocsClientFactory : IGoogleDocsClientFactory
                 nameof(credentialFilePath));
         }
 
-        // Normalize path and validate against directory traversal attacks
-        var normalizedPath = Path.GetFullPath(credentialFilePath);
+        // Validate against directory traversal attacks in the original input
+        // We check the original path because Path.GetFullPath resolves .. sequences
         if (credentialFilePath.Contains(".."))
         {
             throw new ArgumentException(
                 "Credential file path cannot contain directory traversal patterns.",
                 nameof(credentialFilePath));
         }
+
+        // Normalize path for consistent file access
+        var normalizedPath = Path.GetFullPath(credentialFilePath);
 
         // Verify file exists before attempting to open
         if (!File.Exists(normalizedPath))
