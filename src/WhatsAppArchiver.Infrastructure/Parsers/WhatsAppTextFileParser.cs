@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -48,6 +49,7 @@ public sealed class WhatsAppTextFileParser : IChatParser
 
     private readonly ResiliencePipeline _resiliencePipeline;
     private readonly ILogger<WhatsAppTextFileParser> _logger;
+    private readonly Func<string, CancellationToken, Task<string[]>>? _fileReader;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WhatsAppTextFileParser"/> class.
@@ -62,8 +64,19 @@ public sealed class WhatsAppTextFileParser : IChatParser
     /// </summary>
     /// <param name="logger">The logger instance for diagnostic output.</param>
     public WhatsAppTextFileParser(ILogger<WhatsAppTextFileParser> logger)
+        : this(logger, null)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="WhatsAppTextFileParser"/> class with a logger and custom file reader.
+    /// </summary>
+    /// <param name="logger">The logger instance for diagnostic output.</param>
+    /// <param name="fileReader">Optional custom file reader for testing purposes.</param>
+    internal WhatsAppTextFileParser(ILogger<WhatsAppTextFileParser> logger, Func<string, CancellationToken, Task<string[]>>? fileReader)
     {
         _logger = logger ?? NullLogger<WhatsAppTextFileParser>.Instance;
+        _fileReader = fileReader;
         _resiliencePipeline = new ResiliencePipelineBuilder()
             .AddRetry(new RetryStrategyOptions
             {
@@ -83,7 +96,8 @@ public sealed class WhatsAppTextFileParser : IChatParser
             throw new ArgumentException("File path cannot be null or whitespace.", nameof(filePath));
         }
 
-        if (!File.Exists(filePath))
+        // Skip file existence check if using custom file reader (for testing)
+        if (_fileReader is null && !File.Exists(filePath))
         {
             throw new FileNotFoundException("The specified file does not exist.", filePath);
         }
@@ -91,8 +105,9 @@ public sealed class WhatsAppTextFileParser : IChatParser
         var offset = timeZoneOffset ?? TimeSpan.Zero;
         _logger.LogDebug("Parsing file {FilePath} with timezone offset {Offset}", filePath, offset);
 
+        var readFileAsync = _fileReader ?? ((path, ct) => File.ReadAllLinesAsync(path, ct));
         var lines = await _resiliencePipeline.ExecuteAsync(
-            async ct => await File.ReadAllLinesAsync(filePath, ct),
+            async ct => await readFileAsync(filePath, ct),
             cancellationToken);
 
         var messages = new List<ChatMessage>();
@@ -100,7 +115,7 @@ public sealed class WhatsAppTextFileParser : IChatParser
         var totalLines = lines.Length;
 
         ChatMessage? currentMessage = null;
-        var currentContent = new List<string>();
+        var currentContent = new StringBuilder();
 
         for (var i = 0; i < lines.Length; i++)
         {
@@ -122,7 +137,7 @@ public sealed class WhatsAppTextFileParser : IChatParser
                 {
                     currentMessage = message;
                     currentContent.Clear();
-                    currentContent.Add(message.Content);
+                    currentContent.Append(message.Content);
                 }
                 else
                 {
@@ -135,7 +150,8 @@ public sealed class WhatsAppTextFileParser : IChatParser
             else if (currentMessage is not null)
             {
                 // This is a continuation line
-                currentContent.Add(line);
+                currentContent.AppendLine();
+                currentContent.Append(line);
             }
             else
             {
@@ -164,9 +180,9 @@ public sealed class WhatsAppTextFileParser : IChatParser
         return ChatExport.Create(messages, metadata);
     }
 
-    private bool TryAddFinalMessage(List<ChatMessage> messages, ChatMessage currentMessage, List<string> currentContent, int lineNumber)
+    private bool TryAddFinalMessage(List<ChatMessage> messages, ChatMessage currentMessage, StringBuilder currentContent, int lineNumber)
     {
-        var finalContent = string.Join(Environment.NewLine, currentContent);
+        var finalContent = currentContent.ToString();
         try
         {
             messages.Add(ChatMessage.Create(

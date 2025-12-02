@@ -267,6 +267,59 @@ public class WhatsAppTextFileParserTests
         firstMessage.Timestamp.Offset.Should().Be(TimeSpan.Zero);
     }
 
+    [Fact(DisplayName = "ParseAsync retries on transient IOException and succeeds")]
+    public async Task ParseAsync_TransientIOException_RetriesAndSucceeds()
+    {
+        var callCount = 0;
+        var testLines = new[] { "[25/12/2024, 09:15:00] John Smith: Hello!" };
+
+        // Custom file reader that fails twice then succeeds
+        Task<string[]> FileReaderWithTransientFailure(string path, CancellationToken ct)
+        {
+            callCount++;
+            if (callCount < 3)
+            {
+                throw new IOException("Transient I/O error");
+            }
+            return Task.FromResult(testLines);
+        }
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            FileReaderWithTransientFailure);
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(1);
+        callCount.Should().Be(3, "Should have retried twice after initial failure");
+    }
+
+    [Fact(DisplayName = "ParseAsync throws after max retries exceeded")]
+    public async Task ParseAsync_MaxRetriesExceeded_ThrowsIOException()
+    {
+        var callCount = 0;
+
+        // Custom file reader that always fails
+        Task<string[]> FileReaderThatAlwaysFails(string path, CancellationToken ct)
+        {
+            callCount++;
+            throw new IOException("Persistent I/O error");
+        }
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            FileReaderThatAlwaysFails);
+
+        Func<Task> act = () => parser.ParseAsync("test.txt");
+
+        await act.Should().ThrowAsync<IOException>()
+            .WithMessage("Persistent I/O error");
+
+        // Initial attempt + 3 retries = 4 total attempts
+        callCount.Should().Be(4, "Should have made initial attempt plus 3 retries");
+    }
+
     private static string GetSampleDataPath()
     {
         // Search for the SampleData directory by walking up from the current directory
