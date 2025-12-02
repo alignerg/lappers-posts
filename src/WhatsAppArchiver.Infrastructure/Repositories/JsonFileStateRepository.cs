@@ -139,7 +139,7 @@ public sealed class JsonFileStateRepository : IProcessingStateService
         var dto = await JsonSerializer.DeserializeAsync<CheckpointDto>(
             fileStream,
             _jsonOptions,
-            cancellationToken) ?? throw new JsonException("Failed to deserialize checkpoint: result was null.");
+            cancellationToken) ?? throw new JsonException($"Failed to deserialize checkpoint from '{filePath}': result was null.");
 
         return dto.ToDomain(senderFilter);
     }
@@ -149,7 +149,7 @@ public sealed class JsonFileStateRepository : IProcessingStateService
         string filePath,
         CancellationToken cancellationToken)
     {
-        var tempFilePath = $"{filePath}.tmp";
+        var tempFilePath = $"{filePath}.{Guid.NewGuid():N}.tmp";
 
         try
         {
@@ -178,7 +178,8 @@ public sealed class JsonFileStateRepository : IProcessingStateService
                 }
                 catch
                 {
-                    // Ignore cleanup errors
+                    // Cleanup errors are intentionally ignored to preserve the original exception.
+                    // The temporary file may be cleaned up on next operation or by the OS.
                 }
             }
 

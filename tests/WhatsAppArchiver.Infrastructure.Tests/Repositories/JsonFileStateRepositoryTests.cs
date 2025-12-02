@@ -83,12 +83,13 @@ public sealed class JsonFileStateRepositoryTests : IDisposable
     {
         var checkpoint = ProcessingCheckpoint.Create("atomic-test");
         var expectedPath = Path.Combine(_testDirectory, "atomic-test.json");
-        var tempPath = $"{expectedPath}.tmp";
 
         await _repository.SaveCheckpointAsync(checkpoint);
 
         File.Exists(expectedPath).Should().BeTrue("the final file should exist");
-        File.Exists(tempPath).Should().BeFalse("the temporary file should be removed after successful write");
+        
+        var remainingTempFiles = Directory.GetFiles(_testDirectory, "atomic-test.json.*.tmp");
+        remainingTempFiles.Should().BeEmpty("all temporary files should be removed after successful write");
     }
 
     [Fact(DisplayName = "SaveCheckpointAsync with concurrent access handles file locking")]
