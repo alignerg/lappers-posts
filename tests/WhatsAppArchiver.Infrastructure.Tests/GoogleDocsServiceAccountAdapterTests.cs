@@ -140,6 +140,15 @@ public class GoogleDocsServiceAccountAdapterTests
             .WithParameterName("documentId");
     }
 
+    [Fact(DisplayName = "UploadAsync with whitespace document ID throws ArgumentException")]
+    public async Task UploadAsync_WhitespaceDocumentId_ThrowsArgumentException()
+    {
+        var act = () => _adapter.UploadAsync("   ", "content");
+
+        await act.Should().ThrowAsync<ArgumentException>()
+            .WithParameterName("documentId");
+    }
+
     [Fact(DisplayName = "UploadAsync with null content throws ArgumentNullException")]
     public async Task UploadAsync_NullContent_ThrowsArgumentNullException()
     {
@@ -237,6 +246,15 @@ public class GoogleDocsServiceAccountAdapterTests
     public async Task AppendAsync_EmptyDocumentId_ThrowsArgumentException()
     {
         var act = () => _adapter.AppendAsync(string.Empty, "content");
+
+        await act.Should().ThrowAsync<ArgumentException>()
+            .WithParameterName("documentId");
+    }
+
+    [Fact(DisplayName = "AppendAsync with whitespace document ID throws ArgumentException")]
+    public async Task AppendAsync_WhitespaceDocumentId_ThrowsArgumentException()
+    {
+        var act = () => _adapter.AppendAsync("   ", "content");
 
         await act.Should().ThrowAsync<ArgumentException>()
             .WithParameterName("documentId");
