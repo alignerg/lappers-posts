@@ -395,6 +395,238 @@ public class GoogleDocsServiceAccountAdapterTests
             Times.Once);
     }
 
+    #region Content Edge Cases Tests
+
+    [Fact(DisplayName = "UploadAsync with content ending with newline preserves trailing newline")]
+    public async Task UploadAsync_ContentEndingWithNewline_PreservesTrailingNewline()
+    {
+        var documentId = "test-doc-123";
+        var content = "Line 1\nLine 2\n";
+        IList<Request>? capturedRequests = null;
+
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(
+                documentId,
+                It.IsAny<IList<Request>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<string, IList<Request>, CancellationToken>((_, requests, _) =>
+            {
+                capturedRequests = requests;
+            })
+            .Returns(Task.CompletedTask);
+
+        await _adapter.UploadAsync(documentId, content);
+
+        capturedRequests.Should().NotBeNull();
+
+        var insertTextRequests = capturedRequests!
+            .Where(r => r.InsertText != null)
+            .Select(r => r.InsertText!.Text)
+            .ToList();
+
+        // When content ends with newline, the trailing newline is preserved
+        // Content "Line 1\nLine 2\n" splits to ["Line 1", "Line 2", ""]
+        // The implementation preserves the trailing newline structure
+        var combinedText = string.Concat(insertTextRequests.AsEnumerable().Reverse());
+        combinedText.Should().EndWith("\n");
+        combinedText.Should().Contain("Line 1");
+        combinedText.Should().Contain("Line 2");
+    }
+
+    [Fact(DisplayName = "UploadAsync with empty content calls API successfully")]
+    public async Task UploadAsync_EmptyContent_CallsApiSuccessfully()
+    {
+        var documentId = "test-doc-123";
+        var content = "";
+        IList<Request>? capturedRequests = null;
+
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(
+                documentId,
+                It.IsAny<IList<Request>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<string, IList<Request>, CancellationToken>((_, requests, _) =>
+            {
+                capturedRequests = requests;
+            })
+            .Returns(Task.CompletedTask);
+
+        await _adapter.UploadAsync(documentId, content);
+
+        _clientWrapperMock.Verify(
+            x => x.BatchUpdateAsync(
+                documentId,
+                It.IsAny<IList<Request>>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+
+        capturedRequests.Should().NotBeNull();
+        // Should have delete request and one insert for empty string
+        capturedRequests.Should().Contain(r => r.DeleteContentRange != null);
+    }
+
+    [Fact(DisplayName = "AppendAsync with empty content calls API successfully")]
+    public async Task AppendAsync_EmptyContent_CallsApiSuccessfully()
+    {
+        var documentId = "test-doc-123";
+        var content = "";
+
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(
+                documentId,
+                It.IsAny<IList<Request>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        await _adapter.AppendAsync(documentId, content);
+
+        _clientWrapperMock.Verify(
+            x => x.BatchUpdateAsync(
+                documentId,
+                It.IsAny<IList<Request>>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact(DisplayName = "UploadAsync with whitespace-only content handles correctly")]
+    public async Task UploadAsync_WhitespaceOnlyContent_HandlesCorrectly()
+    {
+        var documentId = "test-doc-123";
+        var content = "   ";
+        IList<Request>? capturedRequests = null;
+
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(
+                documentId,
+                It.IsAny<IList<Request>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<string, IList<Request>, CancellationToken>((_, requests, _) =>
+            {
+                capturedRequests = requests;
+            })
+            .Returns(Task.CompletedTask);
+
+        await _adapter.UploadAsync(documentId, content);
+
+        capturedRequests.Should().NotBeNull();
+
+        var insertTextRequests = capturedRequests!
+            .Where(r => r.InsertText != null)
+            .Select(r => r.InsertText!.Text)
+            .ToList();
+
+        var combinedText = string.Concat(insertTextRequests.AsEnumerable().Reverse());
+        combinedText.Should().Be("   ");
+    }
+
+    [Fact(DisplayName = "UploadAsync with only newlines content handles correctly")]
+    public async Task UploadAsync_OnlyNewlinesContent_HandlesCorrectly()
+    {
+        var documentId = "test-doc-123";
+        var content = "\n\n\n";
+        IList<Request>? capturedRequests = null;
+
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(
+                documentId,
+                It.IsAny<IList<Request>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<string, IList<Request>, CancellationToken>((_, requests, _) =>
+            {
+                capturedRequests = requests;
+            })
+            .Returns(Task.CompletedTask);
+
+        await _adapter.UploadAsync(documentId, content);
+
+        capturedRequests.Should().NotBeNull();
+
+        var insertTextRequests = capturedRequests!
+            .Where(r => r.InsertText != null)
+            .Select(r => r.InsertText!.Text)
+            .ToList();
+
+        // Content "\n\n\n" splits to ["", "", "", ""]
+        // The implementation handles newlines-only content
+        var combinedText = string.Concat(insertTextRequests.AsEnumerable().Reverse());
+        combinedText.Should().NotBeEmpty();
+        combinedText.Should().Contain("\n");
+    }
+
+    #endregion
+
+    #region IDisposable Tests
+
+    [Fact(DisplayName = "Dispose disposes underlying client wrapper")]
+    public void Dispose_DisposesUnderlyingClientWrapper()
+    {
+        var clientWrapperMock = new Mock<IGoogleDocsClientWrapper>();
+        var pipeline = ResiliencePipeline.Empty;
+
+        var adapter = new GoogleDocsServiceAccountAdapter(
+            clientWrapperMock.Object,
+            pipeline);
+
+        adapter.Dispose();
+
+        clientWrapperMock.Verify(x => x.Dispose(), Times.Once);
+    }
+
+    [Fact(DisplayName = "UploadAsync after disposal throws ObjectDisposedException")]
+    public async Task UploadAsync_AfterDisposal_ThrowsObjectDisposedException()
+    {
+        var clientWrapperMock = new Mock<IGoogleDocsClientWrapper>();
+        var pipeline = ResiliencePipeline.Empty;
+
+        var adapter = new GoogleDocsServiceAccountAdapter(
+            clientWrapperMock.Object,
+            pipeline);
+
+        adapter.Dispose();
+
+        var act = () => adapter.UploadAsync("doc-123", "content");
+
+        await act.Should().ThrowAsync<ObjectDisposedException>();
+    }
+
+    [Fact(DisplayName = "AppendAsync after disposal throws ObjectDisposedException")]
+    public async Task AppendAsync_AfterDisposal_ThrowsObjectDisposedException()
+    {
+        var clientWrapperMock = new Mock<IGoogleDocsClientWrapper>();
+        var pipeline = ResiliencePipeline.Empty;
+
+        var adapter = new GoogleDocsServiceAccountAdapter(
+            clientWrapperMock.Object,
+            pipeline);
+
+        adapter.Dispose();
+
+        var act = () => adapter.AppendAsync("doc-123", "content");
+
+        await act.Should().ThrowAsync<ObjectDisposedException>();
+    }
+
+    [Fact(DisplayName = "Dispose called multiple times is safe (idempotent)")]
+    public void Dispose_CalledMultipleTimes_IsSafe()
+    {
+        var clientWrapperMock = new Mock<IGoogleDocsClientWrapper>();
+        var pipeline = ResiliencePipeline.Empty;
+
+        var adapter = new GoogleDocsServiceAccountAdapter(
+            clientWrapperMock.Object,
+            pipeline);
+
+        // Call Dispose multiple times - should not throw
+        adapter.Dispose();
+        adapter.Dispose();
+        adapter.Dispose();
+
+        // Dispose should only be called once on the underlying wrapper
+        clientWrapperMock.Verify(x => x.Dispose(), Times.Once);
+    }
+
+    #endregion
+
     #region GoogleDocsClientFactory Tests
 
     [Fact(DisplayName = "Factory Create with null credential file path throws ArgumentNullException")]
