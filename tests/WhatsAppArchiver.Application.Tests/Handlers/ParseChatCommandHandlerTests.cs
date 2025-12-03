@@ -45,14 +45,14 @@ public class ParseChatCommandHandlerTests
         var expectedExport = CreateChatExport();
 
         _chatParserMock
-            .Setup(x => x.ParseAsync(filePath, It.IsAny<CancellationToken>()))
+            .Setup(x => x.ParseAsync(filePath, It.IsAny<TimeSpan?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(expectedExport);
 
         var result = await _handler.HandleAsync(command);
 
         Assert.NotNull(result);
         Assert.Equal(expectedExport.Id, result.Id);
-        _chatParserMock.Verify(x => x.ParseAsync(filePath, It.IsAny<CancellationToken>()), Times.Once);
+        _chatParserMock.Verify(x => x.ParseAsync(filePath, It.IsAny<TimeSpan?>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact(DisplayName = "HandleAsync without sender filter returns all messages")]
@@ -69,7 +69,7 @@ public class ParseChatCommandHandlerTests
         var expectedExport = new ChatExport(Guid.NewGuid(), messages, metadata);
 
         _chatParserMock
-            .Setup(x => x.ParseAsync(filePath, It.IsAny<CancellationToken>()))
+            .Setup(x => x.ParseAsync(filePath, It.IsAny<TimeSpan?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(expectedExport);
 
         var result = await _handler.HandleAsync(command);
@@ -92,7 +92,7 @@ public class ParseChatCommandHandlerTests
         var originalExport = new ChatExport(Guid.NewGuid(), messages, metadata);
 
         _chatParserMock
-            .Setup(x => x.ParseAsync(filePath, It.IsAny<CancellationToken>()))
+            .Setup(x => x.ParseAsync(filePath, It.IsAny<TimeSpan?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(originalExport);
 
         var result = await _handler.HandleAsync(command);
@@ -115,7 +115,7 @@ public class ParseChatCommandHandlerTests
         var originalExport = new ChatExport(Guid.NewGuid(), messages, metadata);
 
         _chatParserMock
-            .Setup(x => x.ParseAsync(filePath, It.IsAny<CancellationToken>()))
+            .Setup(x => x.ParseAsync(filePath, It.IsAny<TimeSpan?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(originalExport);
 
         var result = await _handler.HandleAsync(command);
@@ -138,7 +138,7 @@ public class ParseChatCommandHandlerTests
         var originalExport = new ChatExport(Guid.NewGuid(), messages, metadata);
 
         _chatParserMock
-            .Setup(x => x.ParseAsync(filePath, It.IsAny<CancellationToken>()))
+            .Setup(x => x.ParseAsync(filePath, It.IsAny<TimeSpan?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(originalExport);
 
         var result = await _handler.HandleAsync(command);
@@ -155,12 +155,12 @@ public class ParseChatCommandHandlerTests
         var expectedExport = CreateChatExport();
 
         _chatParserMock
-            .Setup(x => x.ParseAsync(filePath, cts.Token))
+            .Setup(x => x.ParseAsync(filePath, It.IsAny<TimeSpan?>(), cts.Token))
             .ReturnsAsync(expectedExport);
 
         await _handler.HandleAsync(command, cts.Token);
 
-        _chatParserMock.Verify(x => x.ParseAsync(filePath, cts.Token), Times.Once);
+        _chatParserMock.Verify(x => x.ParseAsync(filePath, It.IsAny<TimeSpan?>(), cts.Token), Times.Once);
     }
 
     private static ChatExport CreateChatExport()

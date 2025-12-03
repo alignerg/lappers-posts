@@ -73,7 +73,7 @@ public sealed class UploadToGoogleDocsCommandHandler
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        var chatExport = await _chatParser.ParseAsync(command.FilePath, cancellationToken);
+        var chatExport = await _chatParser.ParseAsync(command.FilePath, timeZoneOffset: null, cancellationToken);
 
         var senderFilter = SenderFilter.Create(command.Sender);
         var filteredMessages = chatExport.FilterMessages(senderFilter).ToList();
