@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -44,6 +45,8 @@ namespace WhatsAppArchiver.Infrastructure.Repositories;
 public sealed class JsonFileStateRepository : IProcessingStateService
 {
     private const int MaxRetryAttempts = 3;
+    private const int MaxFileNameComponentLength = 100;
+    private const int HashLength = 8;
     private static readonly TimeSpan RetryDelay = TimeSpan.FromMilliseconds(100);
 
     private readonly string _basePath;
@@ -207,6 +210,7 @@ public sealed class JsonFileStateRepository : IProcessingStateService
 
     /// <summary>
     /// Sanitizes a string for safe use as a file name by replacing invalid characters and spaces with underscores.
+    /// Long names are truncated and appended with a hash to ensure uniqueness while staying within path limits.
     /// </summary>
     /// <param name="name">The input string to sanitize.</param>
     /// <returns>A sanitized, lowercase string safe for use as a file name.</returns>
@@ -221,7 +225,30 @@ public sealed class JsonFileStateRepository : IProcessingStateService
             sb.Append(c == ' ' || invalidCharSet.Contains(c) ? '_' : c);
         }
 
-        return sb.ToString();
+        var sanitized = sb.ToString();
+
+        if (sanitized.Length <= MaxFileNameComponentLength)
+        {
+            return sanitized;
+        }
+
+        var hash = ComputeShortHash(name);
+        var truncatedLength = MaxFileNameComponentLength - HashLength - 1;
+
+        return $"{sanitized[..truncatedLength]}_{hash}";
+    }
+
+    /// <summary>
+    /// Computes a short hash of the input string for filename uniqueness.
+    /// </summary>
+    /// <param name="input">The input string to hash.</param>
+    /// <returns>A short hexadecimal hash string.</returns>
+    private static string ComputeShortHash(string input)
+    {
+        var bytes = Encoding.UTF8.GetBytes(input);
+        var hashBytes = SHA256.HashData(bytes);
+
+        return Convert.ToHexString(hashBytes)[..HashLength].ToLowerInvariant();
     }
 
     private static ResiliencePipeline CreateResiliencePipeline()

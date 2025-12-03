@@ -316,4 +316,67 @@ public sealed class JsonFileStateRepositoryTests : IDisposable
         loadedCheckpoint.SenderFilter.Should().NotBeNull();
         loadedCheckpoint.SenderFilter!.SenderName.Should().Be("User/With Spaces");
     }
+
+    [Fact(DisplayName = "SaveCheckpointAsync with very long document ID truncates and hashes filename")]
+    public async Task SaveCheckpointAsync_VeryLongDocumentId_TruncatesAndHashesFilename()
+    {
+        var longDocumentId = new string('a', 200);
+        var checkpoint = ProcessingCheckpoint.Create(longDocumentId);
+
+        await _repository.SaveCheckpointAsync(checkpoint);
+
+        var files = Directory.GetFiles(_testDirectory, "*.json");
+        files.Should().HaveCount(1);
+
+        var fileName = Path.GetFileName(files[0]);
+        fileName.Length.Should().BeLessThanOrEqualTo(110, "filename should be truncated to stay within limits");
+        
+        var loadedCheckpoint = await _repository.GetCheckpointAsync(longDocumentId);
+        loadedCheckpoint.Should().NotBeNull();
+        loadedCheckpoint.DocumentId.Should().Be(longDocumentId);
+    }
+
+    [Fact(DisplayName = "SaveCheckpointAsync with very long sender name truncates and hashes filename")]
+    public async Task SaveCheckpointAsync_VeryLongSenderName_TruncatesAndHashesFilename()
+    {
+        var longSenderName = new string('b', 200);
+        var senderFilter = new SenderFilter(longSenderName);
+        var checkpoint = ProcessingCheckpoint.Create("normal-doc", senderFilter);
+
+        await _repository.SaveCheckpointAsync(checkpoint);
+
+        var files = Directory.GetFiles(_testDirectory, "normal-doc_*.json");
+        files.Should().HaveCount(1);
+
+        var fileName = Path.GetFileName(files[0]);
+        fileName.Length.Should().BeLessThanOrEqualTo(220, "combined filename should stay within reasonable limits");
+        
+        var loadedCheckpoint = await _repository.GetCheckpointAsync("normal-doc", senderFilter);
+        loadedCheckpoint.Should().NotBeNull();
+        loadedCheckpoint.SenderFilter.Should().NotBeNull();
+        loadedCheckpoint.SenderFilter!.SenderName.Should().Be(longSenderName);
+    }
+
+    [Fact(DisplayName = "SaveCheckpointAsync with different long document IDs creates unique files")]
+    public async Task SaveCheckpointAsync_DifferentLongDocumentIds_CreatesUniqueFiles()
+    {
+        var longDocumentId1 = new string('a', 200) + "1";
+        var longDocumentId2 = new string('a', 200) + "2";
+        var checkpoint1 = ProcessingCheckpoint.Create(longDocumentId1);
+        var checkpoint2 = ProcessingCheckpoint.Create(longDocumentId2);
+        checkpoint1.MarkAsProcessed(MessageId.Create(DateTimeOffset.UtcNow, "Message 1"));
+        checkpoint2.MarkAsProcessed(MessageId.Create(DateTimeOffset.UtcNow, "Message 2"));
+
+        await _repository.SaveCheckpointAsync(checkpoint1);
+        await _repository.SaveCheckpointAsync(checkpoint2);
+
+        var files = Directory.GetFiles(_testDirectory, "*.json");
+        files.Should().HaveCount(2, "different long document IDs should create unique files due to hash");
+        
+        var loadedCheckpoint1 = await _repository.GetCheckpointAsync(longDocumentId1);
+        var loadedCheckpoint2 = await _repository.GetCheckpointAsync(longDocumentId2);
+        
+        loadedCheckpoint1.ProcessedCount.Should().Be(1);
+        loadedCheckpoint2.ProcessedCount.Should().Be(1);
+    }
 }
