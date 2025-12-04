@@ -155,17 +155,15 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
             });
         }
 
-        // Detect if the original content ends with a newline
-        var endsWithNewline = content.EndsWith('\n') || content.EndsWith("\r\n");
-
         // Insert paragraphs in reverse order since we're inserting at index 1
         // This maintains the correct order in the final document
         for (var i = paragraphs.Length - 1; i >= 0; i--)
         {
             var paragraphText = paragraphs[i];
 
-            // Append newline for all but the last paragraph, and for the last if original content ended with newline
-            if (i < paragraphs.Length - 1 || (i == paragraphs.Length - 1 && endsWithNewline))
+            // Add newline for all paragraphs except the last one
+            // This correctly preserves the original content structure
+            if (i < paragraphs.Length - 1)
             {
                 paragraphText += "\n";
             }

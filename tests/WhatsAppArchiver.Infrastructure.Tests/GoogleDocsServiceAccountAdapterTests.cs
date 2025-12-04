@@ -179,8 +179,8 @@ public class GoogleDocsServiceAccountAdapterTests
                 return Task.CompletedTask;
             });
 
-        // MaxRetryAttempts = 3 means up to 4 total calls (1 initial + 3 retries)
-        // We succeed on call #3, which is the 2nd retry after 2 failures
+        // MaxRetryAttempts = 3 allows up to 4 total calls (1 initial + 3 retries)
+        // In this test, we succeed on the 3rd attempt (1 initial + 2 retries)
         var retryPipeline = new ResiliencePipelineBuilder()
             .AddRetry(new Polly.Retry.RetryStrategyOptions
             {
@@ -424,13 +424,10 @@ public class GoogleDocsServiceAccountAdapterTests
             .Select(r => r.InsertText!.Text)
             .ToList();
 
-        // When content ends with newline, the trailing newline is preserved
-        // Content "Line 1\nLine 2\n" splits to ["Line 1", "Line 2", ""]
-        // The implementation preserves the trailing newline structure
+        // Requests are inserted in reverse order for correct document assembly
+        // When reversed and concatenated, they should produce the original content exactly
         var combinedText = string.Concat(insertTextRequests.AsEnumerable().Reverse());
-        combinedText.Should().EndWith("\n");
-        combinedText.Should().Contain("Line 1");
-        combinedText.Should().Contain("Line 2");
+        combinedText.Should().Be(content);
     }
 
     [Fact(DisplayName = "UploadAsync with empty content calls API successfully")]
@@ -546,11 +543,10 @@ public class GoogleDocsServiceAccountAdapterTests
             .Select(r => r.InsertText!.Text)
             .ToList();
 
-        // Content "\n\n\n" splits to ["", "", "", ""]
-        // The implementation handles newlines-only content
+        // Requests are inserted in reverse order for correct document assembly
+        // When reversed and concatenated, they should produce the original content exactly
         var combinedText = string.Concat(insertTextRequests.AsEnumerable().Reverse());
-        combinedText.Should().NotBeEmpty();
-        combinedText.Should().Contain("\n");
+        combinedText.Should().Be(content);
     }
 
     #endregion
