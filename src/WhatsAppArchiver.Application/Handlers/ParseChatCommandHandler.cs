@@ -47,7 +47,7 @@ public sealed class ParseChatCommandHandler
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        var chatExport = await _chatParser.ParseAsync(command.FilePath, cancellationToken);
+        var chatExport = await _chatParser.ParseAsync(command.FilePath, timeZoneOffset: null, cancellationToken);
 
         if (string.IsNullOrWhiteSpace(command.SenderFilter))
         {

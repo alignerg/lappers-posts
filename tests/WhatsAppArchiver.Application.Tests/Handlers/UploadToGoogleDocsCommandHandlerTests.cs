@@ -285,7 +285,7 @@ public class UploadToGoogleDocsCommandHandlerTests
         using var cts = new CancellationTokenSource();
 
         _chatParserMock
-            .Setup(x => x.ParseAsync(command.FilePath, cts.Token))
+            .Setup(x => x.ParseAsync(command.FilePath, It.IsAny<TimeSpan?>(), cts.Token))
             .ReturnsAsync(chatExport);
 
         _processingStateServiceMock
@@ -294,7 +294,7 @@ public class UploadToGoogleDocsCommandHandlerTests
 
         await _handler.HandleAsync(command, cts.Token);
 
-        _chatParserMock.Verify(x => x.ParseAsync(command.FilePath, cts.Token), Times.Once);
+        _chatParserMock.Verify(x => x.ParseAsync(command.FilePath, It.IsAny<TimeSpan?>(), cts.Token), Times.Once);
         _processingStateServiceMock.Verify(
             x => x.GetCheckpointAsync(command.DocumentId, It.IsAny<SenderFilter>(), cts.Token),
             Times.Once);
@@ -312,7 +312,7 @@ public class UploadToGoogleDocsCommandHandlerTests
         ProcessingCheckpoint checkpoint)
     {
         _chatParserMock
-            .Setup(x => x.ParseAsync(command.FilePath, It.IsAny<CancellationToken>()))
+            .Setup(x => x.ParseAsync(command.FilePath, It.IsAny<TimeSpan?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(chatExport);
 
         _processingStateServiceMock
