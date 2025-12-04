@@ -30,8 +30,9 @@ namespace WhatsAppArchiver.Infrastructure.Repositories;
 /// <item><description>Retry policy using Polly for transient I/O failures</description></item>
 /// </list>
 /// <para>
-/// The checkpoint files are named using the pattern: {documentId}_{senderName}.json
-/// where senderName is normalized to lowercase with spaces replaced by underscores.
+/// The checkpoint files are named using the pattern: {documentId}__{senderName}.json
+/// where both documentId and senderName are normalized to lowercase with invalid 
+/// filename characters and spaces replaced by underscores.
 /// </para>
 /// </remarks>
 /// <example>
@@ -190,7 +191,7 @@ public sealed class JsonFileStateRepository : IProcessingStateService
                 {
                     // Intentionally ignored: cleanup is best-effort and should not mask the original exception.
                     // The temporary file may be cleaned up on next operation or by the OS.
-                    _logger.LogWarning(cleanupEx, "Failed to cleanup temporary file '{TempFilePath}' during error recovery", tempFilePath);
+                    _logger.LogDebug(cleanupEx, "Failed to cleanup temporary file '{TempFilePath}' during error recovery", tempFilePath);
                 }
             }
 
@@ -202,7 +203,7 @@ public sealed class JsonFileStateRepository : IProcessingStateService
     {
         var sanitizedDocumentId = SanitizeFileName(documentId);
         var fileName = senderFilter is not null
-            ? $"{sanitizedDocumentId}_{SanitizeFileName(senderFilter.SenderName)}.json"
+            ? $"{sanitizedDocumentId}__{SanitizeFileName(senderFilter.SenderName)}.json"
             : $"{sanitizedDocumentId}.json";
 
         return Path.Combine(_basePath, fileName);

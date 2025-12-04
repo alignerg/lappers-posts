@@ -144,7 +144,7 @@ public sealed class JsonFileStateRepositoryTests : IDisposable
 
         await _repository.SaveCheckpointAsync(checkpoint);
 
-        var filePath = Path.Combine(_testDirectory, "serialization-test_john_doe.json");
+        var filePath = Path.Combine(_testDirectory, "serialization-test__john_doe.json");
         File.Exists(filePath).Should().BeTrue();
 
         var content = await File.ReadAllTextAsync(filePath);
@@ -307,7 +307,7 @@ public sealed class JsonFileStateRepositoryTests : IDisposable
 
         await _repository.SaveCheckpointAsync(checkpoint);
 
-        var files = Directory.GetFiles(_testDirectory, "doc_with_slashes_*.json");
+        var files = Directory.GetFiles(_testDirectory, "doc_with_slashes__*.json");
         files.Should().HaveCount(1);
         
         var loadedCheckpoint = await _repository.GetCheckpointAsync("doc/with/slashes", senderFilter);
@@ -345,7 +345,7 @@ public sealed class JsonFileStateRepositoryTests : IDisposable
 
         await _repository.SaveCheckpointAsync(checkpoint);
 
-        var files = Directory.GetFiles(_testDirectory, "normal-doc_*.json");
+        var files = Directory.GetFiles(_testDirectory, "normal-doc__*.json");
         files.Should().HaveCount(1);
 
         var fileName = Path.GetFileName(files[0]);
