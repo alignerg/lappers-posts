@@ -52,8 +52,11 @@ public sealed class JsonFileStateRepository : IProcessingStateService
 {
     private const int MaxRetryAttempts = 3;
     private const int MaxFileNameComponentLength = 100;
-    private const int HashLength = 8;
+    private const int HashLength = 16;
     private static readonly TimeSpan RetryDelay = TimeSpan.FromMilliseconds(100);
+
+    // Static readonly set of invalid filename characters to avoid repeated allocations.
+    private static readonly HashSet<char> InvalidFileNameChars = new(Path.GetInvalidFileNameChars());
 
     private readonly string _basePath;
     private readonly ResiliencePipeline _resiliencePipeline;
@@ -109,7 +112,7 @@ public sealed class JsonFileStateRepository : IProcessingStateService
 
         return await _resiliencePipeline.ExecuteAsync(async token =>
         {
-            return await LoadCheckpointAsync(filePath, senderFilter, token);
+            return await LoadCheckpointAsync(filePath, documentId, senderFilter, token);
         }, cancellationToken);
     }
 
@@ -134,12 +137,14 @@ public sealed class JsonFileStateRepository : IProcessingStateService
             {
                 Directory.CreateDirectory(directoryPath);
             }
+
             await SaveCheckpointAtomicallyAsync(checkpoint, filePath, token);
         }, cancellationToken);
     }
 
     private async Task<ProcessingCheckpoint> LoadCheckpointAsync(
         string filePath,
+        string requestedDocumentId,
         SenderFilter? senderFilter,
         CancellationToken cancellationToken)
     {
@@ -156,7 +161,7 @@ public sealed class JsonFileStateRepository : IProcessingStateService
             _jsonOptions,
             cancellationToken) ?? throw new JsonException($"Failed to deserialize checkpoint from '{filePath}': result was null.");
 
-        return dto.ToDomain(senderFilter);
+        return dto.ToDomain(requestedDocumentId, senderFilter);
     }
 
     private async Task SaveCheckpointAtomicallyAsync(
@@ -195,8 +200,8 @@ public sealed class JsonFileStateRepository : IProcessingStateService
                 {
                     // Intentionally ignored: cleanup is best-effort and should not mask the original exception.
                     // The temporary file may be cleaned up on next operation or by the OS.
-                    // The temporary file may be cleaned up on next operation or by the OS.
                     // Logged at Debug level when a logger is provided.
+                    _logger.LogDebug(cleanupEx, "Failed to cleanup temporary file '{TempFilePath}' during error recovery", tempFilePath);
                 }
             }
 
@@ -221,22 +226,13 @@ public sealed class JsonFileStateRepository : IProcessingStateService
     /// <param name="name">The input string to sanitize.</param>
     /// <returns>A sanitized, lowercase string safe for use as a file name.</returns>
     private static string SanitizeFileName(string name)
-    // Static readonly set of invalid filename characters to avoid repeated allocations.
-    private static readonly HashSet<char> InvalidFileNameChars = new(Path.GetInvalidFileNameChars());
-
-    /// <summary>
-    /// Sanitizes a string for safe use as a file name by replacing invalid characters and spaces with underscores.
-    /// Long names are truncated and appended with a hash to ensure uniqueness while staying within path limits.
-    /// </summary>
-    /// <param name="name">The input string to sanitize.</param>
-    /// <returns>A sanitized, lowercase string safe for use as a file name.</returns>
-    private static string SanitizeFileName(string name)
     {
         var sb = new StringBuilder(name.Length);
 
         foreach (var c in name.ToLowerInvariant())
         {
             sb.Append(c == ' ' || InvalidFileNameChars.Contains(c) ? '_' : c);
+        }
 
         var sanitized = sb.ToString();
 
@@ -321,13 +317,31 @@ public sealed class JsonFileStateRepository : IProcessingStateService
             };
         }
 
-        public ProcessingCheckpoint ToDomain(SenderFilter? providedSenderFilter)
+        public ProcessingCheckpoint ToDomain(string requestedDocumentId, SenderFilter? providedSenderFilter)
         {
+            // Validate documentId to detect filename collisions
+            if (!string.Equals(DocumentId, requestedDocumentId, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"Checkpoint file contains data for document '{DocumentId}' but was requested for '{requestedDocumentId}'. " +
+                    "This indicates a filename collision.");
+            }
+
             var messageIds = ProcessedMessageIds
                 .Select(dto => dto.ToDomain())
                 .ToList();
 
             // Give precedence to persisted SenderName for consistency.
+            // Validate that provided sender filter matches persisted data to detect collisions.
+            if (providedSenderFilter is not null &&
+                !string.IsNullOrWhiteSpace(SenderName) &&
+                !string.Equals(SenderName, providedSenderFilter.SenderName, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"Checkpoint file contains data for sender '{SenderName}' but was requested for '{providedSenderFilter.SenderName}'. " +
+                    "This indicates a filename collision.");
+            }
+
             var senderFilter = !string.IsNullOrWhiteSpace(SenderName)
                 ? new SenderFilter(SenderName)
                 : providedSenderFilter;

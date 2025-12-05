@@ -426,34 +426,48 @@ public sealed class JsonFileStateRepositoryTests : IDisposable
         (hasMessage1 && hasMessage2).Should().BeFalse("only one message should survive due to overwrite");
     }
 
-    [Fact(DisplayName = "SaveCheckpointAsync with colliding document IDs after sanitization overwrites")]
-    public async Task SaveCheckpointAsync_CollidingDocumentIds_Overwrites()
+    [Fact(DisplayName = "GetCheckpointAsync with colliding document IDs after sanitization throws InvalidOperationException")]
+    public async Task GetCheckpointAsync_CollidingDocumentIds_ThrowsInvalidOperationException()
     {
         // Both "doc/1" and "doc_1" sanitize to "doc_1" causing a collision
         var documentId1 = "doc/1";
         var documentId2 = "doc_1";
         var checkpoint1 = ProcessingCheckpoint.Create(documentId1);
-        var checkpoint2 = ProcessingCheckpoint.Create(documentId2);
-        
         var messageId1 = MessageId.Create(DateTimeOffset.UtcNow, "Message from doc/1");
-        var messageId2 = MessageId.Create(DateTimeOffset.UtcNow.AddSeconds(1), "Message from doc_1");
         checkpoint1.MarkAsProcessed(messageId1);
-        checkpoint2.MarkAsProcessed(messageId2);
 
         // Save first checkpoint
         await _repository.SaveCheckpointAsync(checkpoint1);
         
-        // Save second checkpoint (should overwrite)
-        await _repository.SaveCheckpointAsync(checkpoint2);
-
-        // Only one file should exist due to collision
+        // Only one file should exist
         var files = Directory.GetFiles(_testDirectory, "doc_1.json");
         files.Should().HaveCount(1, "colliding document IDs should map to the same file");
         
-        // Loading with documentId2 should get the overwritten data
-        var loaded = await _repository.GetCheckpointAsync(documentId2);
-        loaded.DocumentId.Should().Be(documentId2, "the document ID in the file is from the last write");
-        loaded.HasBeenProcessed(messageId2).Should().BeTrue("the second write should have overwritten the first");
+        // Loading with documentId2 should throw because the file contains data for documentId1
+        var act = async () => await _repository.GetCheckpointAsync(documentId2);
+        
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*filename collision*");
+    }
+
+    [Fact(DisplayName = "GetCheckpointAsync with colliding sender names after sanitization throws InvalidOperationException")]
+    public async Task GetCheckpointAsync_CollidingSenderNames_ThrowsInvalidOperationException()
+    {
+        // Both "user/1" and "user_1" sanitize to "user_1" causing a collision
+        var senderFilter1 = new SenderFilter("user/1");
+        var senderFilter2 = new SenderFilter("user_1");
+        var checkpoint = ProcessingCheckpoint.Create("test-doc", senderFilter1);
+        var messageId = MessageId.Create(DateTimeOffset.UtcNow, "Test message");
+        checkpoint.MarkAsProcessed(messageId);
+
+        // Save checkpoint with sender filter 1
+        await _repository.SaveCheckpointAsync(checkpoint);
+        
+        // Loading with senderFilter2 should throw because the file contains data for senderFilter1
+        var act = async () => await _repository.GetCheckpointAsync("test-doc", senderFilter2);
+        
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*filename collision*");
     }
 
     [Fact(DisplayName = "SaveCheckpointAsync can save and overwrite existing checkpoint")]
@@ -479,5 +493,18 @@ public sealed class JsonFileStateRepositoryTests : IDisposable
         
         var loaded = await _repository.GetCheckpointAsync("overwrite-path-test");
         loaded.ProcessedCount.Should().Be(2, "both messages should be saved");
+    }
+
+    [Fact(DisplayName = "SaveCheckpointAsync with long name containing invalid characters sanitizes and truncates correctly")]
+    public async Task SaveCheckpointAsync_LongNameWithInvalidChars_SanitizesAndTruncates()
+    {
+        var longNameWithInvalidChars = new string('a', 95) + "/path/with\\invalid:chars";
+        var senderFilter = new SenderFilter(longNameWithInvalidChars);
+        var checkpoint = ProcessingCheckpoint.Create("test-doc", senderFilter);
+        
+        await _repository.SaveCheckpointAsync(checkpoint);
+        
+        var loaded = await _repository.GetCheckpointAsync("test-doc", senderFilter);
+        loaded.SenderFilter!.SenderName.Should().Be(longNameWithInvalidChars);
     }
 }
