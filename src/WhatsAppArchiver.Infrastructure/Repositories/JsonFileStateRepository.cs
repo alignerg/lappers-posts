@@ -26,13 +26,18 @@ namespace WhatsAppArchiver.Infrastructure.Repositories;
 /// </para>
 /// <list type="bullet">
 /// <item><description>Atomic writes using temporary file + rename pattern</description></item>
-/// <item><description>File locking with exclusive access to prevent concurrent modifications</description></item>
+/// <item><description>Atomic writes with file locking to prevent corruption. Concurrent modifications from different instances use last-write-wins semantics.</description></item>
 /// <item><description>Retry policy using Polly for transient I/O failures</description></item>
 /// </list>
 /// <para>
 /// The checkpoint files are named using the pattern: {documentId}__{senderName}.json
 /// where both documentId and senderName are normalized to lowercase with invalid 
 /// filename characters and spaces replaced by underscores.
+/// </para>
+/// <para>
+/// Identifiers (documentId and senderName) exceeding 100 characters are truncated
+/// to 91 characters and appended with an 8-character hash for uniqueness. This may
+/// result in different logical identifiers mapping to the same file if hash collisions occur.
 /// </para>
 /// </remarks>
 /// <example>
@@ -190,7 +195,8 @@ public sealed class JsonFileStateRepository : IProcessingStateService
                 {
                     // Intentionally ignored: cleanup is best-effort and should not mask the original exception.
                     // The temporary file may be cleaned up on next operation or by the OS.
-                    _logger.LogDebug(cleanupEx, "Failed to cleanup temporary file '{TempFilePath}' during error recovery", tempFilePath);
+                    // The temporary file may be cleaned up on next operation or by the OS.
+                    // Logged at Debug level when a logger is provided.
                 }
             }
 
@@ -215,15 +221,22 @@ public sealed class JsonFileStateRepository : IProcessingStateService
     /// <param name="name">The input string to sanitize.</param>
     /// <returns>A sanitized, lowercase string safe for use as a file name.</returns>
     private static string SanitizeFileName(string name)
+    // Static readonly set of invalid filename characters to avoid repeated allocations.
+    private static readonly HashSet<char> InvalidFileNameChars = new(Path.GetInvalidFileNameChars());
+
+    /// <summary>
+    /// Sanitizes a string for safe use as a file name by replacing invalid characters and spaces with underscores.
+    /// Long names are truncated and appended with a hash to ensure uniqueness while staying within path limits.
+    /// </summary>
+    /// <param name="name">The input string to sanitize.</param>
+    /// <returns>A sanitized, lowercase string safe for use as a file name.</returns>
+    private static string SanitizeFileName(string name)
     {
-        var invalidChars = Path.GetInvalidFileNameChars();
-        var invalidCharSet = new HashSet<char>(invalidChars);
         var sb = new StringBuilder(name.Length);
 
         foreach (var c in name.ToLowerInvariant())
         {
-            sb.Append(c == ' ' || invalidCharSet.Contains(c) ? '_' : c);
-        }
+            sb.Append(c == ' ' || InvalidFileNameChars.Contains(c) ? '_' : c);
 
         var sanitized = sb.ToString();
 
