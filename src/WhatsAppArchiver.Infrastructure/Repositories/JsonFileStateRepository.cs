@@ -36,8 +36,8 @@ namespace WhatsAppArchiver.Infrastructure.Repositories;
 /// </para>
 /// <para>
 /// Identifiers (documentId and senderName) exceeding 100 characters are truncated
-/// to 83 characters and appended with a 16-character hash for uniqueness, for a total of 100 characters. This may
-/// result in different logical identifiers mapping to the same file if hash collisions occur.
+/// to 83 characters and appended with a 16-character hash for uniqueness, for a total of 100 characters.
+/// If a hash collision occurs (i.e., different logical identifiers produce the same file name), the repository detects this and throws an <see cref="InvalidOperationException"/> to prevent silent mapping of different identifiers to the same file.
 /// </para>
 /// </remarks>
 /// <example>
@@ -93,6 +93,7 @@ public sealed class JsonFileStateRepository : IProcessingStateService
     /// </returns>
     /// <exception cref="ArgumentException">Thrown when documentId is null or whitespace.</exception>
     /// <exception cref="JsonException">Thrown when the checkpoint file contains invalid JSON.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when a filename collision is detected during checkpoint deserialization.</exception>
     public async Task<ProcessingCheckpoint> GetCheckpointAsync(
         string documentId,
         SenderFilter? senderFilter = null,
@@ -335,7 +336,7 @@ public sealed class JsonFileStateRepository : IProcessingStateService
             // Validate that provided sender filter matches persisted data to detect collisions.
             if (providedSenderFilter is not null &&
                 !string.IsNullOrWhiteSpace(SenderName) &&
-                !string.Equals(SenderName, providedSenderFilter.SenderName, StringComparison.OrdinalIgnoreCase))
+                !string.Equals(SenderName, providedSenderFilter.SenderName, StringComparison.Ordinal))
             {
                 throw new InvalidOperationException(
                     $"Checkpoint file contains data for sender '{SenderName}' but was requested for '{providedSenderFilter.SenderName}'. " +

@@ -329,7 +329,7 @@ public sealed class JsonFileStateRepositoryTests : IDisposable
         files.Should().HaveCount(1);
 
         var fileName = Path.GetFileName(files[0]);
-        fileName.Length.Should().BeLessThanOrEqualTo(110, "filename should be truncated to stay within limits");
+        fileName.Length.Should().BeLessThanOrEqualTo(105, "filename should be truncated to stay within limits");
         
         var loadedCheckpoint = await _repository.GetCheckpointAsync(longDocumentId);
         loadedCheckpoint.Should().NotBeNull();
@@ -349,7 +349,7 @@ public sealed class JsonFileStateRepositoryTests : IDisposable
         files.Should().HaveCount(1);
 
         var fileName = Path.GetFileName(files[0]);
-        fileName.Length.Should().BeLessThanOrEqualTo(220, "combined filename should stay within reasonable limits");
+        fileName.Length.Should().BeLessThanOrEqualTo(120, "combined filename should stay within reasonable limits");
         
         var loadedCheckpoint = await _repository.GetCheckpointAsync("normal-doc", senderFilter);
         loadedCheckpoint.Should().NotBeNull();
