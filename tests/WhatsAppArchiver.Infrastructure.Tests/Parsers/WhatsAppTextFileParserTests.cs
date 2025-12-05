@@ -11,7 +11,7 @@ public class WhatsAppTextFileParserTests
     public WhatsAppTextFileParserTests()
     {
         _parser = new WhatsAppTextFileParser();
-        _sampleDataPath = GetSampleDataPath();
+        _sampleDataPath = TestFileUtils.GetSampleDataPath();
     }
 
     [Fact(DisplayName = "ParseAsync with DD/MM/YYYY format returns complete export")]
@@ -318,45 +318,5 @@ public class WhatsAppTextFileParserTests
 
         // Initial attempt + 3 retries = 4 total attempts
         callCount.Should().Be(4, "Should have made initial attempt plus 3 retries");
-    }
-
-    private static string GetSampleDataPath()
-    {
-        // Search for the SampleData directory by walking up from the current directory
-        var currentDir = new DirectoryInfo(Directory.GetCurrentDirectory());
-
-        while (currentDir is not null)
-        {
-            var testsDir = Path.Combine(currentDir.FullName, "tests", "SampleData");
-            if (Directory.Exists(testsDir))
-            {
-                return testsDir;
-            }
-
-            var sampleDataDir = Path.Combine(currentDir.FullName, "SampleData");
-            if (Directory.Exists(sampleDataDir))
-            {
-                return sampleDataDir;
-            }
-
-            currentDir = currentDir.Parent;
-        }
-
-        // Fallback: try relative paths from test output directory
-        var outputDir = Directory.GetCurrentDirectory();
-        var relativePaths = new[]
-        {
-            Path.Combine(outputDir, "..", "..", "..", "..", "..", "tests", "SampleData"),
-            Path.Combine(outputDir, "..", "..", "..", "..", "SampleData")
-        };
-
-        var foundPath = relativePaths.FirstOrDefault(path => Directory.Exists(path));
-        if (foundPath is not null)
-        {
-            return Path.GetFullPath(foundPath);
-        }
-
-        throw new DirectoryNotFoundException(
-            "Could not find SampleData directory. Searched from: " + Directory.GetCurrentDirectory());
     }
 }
