@@ -456,12 +456,11 @@ public sealed class JsonFileStateRepositoryTests : IDisposable
         loaded.HasBeenProcessed(messageId2).Should().BeTrue("the second write should have overwritten the first");
     }
 
-    [Fact(DisplayName = "SaveCheckpointAsync retries on transient IOException")]
-    public async Task SaveCheckpointAsync_TransientIOException_Retries()
+    [Fact(DisplayName = "SaveCheckpointAsync can save and overwrite existing checkpoint")]
+    public async Task SaveCheckpointAsync_OverwriteExisting_UpdatesCheckpoint()
     {
-        // This test verifies the Polly retry policy is configured for IOException
-        // by checking that the repository can successfully save after initial setup
-        var checkpoint = ProcessingCheckpoint.Create("retry-test");
+        // This test verifies the basic save and overwrite functionality
+        var checkpoint = ProcessingCheckpoint.Create("overwrite-path-test");
         var messageId = MessageId.Create(DateTimeOffset.UtcNow, "Test message");
         checkpoint.MarkAsProcessed(messageId);
 
@@ -469,7 +468,7 @@ public sealed class JsonFileStateRepositoryTests : IDisposable
         await _repository.SaveCheckpointAsync(checkpoint);
         
         // Verify the file was created
-        var filePath = Path.Combine(_testDirectory, "retry-test.json");
+        var filePath = Path.Combine(_testDirectory, "overwrite-path-test.json");
         File.Exists(filePath).Should().BeTrue();
         
         // Now update and save again (exercises the overwrite path)
@@ -478,7 +477,7 @@ public sealed class JsonFileStateRepositoryTests : IDisposable
         
         await _repository.SaveCheckpointAsync(checkpoint);
         
-        var loaded = await _repository.GetCheckpointAsync("retry-test");
+        var loaded = await _repository.GetCheckpointAsync("overwrite-path-test");
         loaded.ProcessedCount.Should().Be(2, "both messages should be saved");
     }
 }

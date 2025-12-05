@@ -315,9 +315,10 @@ public sealed class JsonFileStateRepository : IProcessingStateService
                 .Select(dto => dto.ToDomain())
                 .ToList();
 
-            var senderFilter = providedSenderFilter ?? (!string.IsNullOrWhiteSpace(SenderName)
+            // Give precedence to persisted SenderName for consistency.
+            var senderFilter = !string.IsNullOrWhiteSpace(SenderName)
                 ? new SenderFilter(SenderName)
-                : null);
+                : providedSenderFilter;
 
             return new ProcessingCheckpoint(
                 Id,
