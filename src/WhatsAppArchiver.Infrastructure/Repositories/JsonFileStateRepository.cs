@@ -39,6 +39,12 @@ namespace WhatsAppArchiver.Infrastructure.Repositories;
 /// to 83 characters and appended with a 16-character hash for uniqueness, for a total of 100 characters.
 /// If a hash collision occurs (i.e., different logical identifiers produce the same file name), the repository detects this and throws an <see cref="InvalidOperationException"/> to prevent silent mapping of different identifiers to the same file.
 /// </para>
+/// <para>
+/// <strong>Path Length Limitation:</strong> When both documentId and senderName are at their maximum sanitized length (100 characters each), 
+/// the combined filename can reach up to 207 characters (100 + 2 for "__" separator + 100 + 5 for ".json"). While most modern filesystems 
+/// support filenames up to 255 characters, the full path (base directory + filename) may exceed the default 260-character limit on Windows. 
+/// Consider using shorter identifiers or configuring Windows for long path support when necessary.
+/// </para>
 /// </remarks>
 /// <example>
 /// <code>
@@ -184,7 +190,6 @@ public sealed class JsonFileStateRepository : IProcessingStateService
             {
                 var dto = CheckpointDto.FromDomain(checkpoint);
                 await JsonSerializer.SerializeAsync(fileStream, dto, _jsonOptions, cancellationToken);
-                await fileStream.FlushAsync(cancellationToken);
             }
 
             File.Move(tempFilePath, filePath, overwrite: true);
@@ -332,7 +337,8 @@ public sealed class JsonFileStateRepository : IProcessingStateService
                 .Select(dto => dto.ToDomain())
                 .ToList();
 
-            // Give precedence to persisted SenderName for consistency.
+            // Use persisted SenderName when available; otherwise use the provided filter.
+            // This ensures loaded checkpoints maintain their original sender filter.
             // Validate that provided sender filter matches persisted data to detect collisions.
             if (providedSenderFilter is not null &&
                 !string.IsNullOrWhiteSpace(SenderName) &&
