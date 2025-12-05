@@ -27,7 +27,7 @@ public sealed class EndToEndIntegrationTests : IDisposable
     public EndToEndIntegrationTests()
     {
         _parser = new WhatsAppTextFileParser();
-        _sampleDataPath = GetSampleDataPath();
+        _sampleDataPath = TestFileUtils.GetSampleDataPath();
         _testDirectory = Path.Combine(Path.GetTempPath(), $"EndToEndIntegrationTests_{Guid.NewGuid()}");
         Directory.CreateDirectory(_testDirectory);
     }
@@ -43,17 +43,14 @@ public sealed class EndToEndIntegrationTests : IDisposable
     [Fact(DisplayName = "Parse and format sample chat produces expected output")]
     public async Task ParseAndFormat_SampleChat_ProducesExpectedOutput()
     {
-        // Arrange
         var filePath = Path.Combine(_sampleDataPath, "sample-dd-mm-yyyy.txt");
         var formatter = new DefaultMessageFormatter();
 
-        // Act
         var chatExport = await _parser.ParseAsync(filePath);
         var formattedMessages = chatExport.Messages
             .Select(message => formatter.FormatMessage(message))
             .ToList();
 
-        // Assert
         chatExport.Should().NotBeNull();
         chatExport.Messages.Should().HaveCount(10);
         formattedMessages.Should().HaveCount(10);
@@ -80,15 +77,12 @@ public sealed class EndToEndIntegrationTests : IDisposable
     [Fact(DisplayName = "Filter by sender in multi-sender chat returns only sender messages")]
     public async Task FilterBySender_MultiSenderChat_ReturnsOnlySenderMessages()
     {
-        // Arrange
         var filePath = Path.Combine(_sampleDataPath, "sample-dd-mm-yyyy.txt");
         const string targetSender = "John Smith";
 
-        // Act
         var chatExport = await _parser.ParseAsync(filePath);
         var johnMessages = chatExport.GetMessagesBySender(targetSender).ToList();
 
-        // Assert
         johnMessages.Should().NotBeEmpty();
         johnMessages.Should().HaveCount(4, "John Smith sends 4 messages in sample-dd-mm-yyyy.txt");
 
@@ -113,18 +107,13 @@ public sealed class EndToEndIntegrationTests : IDisposable
     [Fact(DisplayName = "Filter by sender with case insensitivity returns correct messages")]
     public async Task FilterBySender_CaseInsensitive_ReturnsCorrectMessages()
     {
-        // Arrange
         var filePath = Path.Combine(_sampleDataPath, "sample-m-d-yy.txt");
 
-        // Act
         var chatExport = await _parser.ParseAsync(filePath);
-
-        // Use different casings for the same sender
         var sarahMessagesLower = chatExport.GetMessagesBySender("sarah wilson").ToList();
         var sarahMessagesUpper = chatExport.GetMessagesBySender("SARAH WILSON").ToList();
         var sarahMessagesMixed = chatExport.GetMessagesBySender("Sarah Wilson").ToList();
 
-        // Assert
         sarahMessagesLower.Should().HaveCount(5);
         sarahMessagesUpper.Should().HaveCount(5);
         sarahMessagesMixed.Should().HaveCount(5);
@@ -136,13 +125,11 @@ public sealed class EndToEndIntegrationTests : IDisposable
     [Fact(DisplayName = "Processing checkpoint save and load maintains state")]
     public async Task ProcessingCheckpoint_SaveAndLoad_MaintainsState()
     {
-        // Arrange
         var filePath = Path.Combine(_sampleDataPath, "sample-dd-mm-yyyy.txt");
         var chatExport = await _parser.ParseAsync(filePath);
         var documentId = "test-document-" + Guid.NewGuid().ToString("N")[..8];
         var repository = new JsonFileStateRepository(_testDirectory);
 
-        // Create a checkpoint and mark some messages as processed
         var checkpoint = ProcessingCheckpoint.Create(documentId);
         var messagesToMark = chatExport.Messages.Take(5).ToList();
 
@@ -151,14 +138,11 @@ public sealed class EndToEndIntegrationTests : IDisposable
             checkpoint.MarkAsProcessed(message.Id);
         }
 
-        // Act - Save the checkpoint
         await repository.SaveCheckpointAsync(checkpoint);
 
-        // Load the checkpoint from a new repository instance (simulating app restart)
         var newRepository = new JsonFileStateRepository(_testDirectory);
         var loadedCheckpoint = await newRepository.GetCheckpointAsync(documentId);
 
-        // Assert
         loadedCheckpoint.Should().NotBeNull();
         loadedCheckpoint.Id.Should().Be(checkpoint.Id);
         loadedCheckpoint.DocumentId.Should().Be(documentId);
@@ -188,14 +172,12 @@ public sealed class EndToEndIntegrationTests : IDisposable
     [Fact(DisplayName = "Processing checkpoint with sender filter save and load maintains filter")]
     public async Task ProcessingCheckpoint_WithSenderFilter_MaintainsFilter()
     {
-        // Arrange
         var filePath = Path.Combine(_sampleDataPath, "sample-dd-mm-yyyy.txt");
         var chatExport = await _parser.ParseAsync(filePath);
         var documentId = "sender-filter-test-" + Guid.NewGuid().ToString("N")[..8];
         var senderFilter = SenderFilter.Create("Maria Garcia");
         var repository = new JsonFileStateRepository(_testDirectory);
 
-        // Get Maria's messages and create a checkpoint with sender filter
         var mariaMessages = chatExport.GetMessagesBySender("Maria Garcia").ToList();
         var checkpoint = ProcessingCheckpoint.Create(documentId, senderFilter);
 
@@ -204,11 +186,9 @@ public sealed class EndToEndIntegrationTests : IDisposable
             checkpoint.MarkAsProcessed(message.Id);
         }
 
-        // Act - Save and reload
         await repository.SaveCheckpointAsync(checkpoint);
         var loadedCheckpoint = await repository.GetCheckpointAsync(documentId, senderFilter);
 
-        // Assert
         loadedCheckpoint.Should().NotBeNull();
         loadedCheckpoint.SenderFilter.Should().NotBeNull();
         loadedCheckpoint.SenderFilter!.SenderName.Should().Be("Maria Garcia");
@@ -223,25 +203,18 @@ public sealed class EndToEndIntegrationTests : IDisposable
     [Fact(DisplayName = "Full workflow parse filter format and checkpoint maintains consistency")]
     public async Task FullWorkflow_ParseFilterFormatCheckpoint_MaintainsConsistency()
     {
-        // Arrange
         var filePath = Path.Combine(_sampleDataPath, "sample-m-d-yy.txt");
         var documentId = "full-workflow-" + Guid.NewGuid().ToString("N")[..8];
         var senderFilter = SenderFilter.Create("Michael Brown");
         var formatter = new DefaultMessageFormatter();
         var repository = new JsonFileStateRepository(_testDirectory);
 
-        // Act - Parse the chat
         var chatExport = await _parser.ParseAsync(filePath);
-
-        // Filter messages by sender
         var michaelMessages = chatExport.FilterMessages(senderFilter).ToList();
-
-        // Format all filtered messages
         var formattedMessages = michaelMessages
             .Select(m => formatter.FormatMessage(m))
             .ToList();
 
-        // Create and save checkpoint
         var checkpoint = ProcessingCheckpoint.Create(documentId, senderFilter);
         foreach (var message in michaelMessages)
         {
@@ -249,18 +222,16 @@ public sealed class EndToEndIntegrationTests : IDisposable
         }
         await repository.SaveCheckpointAsync(checkpoint);
 
-        // Reload checkpoint
         var loadedCheckpoint = await repository.GetCheckpointAsync(documentId, senderFilter);
 
-        // Assert
         michaelMessages.Should().HaveCount(5);
         formattedMessages.Should().HaveCount(5);
 
         // All formatted messages should contain Michael Brown
         formattedMessages.Should().OnlyContain(f => f.Contains("Michael Brown:"));
 
-        // Checkpoint should track all processed messages
         loadedCheckpoint.ProcessedCount.Should().Be(5);
+        loadedCheckpoint.SenderFilter.Should().NotBeNull();
         loadedCheckpoint.SenderFilter!.SenderName.Should().Be("Michael Brown");
 
         // Verify we can determine which messages were already processed
@@ -280,57 +251,14 @@ public sealed class EndToEndIntegrationTests : IDisposable
     [Fact(DisplayName = "Get distinct senders returns all unique senders")]
     public async Task GetDistinctSenders_MultiSenderChat_ReturnsAllUniqueSenders()
     {
-        // Arrange
         var filePath = Path.Combine(_sampleDataPath, "sample-dd-mm-yyyy.txt");
 
-        // Act
         var chatExport = await _parser.ParseAsync(filePath);
         var senders = chatExport.GetDistinctSenders().ToList();
 
-        // Assert
         senders.Should().HaveCount(3);
         senders.Should().Contain("John Smith");
         senders.Should().Contain("Maria Garcia");
         senders.Should().Contain("Alex Johnson");
-    }
-
-    private static string GetSampleDataPath()
-    {
-        // Search for the SampleData directory by walking up from the current directory
-        var currentDir = new DirectoryInfo(Directory.GetCurrentDirectory());
-
-        while (currentDir is not null)
-        {
-            var testsDir = Path.Combine(currentDir.FullName, "tests", "SampleData");
-            if (Directory.Exists(testsDir))
-            {
-                return testsDir;
-            }
-
-            var sampleDataDir = Path.Combine(currentDir.FullName, "SampleData");
-            if (Directory.Exists(sampleDataDir))
-            {
-                return sampleDataDir;
-            }
-
-            currentDir = currentDir.Parent;
-        }
-
-        // Fallback: try relative paths from test output directory
-        var outputDir = Directory.GetCurrentDirectory();
-        var relativePaths = new[]
-        {
-            Path.Combine(outputDir, "..", "..", "..", "..", "..", "tests", "SampleData"),
-            Path.Combine(outputDir, "..", "..", "..", "..", "SampleData")
-        };
-
-        var foundPath = relativePaths.FirstOrDefault(path => Directory.Exists(path));
-        if (foundPath is not null)
-        {
-            return Path.GetFullPath(foundPath);
-        }
-
-        throw new DirectoryNotFoundException(
-            "Could not find SampleData directory. Searched from: " + Directory.GetCurrentDirectory());
     }
 }
