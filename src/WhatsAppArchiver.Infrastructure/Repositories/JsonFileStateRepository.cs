@@ -36,7 +36,7 @@ namespace WhatsAppArchiver.Infrastructure.Repositories;
 /// </para>
 /// <para>
 /// Identifiers (documentId and senderName) exceeding 100 characters are truncated
-/// to 91 characters and appended with an 8-character hash for uniqueness. This may
+/// to 83 characters and appended with a 16-character hash for uniqueness, for a total of 100 characters. This may
 /// result in different logical identifiers mapping to the same file if hash collisions occur.
 /// </para>
 /// </remarks>
