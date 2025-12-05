@@ -123,13 +123,12 @@ public sealed class JsonFileStateRepository : IProcessingStateService
         var filePath = GetFilePath(checkpoint.DocumentId, checkpoint.SenderFilter);
         var directoryPath = Path.GetDirectoryName(filePath);
 
-        if (!string.IsNullOrEmpty(directoryPath))
-        {
-            Directory.CreateDirectory(directoryPath);
-        }
-
         await _resiliencePipeline.ExecuteAsync(async token =>
         {
+            if (!string.IsNullOrEmpty(directoryPath))
+            {
+                Directory.CreateDirectory(directoryPath);
+            }
             await SaveCheckpointAtomicallyAsync(checkpoint, filePath, token);
         }, cancellationToken);
     }
