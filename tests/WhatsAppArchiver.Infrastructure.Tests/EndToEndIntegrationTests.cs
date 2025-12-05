@@ -1,0 +1,336 @@
+using FluentAssertions;
+
+using WhatsAppArchiver.Domain.Aggregates;
+using WhatsAppArchiver.Domain.Entities;
+using WhatsAppArchiver.Domain.Formatting;
+using WhatsAppArchiver.Domain.Specifications;
+using WhatsAppArchiver.Domain.ValueObjects;
+using WhatsAppArchiver.Infrastructure.Parsers;
+using WhatsAppArchiver.Infrastructure.Repositories;
+
+namespace WhatsAppArchiver.Infrastructure.Tests;
+
+/// <summary>
+/// End-to-end integration tests that validate cross-layer operations
+/// between the Domain, Application, and Infrastructure layers.
+/// </summary>
+/// <remarks>
+/// These tests use real file I/O with sample data to verify the complete
+/// integration of parsing, formatting, filtering, and state persistence.
+/// </remarks>
+public sealed class EndToEndIntegrationTests : IDisposable
+{
+    private readonly WhatsAppTextFileParser _parser;
+    private readonly string _sampleDataPath;
+    private readonly string _testDirectory;
+
+    public EndToEndIntegrationTests()
+    {
+        _parser = new WhatsAppTextFileParser();
+        _sampleDataPath = GetSampleDataPath();
+        _testDirectory = Path.Combine(Path.GetTempPath(), $"EndToEndIntegrationTests_{Guid.NewGuid()}");
+        Directory.CreateDirectory(_testDirectory);
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_testDirectory))
+        {
+            Directory.Delete(_testDirectory, recursive: true);
+        }
+    }
+
+    [Fact(DisplayName = "Parse and format sample chat produces expected output")]
+    public async Task ParseAndFormat_SampleChat_ProducesExpectedOutput()
+    {
+        // Arrange
+        var filePath = Path.Combine(_sampleDataPath, "sample-dd-mm-yyyy.txt");
+        var formatter = new DefaultMessageFormatter();
+
+        // Act
+        var chatExport = await _parser.ParseAsync(filePath);
+        var formattedMessages = chatExport.Messages
+            .Select(message => formatter.FormatMessage(message))
+            .ToList();
+
+        // Assert
+        chatExport.Should().NotBeNull();
+        chatExport.Messages.Should().HaveCount(10);
+        formattedMessages.Should().HaveCount(10);
+
+        // Verify the first message formatted output matches the expected pattern
+        var firstFormatted = formattedMessages[0];
+        firstFormatted.Should().StartWith("[25/12/2024, 09:15:00]");
+        firstFormatted.Should().Contain("John Smith:");
+        firstFormatted.Should().Contain("Good morning everyone!");
+
+        // Verify formatted messages contain all senders
+        var allFormatted = string.Join(Environment.NewLine, formattedMessages);
+        allFormatted.Should().Contain("John Smith:");
+        allFormatted.Should().Contain("Maria Garcia:");
+        allFormatted.Should().Contain("Alex Johnson:");
+
+        // Verify the format pattern: [DD/MM/YYYY, HH:mm:ss] Sender: Content
+        foreach (var formatted in formattedMessages)
+        {
+            formatted.Should().MatchRegex(@"^\[\d{2}/\d{2}/\d{4}, \d{2}:\d{2}:\d{2}\] .+: .+$");
+        }
+    }
+
+    [Fact(DisplayName = "Filter by sender in multi-sender chat returns only sender messages")]
+    public async Task FilterBySender_MultiSenderChat_ReturnsOnlySenderMessages()
+    {
+        // Arrange
+        var filePath = Path.Combine(_sampleDataPath, "sample-dd-mm-yyyy.txt");
+        const string targetSender = "John Smith";
+
+        // Act
+        var chatExport = await _parser.ParseAsync(filePath);
+        var johnMessages = chatExport.GetMessagesBySender(targetSender).ToList();
+
+        // Assert
+        johnMessages.Should().NotBeEmpty();
+        johnMessages.Should().HaveCount(4, "John Smith sends 4 messages in sample-dd-mm-yyyy.txt");
+
+        // Verify all returned messages are from John Smith
+        johnMessages.Should().OnlyContain(
+            m => m.Sender.Equals(targetSender, StringComparison.OrdinalIgnoreCase),
+            "all messages should be from the specified sender");
+
+        // Verify message content matches expected messages
+        var contents = johnMessages.Select(m => m.Content).ToList();
+        contents.Should().Contain("Good morning everyone! 🎄");
+        contents.Should().Contain("Hope you're having a wonderful holiday");
+        contents.Should().Contain("I'm starving! Let's meet at 1 PM");
+        contents.Should().Contain("Good morning! Back to work tomorrow 😢");
+
+        // Verify using the SenderFilter specification directly
+        var senderFilter = SenderFilter.Create(targetSender);
+        var filteredMessages = chatExport.FilterMessages(senderFilter).ToList();
+        filteredMessages.Should().BeEquivalentTo(johnMessages);
+    }
+
+    [Fact(DisplayName = "Filter by sender with case insensitivity returns correct messages")]
+    public async Task FilterBySender_CaseInsensitive_ReturnsCorrectMessages()
+    {
+        // Arrange
+        var filePath = Path.Combine(_sampleDataPath, "sample-m-d-yy.txt");
+
+        // Act
+        var chatExport = await _parser.ParseAsync(filePath);
+
+        // Use different casings for the same sender
+        var sarahMessagesLower = chatExport.GetMessagesBySender("sarah wilson").ToList();
+        var sarahMessagesUpper = chatExport.GetMessagesBySender("SARAH WILSON").ToList();
+        var sarahMessagesMixed = chatExport.GetMessagesBySender("Sarah Wilson").ToList();
+
+        // Assert
+        sarahMessagesLower.Should().HaveCount(5);
+        sarahMessagesUpper.Should().HaveCount(5);
+        sarahMessagesMixed.Should().HaveCount(5);
+
+        sarahMessagesLower.Should().BeEquivalentTo(sarahMessagesUpper);
+        sarahMessagesUpper.Should().BeEquivalentTo(sarahMessagesMixed);
+    }
+
+    [Fact(DisplayName = "Processing checkpoint save and load maintains state")]
+    public async Task ProcessingCheckpoint_SaveAndLoad_MaintainsState()
+    {
+        // Arrange
+        var filePath = Path.Combine(_sampleDataPath, "sample-dd-mm-yyyy.txt");
+        var chatExport = await _parser.ParseAsync(filePath);
+        var documentId = "test-document-" + Guid.NewGuid().ToString("N")[..8];
+        var repository = new JsonFileStateRepository(_testDirectory);
+
+        // Create a checkpoint and mark some messages as processed
+        var checkpoint = ProcessingCheckpoint.Create(documentId);
+        var messagesToMark = chatExport.Messages.Take(5).ToList();
+
+        foreach (var message in messagesToMark)
+        {
+            checkpoint.MarkAsProcessed(message.Id);
+        }
+
+        // Act - Save the checkpoint
+        await repository.SaveCheckpointAsync(checkpoint);
+
+        // Load the checkpoint from a new repository instance (simulating app restart)
+        var newRepository = new JsonFileStateRepository(_testDirectory);
+        var loadedCheckpoint = await newRepository.GetCheckpointAsync(documentId);
+
+        // Assert
+        loadedCheckpoint.Should().NotBeNull();
+        loadedCheckpoint.Id.Should().Be(checkpoint.Id);
+        loadedCheckpoint.DocumentId.Should().Be(documentId);
+        loadedCheckpoint.ProcessedCount.Should().Be(5);
+
+        // Verify all marked messages are still marked as processed
+        foreach (var message in messagesToMark)
+        {
+            loadedCheckpoint.HasBeenProcessed(message.Id).Should().BeTrue(
+                $"message '{message.Content[..Math.Min(20, message.Content.Length)]}...' should be marked as processed");
+        }
+
+        // Verify messages not marked are not in the checkpoint
+        var unprocessedMessages = chatExport.Messages.Skip(5).ToList();
+        foreach (var message in unprocessedMessages)
+        {
+            loadedCheckpoint.HasBeenProcessed(message.Id).Should().BeFalse(
+                "message should not be marked as processed");
+        }
+
+        // Verify last processed timestamp
+        loadedCheckpoint.LastProcessedTimestamp.Should().NotBeNull();
+        loadedCheckpoint.LastProcessedTimestamp.Should().Be(
+            messagesToMark.Max(m => m.Timestamp));
+    }
+
+    [Fact(DisplayName = "Processing checkpoint with sender filter save and load maintains filter")]
+    public async Task ProcessingCheckpoint_WithSenderFilter_MaintainsFilter()
+    {
+        // Arrange
+        var filePath = Path.Combine(_sampleDataPath, "sample-dd-mm-yyyy.txt");
+        var chatExport = await _parser.ParseAsync(filePath);
+        var documentId = "sender-filter-test-" + Guid.NewGuid().ToString("N")[..8];
+        var senderFilter = SenderFilter.Create("Maria Garcia");
+        var repository = new JsonFileStateRepository(_testDirectory);
+
+        // Get Maria's messages and create a checkpoint with sender filter
+        var mariaMessages = chatExport.GetMessagesBySender("Maria Garcia").ToList();
+        var checkpoint = ProcessingCheckpoint.Create(documentId, senderFilter);
+
+        foreach (var message in mariaMessages)
+        {
+            checkpoint.MarkAsProcessed(message.Id);
+        }
+
+        // Act - Save and reload
+        await repository.SaveCheckpointAsync(checkpoint);
+        var loadedCheckpoint = await repository.GetCheckpointAsync(documentId, senderFilter);
+
+        // Assert
+        loadedCheckpoint.Should().NotBeNull();
+        loadedCheckpoint.SenderFilter.Should().NotBeNull();
+        loadedCheckpoint.SenderFilter!.SenderName.Should().Be("Maria Garcia");
+        loadedCheckpoint.ProcessedCount.Should().Be(mariaMessages.Count);
+
+        foreach (var message in mariaMessages)
+        {
+            loadedCheckpoint.HasBeenProcessed(message.Id).Should().BeTrue();
+        }
+    }
+
+    [Fact(DisplayName = "Full workflow parse filter format and checkpoint maintains consistency")]
+    public async Task FullWorkflow_ParseFilterFormatCheckpoint_MaintainsConsistency()
+    {
+        // Arrange
+        var filePath = Path.Combine(_sampleDataPath, "sample-m-d-yy.txt");
+        var documentId = "full-workflow-" + Guid.NewGuid().ToString("N")[..8];
+        var senderFilter = SenderFilter.Create("Michael Brown");
+        var formatter = new DefaultMessageFormatter();
+        var repository = new JsonFileStateRepository(_testDirectory);
+
+        // Act - Parse the chat
+        var chatExport = await _parser.ParseAsync(filePath);
+
+        // Filter messages by sender
+        var michaelMessages = chatExport.FilterMessages(senderFilter).ToList();
+
+        // Format all filtered messages
+        var formattedMessages = michaelMessages
+            .Select(m => formatter.FormatMessage(m))
+            .ToList();
+
+        // Create and save checkpoint
+        var checkpoint = ProcessingCheckpoint.Create(documentId, senderFilter);
+        foreach (var message in michaelMessages)
+        {
+            checkpoint.MarkAsProcessed(message.Id);
+        }
+        await repository.SaveCheckpointAsync(checkpoint);
+
+        // Reload checkpoint
+        var loadedCheckpoint = await repository.GetCheckpointAsync(documentId, senderFilter);
+
+        // Assert
+        michaelMessages.Should().HaveCount(5);
+        formattedMessages.Should().HaveCount(5);
+
+        // All formatted messages should contain Michael Brown
+        formattedMessages.Should().OnlyContain(f => f.Contains("Michael Brown:"));
+
+        // Checkpoint should track all processed messages
+        loadedCheckpoint.ProcessedCount.Should().Be(5);
+        loadedCheckpoint.SenderFilter!.SenderName.Should().Be("Michael Brown");
+
+        // Verify we can determine which messages were already processed
+        foreach (var message in michaelMessages)
+        {
+            loadedCheckpoint.HasBeenProcessed(message.Id).Should().BeTrue();
+        }
+
+        // Verify unprocessed messages are not in checkpoint
+        var sarahMessages = chatExport.GetMessagesBySender("Sarah Wilson");
+        foreach (var message in sarahMessages)
+        {
+            loadedCheckpoint.HasBeenProcessed(message.Id).Should().BeFalse();
+        }
+    }
+
+    [Fact(DisplayName = "Get distinct senders returns all unique senders")]
+    public async Task GetDistinctSenders_MultiSenderChat_ReturnsAllUniqueSenders()
+    {
+        // Arrange
+        var filePath = Path.Combine(_sampleDataPath, "sample-dd-mm-yyyy.txt");
+
+        // Act
+        var chatExport = await _parser.ParseAsync(filePath);
+        var senders = chatExport.GetDistinctSenders().ToList();
+
+        // Assert
+        senders.Should().HaveCount(3);
+        senders.Should().Contain("John Smith");
+        senders.Should().Contain("Maria Garcia");
+        senders.Should().Contain("Alex Johnson");
+    }
+
+    private static string GetSampleDataPath()
+    {
+        // Search for the SampleData directory by walking up from the current directory
+        var currentDir = new DirectoryInfo(Directory.GetCurrentDirectory());
+
+        while (currentDir is not null)
+        {
+            var testsDir = Path.Combine(currentDir.FullName, "tests", "SampleData");
+            if (Directory.Exists(testsDir))
+            {
+                return testsDir;
+            }
+
+            var sampleDataDir = Path.Combine(currentDir.FullName, "SampleData");
+            if (Directory.Exists(sampleDataDir))
+            {
+                return sampleDataDir;
+            }
+
+            currentDir = currentDir.Parent;
+        }
+
+        // Fallback: try relative paths from test output directory
+        var outputDir = Directory.GetCurrentDirectory();
+        var relativePaths = new[]
+        {
+            Path.Combine(outputDir, "..", "..", "..", "..", "..", "tests", "SampleData"),
+            Path.Combine(outputDir, "..", "..", "..", "..", "SampleData")
+        };
+
+        var foundPath = relativePaths.FirstOrDefault(path => Directory.Exists(path));
+        if (foundPath is not null)
+        {
+            return Path.GetFullPath(foundPath);
+        }
+
+        throw new DirectoryNotFoundException(
+            "Could not find SampleData directory. Searched from: " + Directory.GetCurrentDirectory());
+    }
+}
