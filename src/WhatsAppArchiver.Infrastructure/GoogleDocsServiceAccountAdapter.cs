@@ -312,7 +312,7 @@ public sealed class GoogleDocsClientFactory : IGoogleDocsClientFactory
 
         // Validate against directory traversal attacks in the original input
         // We check the original path because Path.GetFullPath resolves .. sequences
-        if (credentialFilePath.Contains(".."))
+        if (credentialFilePath.Contains("../") || credentialFilePath.Contains("..\\"))
         {
             throw new ArgumentException(
                 "Credential file path cannot contain directory traversal patterns.",
