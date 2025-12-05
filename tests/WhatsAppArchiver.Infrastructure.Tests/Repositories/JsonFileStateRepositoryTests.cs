@@ -400,7 +400,6 @@ public sealed class JsonFileStateRepositoryTests : IDisposable
     [Fact(DisplayName = "SaveCheckpointAsync with concurrent writes uses last-write-wins semantics")]
     public async Task SaveCheckpointAsync_ConcurrentWrites_LastWriteWins()
     {
-        // Arrange: Create two checkpoints with distinct message IDs
         var documentId = "concurrent-last-write";
         var checkpoint1 = ProcessingCheckpoint.Create(documentId);
         var checkpoint2 = ProcessingCheckpoint.Create(documentId);
@@ -410,16 +409,13 @@ public sealed class JsonFileStateRepositoryTests : IDisposable
         checkpoint1.MarkAsProcessed(messageId1);
         checkpoint2.MarkAsProcessed(messageId2);
 
-        // Act: Execute concurrent writes
         var task1 = _repository.SaveCheckpointAsync(checkpoint1);
         var task2 = _repository.SaveCheckpointAsync(checkpoint2);
         await Task.WhenAll(task1, task2);
 
-        // Assert: The final file contains exactly one message (last-write-wins)
         var loadedCheckpoint = await _repository.GetCheckpointAsync(documentId);
         loadedCheckpoint.ProcessedCount.Should().Be(1, "last-write-wins semantics mean only one checkpoint survives");
         
-        // Verify that the loaded checkpoint contains one of the two messages
         var hasMessage1 = loadedCheckpoint.HasBeenProcessed(messageId1);
         var hasMessage2 = loadedCheckpoint.HasBeenProcessed(messageId2);
         (hasMessage1 || hasMessage2).Should().BeTrue("the surviving checkpoint must contain one of the messages");
