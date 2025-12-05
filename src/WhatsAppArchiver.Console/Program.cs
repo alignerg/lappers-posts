@@ -4,7 +4,6 @@ using Microsoft.Extensions.Hosting;
 using Serilog;
 using WhatsAppArchiver.Application.Handlers;
 using WhatsAppArchiver.Application.Services;
-using WhatsAppArchiver.Domain.Formatting;
 using WhatsAppArchiver.Infrastructure;
 using WhatsAppArchiver.Infrastructure.Parsers;
 using WhatsAppArchiver.Infrastructure.Repositories;
@@ -44,10 +43,9 @@ try
             services.AddSingleton<IChatParser, WhatsAppTextFileParser>();
             services.AddSingleton<IGoogleDocsClientFactory, GoogleDocsClientFactory>();
 
-            // Register formatters as singletons (stateless)
-            services.AddSingleton<IMessageFormatter, DefaultMessageFormatter>();
-            services.AddSingleton<IMessageFormatter, CompactMessageFormatter>();
-            services.AddSingleton<IMessageFormatter, VerboseMessageFormatter>();
+            // Note: IMessageFormatter implementations are created via FormatterFactory.Create()
+            // which is a static factory method. The handlers use this factory directly,
+            // so individual formatter registrations are not needed for DI resolution.
 
             // Register Google Docs service with configured credential path
             services.AddSingleton<IGoogleDocsService>(sp =>
@@ -60,7 +58,7 @@ try
             // Register processing state service with configured base path
             services.AddSingleton<IProcessingStateService>(sp =>
             {
-                var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<JsonFileStateRepository>>();
+                var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<JsonFileStateRepository>>();
 
                 return new JsonFileStateRepository(stateRepositoryBasePath, logger);
             });
