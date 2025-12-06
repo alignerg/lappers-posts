@@ -28,14 +28,14 @@
   // ====================================================================================
   
   // Example 1: Processing state WITHOUT sender filter
-  // Filename: 1a2b3c4d5e6f7g8h9i0j__all_messages.json
+  // Filename: 1a2b3c4d5e6f7g8h9i0j.json
   "example_without_sender_filter": {
     // Unique identifier for this checkpoint (auto-generated GUID)
     "id": "550e8400-e29b-41d4-a716-446655440000",
     
     // Google Document ID this checkpoint tracks
     // This is the unique identifier from the Google Docs URL
-    "documentId": "1a2b3c4d5e6f7g8h9i0j__all_messages",
+    "documentId": "1a2b3c4d5e6f7g8h9i0j",
     
     // Timestamp of the most recently processed message (ISO 8601 format)
     // Null if no messages have been processed yet
