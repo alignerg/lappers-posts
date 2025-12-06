@@ -26,8 +26,8 @@ try
         .ConfigureServices((context, services) =>
         {
             // Retrieve configuration values
-            var googleDocsCredentialPath = context.Configuration["WhatsAppArchiver:GoogleDocs:CredentialFilePath"]
-                ?? throw new InvalidOperationException("Configuration key 'WhatsAppArchiver:GoogleDocs:CredentialFilePath' is not configured.");
+            var googleDocsCredentialPath = context.Configuration["WhatsAppArchiver:GoogleServiceAccount:CredentialsPath"]
+                ?? throw new InvalidOperationException("Configuration key 'WhatsAppArchiver:GoogleServiceAccount:CredentialsPath' is not configured.");
             var stateRepositoryBasePath = context.Configuration["WhatsAppArchiver:StateRepository:BasePath"]
                 ?? throw new InvalidOperationException("Configuration key 'WhatsAppArchiver:StateRepository:BasePath' is not configured.");
 

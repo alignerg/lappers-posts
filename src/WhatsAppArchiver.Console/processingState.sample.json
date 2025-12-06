@@ -1,0 +1,216 @@
+{
+  // ====================================================================================
+  // WhatsApp Archiver - Processing State File Schema
+  // ====================================================================================
+  // This file demonstrates the structure of processing state files created by the
+  // JsonFileStateRepository. These files are automatically generated and maintained
+  // by the application to track processing progress.
+  //
+  // FILE NAMING CONVENTION:
+  // - Without sender filter: {documentId}.json
+  //   Example: abc123_google_doc.json
+  //
+  // - With sender filter: {documentId}__{senderName}.json
+  //   Example: abc123_google_doc__john_doe.json
+  //
+  // Note: documentId and senderName are sanitized (lowercase, special chars replaced
+  // with underscores). Long names are truncated and appended with a hash.
+  //
+  // LOCATION:
+  // State files are stored in the directory specified by:
+  // appsettings.json -> WhatsAppArchiver:StateRepository:BasePath
+  //
+  // PURPOSE:
+  // - Track which messages have been successfully processed
+  // - Enable resumable operations after interruptions
+  // - Prevent duplicate message uploads
+  // - Maintain processing history per document and sender
+  // ====================================================================================
+  
+  // Example 1: Processing state WITHOUT sender filter
+  // Filename: 1a2b3c4d5e6f7g8h9i0j.json
+  "example_without_sender_filter": {
+    // Unique identifier for this checkpoint (auto-generated GUID)
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    
+    // Google Document ID this checkpoint tracks
+    // This is the unique identifier from the Google Docs URL
+    "documentId": "1a2b3c4d5e6f7g8h9i0j",
+    
+    // Timestamp of the most recently processed message (ISO 8601 format)
+    // Null if no messages have been processed yet
+    "lastProcessedTimestamp": "2024-12-06T10:30:45.123Z",
+    
+    // Array of processed message identifiers
+    // Each message has a timestamp and content hash for unique identification
+    "processedMessageIds": [
+      {
+        // Message timestamp (ISO 8601 format with timezone)
+        "timestamp": "2024-12-05T08:15:30.000Z",
+        
+        // SHA-256 hash of message content (first 16 chars)
+        // Used to uniquely identify messages even if timestamp is identical
+        "contentHash": "a1b2c3d4e5f6g7h8"
+      },
+      {
+        "timestamp": "2024-12-05T09:22:15.000Z",
+        "contentHash": "b2c3d4e5f6g7h8i9"
+      },
+      {
+        "timestamp": "2024-12-06T10:30:45.123Z",
+        "contentHash": "c3d4e5f6g7h8i9j0"
+      }
+    ],
+    
+    // Sender filter name (null when processing all senders)
+    "senderName": null
+  },
+  
+  // Example 2: Processing state WITH sender filter
+  // Filename: 1a2b3c4d5e6f7g8h9i0j__john_doe.json
+  "example_with_sender_filter": {
+    "id": "660e8400-e29b-41d4-a716-446655440011",
+    
+    // Same document ID as above, but filtered for specific sender
+    "documentId": "1a2b3c4d5e6f7g8h9i0j",
+    
+    "lastProcessedTimestamp": "2024-12-06T11:15:22.456Z",
+    
+    // Only messages from the specified sender are tracked here
+    "processedMessageIds": [
+      {
+        "timestamp": "2024-12-05T14:20:10.000Z",
+        "contentHash": "d4e5f6g7h8i9j0k1"
+      },
+      {
+        "timestamp": "2024-12-06T11:15:22.456Z",
+        "contentHash": "e5f6g7h8i9j0k1l2"
+      }
+    ],
+    
+    // Sender name being filtered (case-sensitive as provided)
+    // File name will be sanitized version: john_doe
+    "senderName": "John Doe"
+  },
+  
+  // Example 3: Newly created checkpoint (no messages processed yet)
+  // Filename: brand_new_document.json
+  "example_new_checkpoint": {
+    "id": "770e8400-e29b-41d4-a716-446655440022",
+    
+    "documentId": "brand_new_document",
+    
+    // Null indicates no messages have been processed
+    "lastProcessedTimestamp": null,
+    
+    // Empty array - no messages processed yet
+    "processedMessageIds": [],
+    
+    "senderName": null
+  },
+  
+  // Example 4: Long sender name with hash suffix (demonstrates truncation)
+  // Filename: 1a2b3c4d5e6f7g8h9i0j__this_is_a_very_long_sender_name_that_exceeds_the_maximum_allowed_length_for_a_filen_a1b2c3d4e5f6g7h8.json
+  // Note: Sanitized sender name is 118 chars, exceeding max of 100, so it's truncated to 83 chars + "_" + 16 char hash = 100 chars total
+  "example_long_sender_name": {
+    "id": "880e8400-e29b-41d4-a716-446655440033",
+    
+    "documentId": "1a2b3c4d5e6f7g8h9i0j",
+    
+    "lastProcessedTimestamp": "2024-12-06T12:00:00.000Z",
+    
+    "processedMessageIds": [
+      {
+        "timestamp": "2024-12-06T12:00:00.000Z",
+        "contentHash": "f6g7h8i9j0k1l2m3"
+      }
+    ],
+    
+    // Original sender name that exceeds the maximum filename length
+    // The filename will contain a sanitized, truncated version with hash
+    "senderName": "This Is A Very Long Sender Name That Exceeds The Maximum Allowed Length For A Filename Component And Will Be Truncated"
+  },
+  
+  // ====================================================================================
+  // SCHEMA DOCUMENTATION
+  // ====================================================================================
+  "schema_reference": {
+    "id": {
+      "type": "string (GUID)",
+      "required": true,
+      "description": "Unique identifier for this checkpoint instance",
+      "example": "550e8400-e29b-41d4-a716-446655440000",
+      "notes": "Auto-generated when checkpoint is created"
+    },
+    
+    "documentId": {
+      "type": "string",
+      "required": true,
+      "description": "Identifier of the Google Document being processed",
+      "example": "1a2b3c4d5e6f7g8h9i0j",
+      "constraints": "Must match the document ID provided during processing"
+    },
+    
+    "lastProcessedTimestamp": {
+      "type": "string (ISO 8601 datetime) or null",
+      "required": true,
+      "description": "Timestamp of the most recently processed message",
+      "example": "2024-12-06T10:30:45.123Z",
+      "notes": "Null if no messages have been processed yet"
+    },
+    
+    "processedMessageIds": {
+      "type": "array of MessageId objects",
+      "required": true,
+      "description": "List of all processed message identifiers",
+      "item_schema": {
+        "timestamp": {
+          "type": "string (ISO 8601 datetime)",
+          "required": true,
+          "description": "Message timestamp from chat export",
+          "example": "2024-12-05T08:15:30.000Z"
+        },
+        "contentHash": {
+          "type": "string",
+          "required": true,
+          "description": "Short hash of message content for unique identification",
+          "example": "a1b2c3d4e5f6g7h8",
+          "notes": "First 16 characters of SHA-256 hash"
+        }
+      }
+    },
+    
+    "senderName": {
+      "type": "string or null",
+      "required": true,
+      "description": "Name of sender when using sender filter",
+      "example": "John Doe",
+      "notes": "Null when processing all senders; case-sensitive original name"
+    }
+  },
+  
+  // ====================================================================================
+  // USAGE NOTES
+  // ====================================================================================
+  "usage_notes": {
+    "automatic_creation": "State files are created automatically by the application. You should not need to create or edit them manually.",
+    
+    "file_location": "Files are stored in the directory specified by appsettings.json -> WhatsAppArchiver:StateRepository:BasePath",
+    
+    "resumability": "If processing is interrupted, the application will load the state file and resume from where it left off.",
+    
+    "duplicate_prevention": "Before uploading a message, the application checks if its messageId already exists in processedMessageIds.",
+    
+    "concurrent_safety": "The repository uses atomic file writes (temp file + rename) to prevent corruption during concurrent access.",
+    
+    "retry_handling": "File I/O operations include retry logic with exponential backoff to handle transient failures.",
+    
+    "filename_sanitization": "Special characters in documentId and senderName are replaced with underscores. Long names are truncated with a hash suffix.",
+    
+    "collision_detection": "When loading a checkpoint, the application validates that the file's documentId and senderName match the request to detect filename collisions.",
+    
+    "manual_cleanup": "You can safely delete state files to reset processing for a document. The application will start fresh on the next run.",
+    
+    "backup_recommendation": "Consider backing up state files if you need to preserve processing history."
+  }
+}
