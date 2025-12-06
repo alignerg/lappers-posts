@@ -35,8 +35,8 @@ static IHost BuildHost(string[] args, FileInfo? customConfigFile)
     {
         builder.ConfigureAppConfiguration((context, config) =>
         {
-            // Clear default configuration sources and add custom config
-            config.Sources.Clear();
+            // Replace only the default appsettings.json sources with the custom config, keep other sources (e.g., user secrets)
+            config.Sources.RemoveAll(s => s is Microsoft.Extensions.Configuration.Json.JsonConfigurationSource);
             config.AddJsonFile(customConfigFile.FullName, optional: false, reloadOnChange: false);
             config.AddEnvironmentVariables();
             if (args.Length > 0)
@@ -118,7 +118,9 @@ static IHost BuildHost(string[] args, FileInfo? customConfigFile)
 /// This method uses dependency injection to resolve the <see cref="UploadToGoogleDocsCommandHandler"/>
 /// from the host's service provider. It creates a service scope to ensure proper disposal
 /// of scoped services like <see cref="IGoogleDocsService"/>.
-/// The state file path is derived from the chat file directory if not explicitly provided.
+/// Note: The state file path is only used for logging purposes. The actual state repository location is determined by the
+/// <c>WhatsAppArchiver:StateRepository:BasePath</c> configuration setting. The <paramref name="stateFile"/> parameter and
+/// <c>--state-file</c> CLI option do not affect where state is actually stored.
 /// </remarks>
 static async Task ExecuteUploadCommandAsync(
     IHost host,
@@ -160,19 +162,35 @@ static async Task ExecuteUploadCommandAsync(
 
         // Execute the handler with cancellation support
         using var cts = new CancellationTokenSource();
-        Console.CancelKeyPress += (_, e) =>
+        ConsoleCancelEventHandler? cancelHandler = null;
+        cancelHandler = (_, e) =>
         {
             Log.Warning("Cancellation requested by user");
             e.Cancel = true;
             cts.Cancel();
         };
+        Console.CancelKeyPress += cancelHandler;
+        try
+        {
+            var messagesUploaded = await handler.HandleAsync(command, cts.Token);
 
-        var messagesUploaded = await handler.HandleAsync(command, cts.Token);
+            Log.Information(
+                "Successfully uploaded {Count} message(s) to Google Docs document {DocumentId}",
+                messagesUploaded,
+                documentId);
 
-        Log.Information(
-            "Successfully uploaded {Count} message(s) to Google Docs document {DocumentId}",
-            messagesUploaded,
-            documentId);
+            if (messagesUploaded == 0)
+            {
+                Log.Information("No new messages to upload. All messages have been previously processed");
+            }
+        }
+        finally
+        {
+            if (cancelHandler is not null)
+            {
+                Console.CancelKeyPress -= cancelHandler;
+            }
+        }
 
         if (messagesUploaded == 0)
         {
@@ -182,12 +200,12 @@ static async Task ExecuteUploadCommandAsync(
     catch (OperationCanceledException)
     {
         Log.Warning("Operation was cancelled");
-        throw;
+        return;
     }
     catch (Exception ex)
     {
         Log.Error(ex, "Failed to execute upload command");
-        throw;
+        return;
     }
 }
 
@@ -261,6 +279,32 @@ try
     var stateFileOption = new Option<FileInfo?>(
         "--state-file",
         "Path to the processing state file (default: {chat-file-directory}/processingState.json)");
+    stateFileOption.AddValidator(result =>
+    {
+        var stateFile = result.GetValueOrDefault<FileInfo?>();
+        if (stateFile is not null)
+        {
+            var directory = stateFile.Directory;
+            if (directory is null || !directory.Exists)
+            {
+                result.ErrorMessage = $"The directory for the state file does not exist: {directory?.FullName ?? stateFile.FullName}";
+                return;
+            }
+            // Check if directory is writable by attempting to create a temp file
+            try
+            {
+                var testFilePath = Path.Combine(directory.FullName, Path.GetRandomFileName());
+                using (FileStream fs = File.Create(testFilePath, 1, FileOptions.DeleteOnClose))
+                {
+                    // Successfully created, directory is writable
+                }
+            }
+            catch (Exception)
+            {
+                result.ErrorMessage = $"The directory for the state file is not writable: {directory.FullName}";
+            }
+        }
+    });
 
     var configOption = new Option<FileInfo?>(
         "--config",
