@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Serilog;
@@ -17,16 +16,9 @@ try
 {
     Log.Information("Starting WhatsApp Archiver application");
 
+    // Host.CreateDefaultBuilder automatically loads appsettings.json, appsettings.{Environment}.json,
+    // and environment variables, so no explicit ConfigureAppConfiguration is needed.
     var builder = Host.CreateDefaultBuilder(args)
-        .ConfigureAppConfiguration((context, config) =>
-        {
-            config.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
-            config.AddJsonFile(
-                $"appsettings.{context.HostingEnvironment.EnvironmentName}.json",
-                optional: true,
-                reloadOnChange: true);
-            config.AddEnvironmentVariables();
-        })
         .UseSerilog((context, services, loggerConfiguration) =>
         {
             loggerConfiguration.ReadFrom.Configuration(context.Configuration);
@@ -39,12 +31,15 @@ try
             var stateRepositoryBasePath = context.Configuration["WhatsAppArchiver:StateRepository:BasePath"]
                 ?? throw new InvalidOperationException("Configuration key 'WhatsAppArchiver:StateRepository:BasePath' is not configured.");
 
-            // Register WhatsAppTextFileParser with injected logger for diagnostics
+            // Register WhatsAppTextFileParser as Singleton because it's stateless and thread-safe.
+            // The parser only reads files and doesn't maintain any mutable state between operations.
             services.AddSingleton<IChatParser>(sp =>
             {
                 var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<WhatsAppTextFileParser>>();
                 return new WhatsAppTextFileParser(logger);
             });
+
+            // GoogleDocsClientFactory is stateless and can be shared across all usages.
             services.AddSingleton<IGoogleDocsClientFactory, GoogleDocsClientFactory>();
 
             // Note: IMessageFormatter implementations are created via FormatterFactory.Create()
@@ -61,7 +56,8 @@ try
                 return new GoogleDocsServiceAccountAdapter(googleDocsCredentialPath, clientFactory);
             });
 
-            // Register processing state service with configured base path
+            // Register JsonFileStateRepository as Singleton because it's stateless and thread-safe.
+            // The repository handles file I/O atomically and doesn't maintain mutable state.
             services.AddSingleton<IProcessingStateService>(sp =>
             {
                 var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<JsonFileStateRepository>>();
@@ -69,12 +65,18 @@ try
                 return new JsonFileStateRepository(stateRepositoryBasePath, logger);
             });
 
-            // Register handlers as scoped services
+            // Register handlers as Scoped services to align with Scoped dependencies (IGoogleDocsService).
+            // Scoped lifetime ensures handlers are created per logical operation/scope,
+            // which is appropriate for command handlers that orchestrate business operations.
             services.AddScoped<ParseChatCommandHandler>();
             services.AddScoped<UploadToGoogleDocsCommandHandler>();
         });
 
     using var host = builder.Build();
+
+    // TODO: Wave 5 will implement command-line interface using System.CommandLine.
+    // The host currently runs and waits for shutdown signal. Command execution will be added
+    // in the next wave to parse arguments and invoke the appropriate handler.
     await host.RunAsync();
 }
 catch (Exception ex)
