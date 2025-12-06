@@ -35,20 +35,26 @@ try
         {
             // Retrieve configuration values
             var googleDocsCredentialPath = context.Configuration["WhatsAppArchiver:GoogleDocs:CredentialFilePath"]
-                ?? throw new InvalidOperationException("GoogleDocs:CredentialFilePath is not configured.");
+                ?? throw new InvalidOperationException("Configuration key 'WhatsAppArchiver:GoogleDocs:CredentialFilePath' is not configured.");
             var stateRepositoryBasePath = context.Configuration["WhatsAppArchiver:StateRepository:BasePath"]
-                ?? throw new InvalidOperationException("StateRepository:BasePath is not configured.");
+                ?? throw new InvalidOperationException("Configuration key 'WhatsAppArchiver:StateRepository:BasePath' is not configured.");
 
-            // Register singleton services (stateless)
-            services.AddSingleton<IChatParser, WhatsAppTextFileParser>();
+            // Register WhatsAppTextFileParser with injected logger for diagnostics
+            services.AddSingleton<IChatParser>(sp =>
+            {
+                var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<WhatsAppTextFileParser>>();
+                return new WhatsAppTextFileParser(logger);
+            });
             services.AddSingleton<IGoogleDocsClientFactory, GoogleDocsClientFactory>();
 
             // Note: IMessageFormatter implementations are created via FormatterFactory.Create()
             // which is a static factory method. The handlers use this factory directly,
             // so individual formatter registrations are not needed for DI resolution.
 
-            // Register Google Docs service with configured credential path
-            services.AddSingleton<IGoogleDocsService>(sp =>
+            // Register Google Docs service as Scoped to ensure proper disposal of IDisposable resources.
+            // GoogleDocsServiceAccountAdapter holds unmanaged resources (Google API clients) that need
+            // to be disposed properly. Scoped lifetime ensures disposal after each usage scope.
+            services.AddScoped<IGoogleDocsService>(sp =>
             {
                 var clientFactory = sp.GetRequiredService<IGoogleDocsClientFactory>();
 
