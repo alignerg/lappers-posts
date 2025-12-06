@@ -36,7 +36,13 @@ static IHost BuildHost(string[] args, FileInfo? customConfigFile)
         builder.ConfigureAppConfiguration((context, config) =>
         {
             // Replace only the default appsettings.json sources with the custom config, keep other sources (e.g., user secrets)
-            config.Sources.RemoveAll(s => s is Microsoft.Extensions.Configuration.Json.JsonConfigurationSource);
+            var jsonSources = config.Sources
+                .OfType<Microsoft.Extensions.Configuration.Json.JsonConfigurationSource>()
+                .ToList();
+            foreach (var source in jsonSources)
+            {
+                config.Sources.Remove(source);
+            }
             config.AddJsonFile(customConfigFile.FullName, optional: false, reloadOnChange: false);
             config.AddEnvironmentVariables();
             if (args.Length > 0)
@@ -111,41 +117,30 @@ static IHost BuildHost(string[] args, FileInfo? customConfigFile)
 /// <param name="sender">The sender name to filter messages by.</param>
 /// <param name="documentId">The Google Docs document ID to upload messages to.</param>
 /// <param name="formatType">The message formatting type to apply.</param>
-/// <param name="stateFile">Optional custom path for the processing state file.</param>
-/// <param name="configFile">Optional custom configuration file used to build the host.</param>
 /// <returns>A task representing the asynchronous operation.</returns>
 /// <remarks>
 /// This method uses dependency injection to resolve the <see cref="UploadToGoogleDocsCommandHandler"/>
 /// from the host's service provider. It creates a service scope to ensure proper disposal
 /// of scoped services like <see cref="IGoogleDocsService"/>.
-/// Note: The state file path is only used for logging purposes. The actual state repository location is determined by the
-/// <c>WhatsAppArchiver:StateRepository:BasePath</c> configuration setting. The <paramref name="stateFile"/> parameter and
-/// <c>--state-file</c> CLI option do not affect where state is actually stored.
+/// Note: The --state-file CLI option is currently for informational/logging purposes only.
+/// The actual state repository location is determined by the <c>WhatsAppArchiver:StateRepository:BasePath</c>
+/// configuration setting and is not affected by command-line parameters.
 /// </remarks>
 static async Task ExecuteUploadCommandAsync(
     IHost host,
     FileInfo chatFile,
     string sender,
     string documentId,
-    MessageFormatType formatType,
-    FileInfo? stateFile,
-    FileInfo? configFile)
+    MessageFormatType formatType)
 {
     try
     {
-        // Derive default state file path if not provided
-        var stateFilePath = stateFile?.FullName
-            ?? Path.Combine(
-                chatFile.DirectoryName ?? Environment.CurrentDirectory,
-                "processingState.json");
-
         Log.Information(
-            "Processing chat file: {ChatFile}, Sender: {Sender}, Document: {DocumentId}, Format: {Format}, State: {StateFile}",
+            "Processing chat file: {ChatFile}, Sender: {Sender}, Document: {DocumentId}, Format: {Format}",
             chatFile.FullName,
             sender,
             documentId,
-            formatType,
-            stateFilePath);
+            formatType);
 
         // Create a service scope to ensure proper disposal of scoped services
         await using var scope = host.Services.CreateAsyncScope();
@@ -190,11 +185,6 @@ static async Task ExecuteUploadCommandAsync(
             {
                 Console.CancelKeyPress -= cancelHandler;
             }
-        }
-
-        if (messagesUploaded == 0)
-        {
-            Log.Information("No new messages to upload. All messages have been previously processed");
         }
     }
     catch (OperationCanceledException)
@@ -332,7 +322,7 @@ try
             using (host)
             {
                 await ExecuteUploadCommandAsync(
-                    host, chatFile, sender, docId, format, stateFile, configFile);
+                    host, chatFile, sender, docId, format);
             }
         },
         chatFileOption,
