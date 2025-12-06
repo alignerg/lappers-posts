@@ -231,7 +231,7 @@ try
 
             Log.Information("Successfully uploaded {Count} messages to Google Docs", uploadedCount);
             Console.WriteLine($"Successfully uploaded {uploadedCount} messages to Google Docs");
-            
+
             return 0;
         }
         catch (Exception ex)
