@@ -112,7 +112,7 @@ static IHost BuildHost(string[] args, FileInfo? customConfigFile)
 /// <param name="documentId">The Google Docs document ID to upload messages to.</param>
 /// <param name="formatType">The message formatting type to apply.</param>
 /// <param name="stateFile">Optional custom path for the processing state file.</param>
-/// <param name="configFile">Optional custom configuration file (for future use).</param>
+/// <param name="configFile">Optional custom configuration file used to build the host.</param>
 /// <returns>A task representing the asynchronous operation.</returns>
 /// <remarks>
 /// This method uses dependency injection to resolve the <see cref="UploadToGoogleDocsCommandHandler"/>
