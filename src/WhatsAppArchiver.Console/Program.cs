@@ -28,12 +28,7 @@ try
     };
     chatFileOption.Validators.Add(result =>
     {
-        var filePath = result.GetValue(chatFileOption);
-        if (string.IsNullOrWhiteSpace(filePath))
-        {
-            result.AddError("Chat file path cannot be empty");
-            return;
-        }
+        var filePath = result.GetValue(chatFileOption)!;
         if (filePath.Any(c => Path.GetInvalidPathChars().Contains(c)))
         {
             result.AddError("Chat file path contains invalid characters");
@@ -53,7 +48,10 @@ try
     senderFilterOption.Validators.Add(result =>
     {
         var sender = result.GetValue(senderFilterOption);
-        // No additional validation needed; Required = true ensures a value is provided.
+        if (string.IsNullOrWhiteSpace(sender))
+        {
+            result.AddError("Sender filter cannot be empty");
+        }
     });
 
     var docIdOption = new Option<string>("--doc-id")
@@ -61,13 +59,20 @@ try
         Description = "Google Docs document ID",
         Required = true
     };
-    // No additional validator needed for docIdOption; Required = true ensures a value is provided.
+    docIdOption.Validators.Add(result =>
+    {
+        var docId = result.GetValue(docIdOption);
+        if (string.IsNullOrWhiteSpace(docId))
+        {
+            result.AddError("Document ID cannot be empty");
+        }
+    });
 
     var formatOption = new Option<MessageFormatType>("--format")
     {
-        Description = "Message format type [Default|Compact|Verbose] (default: Default)"
+        Description = "Message format type (default|compact|verbose)"
     };
-    formatOption.SetDefaultValue(MessageFormatType.Default);
+    formatOption.DefaultValueFactory = _ => MessageFormatType.Default;
 
     var stateFileOption = new Option<string?>("--state-file")
     {
@@ -138,66 +143,66 @@ try
         {
             hostBuilder.ConfigureAppConfiguration((hostContext, config) =>
             {
-                // Do not clear sources; preserve default configuration hierarchy.
+                config.Sources.Clear();
                 config.AddJsonFile(configFile, optional: false, reloadOnChange: false);
-                // Optionally, add environment variables if needed, but defaults are already included.
+                config.AddEnvironmentVariables();
             });
         }
 
         hostBuilder.UseSerilog((hostContext, services, loggerConfiguration) =>
+        {
+            loggerConfiguration.ReadFrom.Configuration(hostContext.Configuration);
+        })
+        .ConfigureServices((hostContext, services) =>
+        {
+            // Retrieve configuration values
+            var googleDocsCredentialPath = hostContext.Configuration["WhatsAppArchiver:GoogleServiceAccount:CredentialsPath"]
+                ?? throw new InvalidOperationException("Configuration key 'WhatsAppArchiver:GoogleServiceAccount:CredentialsPath' is not configured.");
+
+            // Use the resolved state file path from command-line argument
+            var stateRepositoryBasePath = Path.GetDirectoryName(resolvedStateFile)
+                ?? throw new InvalidOperationException("Unable to determine state repository base path");
+
+            // Register WhatsAppTextFileParser as Singleton because it's stateless and thread-safe.
+            // The parser only reads files and doesn't maintain any mutable state between operations.
+            services.AddSingleton<IChatParser>(sp =>
             {
-                loggerConfiguration.ReadFrom.Configuration(hostContext.Configuration);
-            })
-            .ConfigureServices((hostContext, services) =>
-            {
-                // Retrieve configuration values
-                var googleDocsCredentialPath = hostContext.Configuration["WhatsAppArchiver:GoogleServiceAccount:CredentialsPath"]
-                    ?? throw new InvalidOperationException("Configuration key 'WhatsAppArchiver:GoogleServiceAccount:CredentialsPath' is not configured.");
-
-                // Use the resolved state file path from command-line argument
-                var stateRepositoryBasePath = Path.GetDirectoryName(resolvedStateFile)
-                    ?? throw new InvalidOperationException("Unable to determine state repository base path");
-
-                // Register WhatsAppTextFileParser as Singleton because it's stateless and thread-safe.
-                // The parser only reads files and doesn't maintain any mutable state between operations.
-                services.AddSingleton<IChatParser>(sp =>
-                {
-                    var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<WhatsAppTextFileParser>>();
-                    return new WhatsAppTextFileParser(logger);
-                });
-
-                // GoogleDocsClientFactory is stateless and can be shared across all usages.
-                services.AddSingleton<IGoogleDocsClientFactory, GoogleDocsClientFactory>();
-
-                // Note: IMessageFormatter implementations are created via FormatterFactory.Create()
-                // which is a static factory method. The handlers use this factory directly,
-                // so individual formatter registrations are not needed for DI resolution.
-
-                // Register Google Docs service as Scoped to ensure proper disposal of IDisposable resources.
-                // GoogleDocsServiceAccountAdapter holds unmanaged resources (Google API clients) that need
-                // to be disposed properly. Scoped lifetime ensures disposal after each usage scope.
-                services.AddScoped<IGoogleDocsService>(sp =>
-                {
-                    var clientFactory = sp.GetRequiredService<IGoogleDocsClientFactory>();
-
-                    return new GoogleDocsServiceAccountAdapter(googleDocsCredentialPath, clientFactory);
-                });
-
-                // Register JsonFileStateRepository as Singleton because it's stateless and thread-safe.
-                // The repository handles file I/O atomically and doesn't maintain mutable state.
-                services.AddSingleton<IProcessingStateService>(sp =>
-                {
-                    var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<JsonFileStateRepository>>();
-
-                    return new JsonFileStateRepository(stateRepositoryBasePath, logger);
-                });
-
-                // Register handlers as Scoped services to align with Scoped dependencies (IGoogleDocsService).
-                // Scoped lifetime ensures handlers are created per logical operation/scope,
-                // which is appropriate for command handlers that orchestrate business operations.
-                services.AddScoped<ParseChatCommandHandler>();
-                services.AddScoped<UploadToGoogleDocsCommandHandler>();
+                var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<WhatsAppTextFileParser>>();
+                return new WhatsAppTextFileParser(logger);
             });
+
+            // GoogleDocsClientFactory is stateless and can be shared across all usages.
+            services.AddSingleton<IGoogleDocsClientFactory, GoogleDocsClientFactory>();
+
+            // Note: IMessageFormatter implementations are created via FormatterFactory.Create()
+            // which is a static factory method. The handlers use this factory directly,
+            // so individual formatter registrations are not needed for DI resolution.
+
+            // Register Google Docs service as Scoped to ensure proper disposal of IDisposable resources.
+            // GoogleDocsServiceAccountAdapter holds unmanaged resources (Google API clients) that need
+            // to be disposed properly. Scoped lifetime ensures disposal after each usage scope.
+            services.AddScoped<IGoogleDocsService>(sp =>
+            {
+                var clientFactory = sp.GetRequiredService<IGoogleDocsClientFactory>();
+
+                return new GoogleDocsServiceAccountAdapter(googleDocsCredentialPath, clientFactory);
+            });
+
+            // Register JsonFileStateRepository as Singleton because it's stateless and thread-safe.
+            // The repository handles file I/O atomically and doesn't maintain mutable state.
+            services.AddSingleton<IProcessingStateService>(sp =>
+            {
+                var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<JsonFileStateRepository>>();
+
+                return new JsonFileStateRepository(stateRepositoryBasePath, logger);
+            });
+
+            // Register handlers as Scoped services to align with Scoped dependencies (IGoogleDocsService).
+            // Scoped lifetime ensures handlers are created per logical operation/scope,
+            // which is appropriate for command handlers that orchestrate business operations.
+            services.AddScoped<ParseChatCommandHandler>();
+            services.AddScoped<UploadToGoogleDocsCommandHandler>();
+        });
 
         using var host = hostBuilder.Build();
         await host.StartAsync();
@@ -236,7 +241,8 @@ try
     });
 
     // Invoke the command
-    return await rootCommand.InvokeAsync(args);
+    var result = rootCommand.Parse(args);
+    return await result.InvokeAsync();
 }
 catch (Exception ex)
 {
