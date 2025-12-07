@@ -53,10 +53,7 @@ try
     senderFilterOption.Validators.Add(result =>
     {
         var sender = result.GetValue(senderFilterOption);
-        if (string.IsNullOrWhiteSpace(sender))
-        {
-            result.AddError("Sender filter cannot be empty");
-        }
+        // No additional validation needed; Required = true ensures a value is provided.
     });
 
     var docIdOption = new Option<string>("--doc-id")
@@ -64,20 +61,13 @@ try
         Description = "Google Docs document ID",
         Required = true
     };
-    docIdOption.Validators.Add(result =>
-    {
-        var docId = result.GetValue(docIdOption);
-        if (string.IsNullOrWhiteSpace(docId))
-        {
-            result.AddError("Document ID cannot be empty");
-        }
-    });
+    // No additional validator needed for docIdOption; Required = true ensures a value is provided.
 
     var formatOption = new Option<MessageFormatType>("--format")
     {
-        Description = "Message format type (default|compact|verbose)"
+        Description = "Message format type [Default|Compact|Verbose] (default: Default)"
     };
-    formatOption.DefaultValueFactory = _ => MessageFormatType.Default;
+    formatOption.SetDefaultValue(MessageFormatType.Default);
 
     var stateFileOption = new Option<string?>("--state-file")
     {
@@ -148,9 +138,9 @@ try
         {
             hostBuilder.ConfigureAppConfiguration((hostContext, config) =>
             {
-                config.Sources.Clear();
+                // Do not clear sources; preserve default configuration hierarchy.
                 config.AddJsonFile(configFile, optional: false, reloadOnChange: false);
-                config.AddEnvironmentVariables();
+                // Optionally, add environment variables if needed, but defaults are already included.
             });
         }
 
@@ -246,8 +236,7 @@ try
     });
 
     // Invoke the command
-    var result = rootCommand.Parse(args);
-    return await result.InvokeAsync();
+    return await rootCommand.InvokeAsync(args);
 }
 catch (Exception ex)
 {
