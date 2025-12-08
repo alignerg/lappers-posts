@@ -230,6 +230,9 @@ try
 
         try
         {
+            // Generate a correlation ID for tracking this operation
+            using var correlationIdScope = Serilog.Context.LogContext.PushProperty("CorrelationId", Guid.NewGuid().ToString("N")[..8]);
+
             using var scope = host.Services.CreateScope();
             var chatParser = scope.ServiceProvider.GetRequiredService<IChatParser>();
 
