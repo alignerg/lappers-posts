@@ -131,21 +131,25 @@ try
         var resolvedStateFile = stateFile;
         if (string.IsNullOrWhiteSpace(resolvedStateFile))
         {
-            var chatFileDirectory = Path.GetDirectoryName(Path.GetFullPath(chatFile))
-                ?? throw new InvalidOperationException("Unable to determine chat file directory");
+            var chatFileFullPath = Path.GetFullPath(chatFile);
+            var chatFileDirectory = Path.GetDirectoryName(chatFileFullPath);
+            if (string.IsNullOrEmpty(chatFileDirectory))
+            {
+                chatFileDirectory = Directory.GetCurrentDirectory();
+            }
             resolvedStateFile = Path.Combine(chatFileDirectory, "processingState.json");
         }
 
         // Build the host with optional custom configuration
-        var hostBuilder = Host.CreateDefaultBuilder(args);
+        var hostBuilder = Host.CreateDefaultBuilder(Array.Empty<string>());
 
         if (!string.IsNullOrWhiteSpace(configFile))
         {
             hostBuilder.ConfigureAppConfiguration((hostContext, config) =>
             {
-                config.Sources.Clear();
+                // Add the custom config file without clearing existing sources to preserve standard .NET configuration precedence:
+                // appsettings.json < appsettings.{Environment}.json < user secrets < custom config file < environment variables < command-line args
                 config.AddJsonFile(configFile, optional: false, reloadOnChange: false);
-                config.AddEnvironmentVariables();
             });
         }
 
@@ -160,8 +164,12 @@ try
                 ?? throw new InvalidOperationException("Configuration key 'WhatsAppArchiver:GoogleServiceAccount:CredentialsPath' is not configured.");
 
             // Use the resolved state file path from command-line argument
-            var stateRepositoryBasePath = Path.GetDirectoryName(resolvedStateFile)
-                ?? throw new InvalidOperationException("Unable to determine state repository base path");
+            var stateRepositoryBasePath = Path.GetDirectoryName(resolvedStateFile);
+            if (string.IsNullOrEmpty(stateRepositoryBasePath))
+            {
+                // If no directory component is present, use the current directory as fallback.
+                stateRepositoryBasePath = Directory.GetCurrentDirectory();
+            }
 
             // Register WhatsAppTextFileParser as Singleton because it's stateless and thread-safe.
             // The parser only reads files and doesn't maintain any mutable state between operations.
