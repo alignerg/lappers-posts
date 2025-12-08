@@ -306,6 +306,61 @@ public class UploadToGoogleDocsCommandHandlerTests
             Times.Once);
     }
 
+    [Fact(DisplayName = "HandleAsync with cached export does not call parser")]
+    public async Task HandleAsync_WithCachedExport_DoesNotCallParser()
+    {
+        var messages = new[]
+        {
+            ChatMessage.Create(DateTimeOffset.Now, "Alice", "Hello")
+        };
+        var metadata = new ParsingMetadata("chat.txt", DateTimeOffset.Now, 1, 1, 0);
+        var cachedExport = new ChatExport(Guid.NewGuid(), messages, metadata);
+        var command = new UploadToGoogleDocsCommand(
+            "/path/to/chat.txt",
+            "Alice",
+            "doc-123",
+            MessageFormatType.Default,
+            CachedChatExport: cachedExport);
+        var checkpoint = ProcessingCheckpoint.Create(command.DocumentId, SenderFilter.Create(command.Sender));
+
+        _processingStateServiceMock
+            .Setup(x => x.GetCheckpointAsync(
+                command.DocumentId,
+                It.IsAny<SenderFilter>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(checkpoint);
+
+        var result = await _handler.HandleAsync(command);
+
+        Assert.Equal(1, result);
+        _chatParserMock.Verify(
+            x => x.ParseAsync(It.IsAny<string>(), It.IsAny<TimeSpan?>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact(DisplayName = "HandleAsync without cached export calls parser")]
+    public async Task HandleAsync_WithoutCachedExport_CallsParser()
+    {
+        var command = new UploadToGoogleDocsCommand(
+            "/path/to/chat.txt", "Alice", "doc-123", MessageFormatType.Default);
+        var messages = new[]
+        {
+            ChatMessage.Create(DateTimeOffset.Now, "Alice", "Hello")
+        };
+        var metadata = new ParsingMetadata("chat.txt", DateTimeOffset.Now, 1, 1, 0);
+        var chatExport = new ChatExport(Guid.NewGuid(), messages, metadata);
+        var checkpoint = ProcessingCheckpoint.Create(command.DocumentId, SenderFilter.Create(command.Sender));
+
+        SetupMocks(command, chatExport, checkpoint);
+
+        var result = await _handler.HandleAsync(command);
+
+        Assert.Equal(1, result);
+        _chatParserMock.Verify(
+            x => x.ParseAsync(command.FilePath, It.IsAny<TimeSpan?>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
     private void SetupMocks(
         UploadToGoogleDocsCommand command,
         ChatExport chatExport,

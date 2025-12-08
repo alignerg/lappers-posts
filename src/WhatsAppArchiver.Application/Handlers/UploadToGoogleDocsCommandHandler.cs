@@ -67,13 +67,18 @@ public sealed class UploadToGoogleDocsCommandHandler
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>The number of messages uploaded.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="command"/> is null.</exception>
+    /// <remarks>
+    /// If the command contains a cached ChatExport, it will be used directly to avoid re-parsing.
+    /// Otherwise, the file will be parsed using the chat parser service.
+    /// </remarks>
     public async Task<int> HandleAsync(
         UploadToGoogleDocsCommand command,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        var chatExport = await _chatParser.ParseAsync(command.FilePath, timeZoneOffset: null, cancellationToken);
+        var chatExport = command.CachedChatExport
+            ?? await _chatParser.ParseAsync(command.FilePath, timeZoneOffset: null, cancellationToken);
 
         var senderFilter = SenderFilter.Create(command.Sender);
         var filteredMessages = chatExport.FilterMessages(senderFilter).ToList();
