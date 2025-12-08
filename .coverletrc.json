@@ -1,0 +1,31 @@
+{
+  "runsettings": {
+    "DataCollectionRunSettings": {
+      "DataCollectors": {
+        "DataCollector": {
+          "Configuration": {
+            "Format": "cobertura,json,lcov,opencover",
+            "Threshold": 85,
+            "ThresholdType": "line,branch,method",
+            "ThresholdStat": "total",
+            "Exclude": [
+              "[*.Tests]*",
+              "[*]*.Program",
+              "[WhatsAppArchiver.Console]*"
+            ],
+            "ExcludeByFile": [
+              "**/Migrations/**/*.cs"
+            ],
+            "Include": [
+              "[WhatsAppArchiver.Domain]*",
+              "[WhatsAppArchiver.Application]*"
+            ],
+            "SingleHit": false,
+            "SkipAutoProps": true,
+            "DeterministicReport": true
+          }
+        }
+      }
+    }
+  }
+}
