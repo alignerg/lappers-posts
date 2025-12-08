@@ -223,8 +223,8 @@ The compiled application will be in:
 # Navigate to the build output directory
 cd src\WhatsAppArchiver.Console\bin\Release\net10.0
 
-# Run the application (to be implemented in Wave 5)
-.\WhatsAppArchiver.Console.exe
+# Run the application with required arguments
+.\WhatsAppArchiver.Console.exe --chat-file "path\to\chat.txt" --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID"
 ```
 
 #### Option 2: Using dotnet run
@@ -233,8 +233,8 @@ cd src\WhatsAppArchiver.Console\bin\Release\net10.0
 # From the repository root
 cd src\WhatsAppArchiver.Console
 
-# Run with dotnet
-dotnet run --configuration Release
+# Run with dotnet and required arguments
+dotnet run --configuration Release -- --chat-file "path\to\chat.txt" --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID"
 ```
 
 #### Example with Full Paths (Windows)
@@ -242,11 +242,11 @@ dotnet run --configuration Release
 ```powershell
 # Using the executable
 cd C:\Projects\lappers-posts\src\WhatsAppArchiver.Console\bin\Release\net10.0
-.\WhatsAppArchiver.Console.exe
+.\WhatsAppArchiver.Console.exe --chat-file "C:\exports\chat.txt" --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID"
 
 # Using dotnet run
 cd C:\Projects\lappers-posts\src\WhatsAppArchiver.Console
-dotnet run --configuration Release
+dotnet run --configuration Release -- --chat-file "C:\exports\chat.txt" --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID"
 ```
 
 ### macOS
@@ -260,8 +260,8 @@ cd src/WhatsAppArchiver.Console/bin/Release/net10.0
 # Make the executable runnable (if needed)
 chmod +x WhatsAppArchiver.Console
 
-# Run the application (to be implemented in Wave 5)
-./WhatsAppArchiver.Console
+# Run the application with required arguments
+./WhatsAppArchiver.Console --chat-file "./exports/chat.txt" --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID"
 ```
 
 #### Option 2: Using dotnet run
@@ -270,8 +270,8 @@ chmod +x WhatsAppArchiver.Console
 # From the repository root
 cd src/WhatsAppArchiver.Console
 
-# Run with dotnet
-dotnet run --configuration Release
+# Run with dotnet and required arguments
+dotnet run --configuration Release -- --chat-file "./exports/chat.txt" --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID"
 ```
 
 #### Example with Full Paths (macOS)
@@ -279,40 +279,66 @@ dotnet run --configuration Release
 ```bash
 # Using the executable
 cd /Users/yourusername/Projects/lappers-posts/src/WhatsAppArchiver.Console/bin/Release/net10.0
-./WhatsAppArchiver.Console
+./WhatsAppArchiver.Console --chat-file "/Users/yourusername/exports/chat.txt" --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID"
 
 # Using dotnet run
 cd /Users/yourusername/Projects/lappers-posts/src/WhatsAppArchiver.Console
-dotnet run --configuration Release
+dotnet run --configuration Release -- --chat-file "/Users/yourusername/exports/chat.txt" --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID"
 ```
 
 ## Usage Examples
 
-> **Note**: The command-line interface is currently being implemented in Wave 5. The examples below show the planned usage once the CLI is complete.
+### Upload Messages to Google Docs
 
-### Parse a WhatsApp Chat Export
+The application requires three mandatory arguments and supports several optional arguments:
 
 ```bash
-# Parse chat file and filter by sender
-dotnet run -- parse-chat --chat-file ./exports/chat.txt --sender "John Smith"
+# Basic usage with required arguments
+dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID"
 
-# Upload filtered messages to Google Docs
-dotnet run -- upload --chat-file ./exports/chat.txt --sender "John Smith" --doc-id "YOUR_DOCUMENT_ID"
+# Use a specific message format
+dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --format compact
 
-# Use a specific formatter
-dotnet run -- upload --chat-file ./exports/chat.txt --sender "John Smith" --doc-id "YOUR_DOCUMENT_ID" --formatter compact
+# Specify a custom state file location
+dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --state-file ./custom-state.json
 
-# Specify a custom configuration file
-dotnet run -- upload --chat-file ./exports/chat.txt --sender "John Smith" --doc-id "YOUR_DOCUMENT_ID" --config ./custom-config.json
+# Use a custom configuration file
+dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --config ./custom-appsettings.json
+
+# Combine multiple optional arguments
+dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --format verbose --state-file ./state/chat-state.json --config ./custom-appsettings.json
 ```
 
-### Command-Line Arguments (Planned)
+### Command-Line Arguments
 
-- `--chat-file` or `-f`: Path to the WhatsApp chat export text file
-- `--sender` or `-s`: Name of the sender to filter messages by
-- `--doc-id` or `-d`: Google Docs document ID
-- `--formatter`: Message format (default, compact, or verbose)
-- `--config` or `-c`: Path to custom configuration file
+**Required Arguments:**
+
+- `--chat-file`: Path to the WhatsApp chat export text file
+  - The file must exist
+  - Supports both absolute and relative paths
+
+- `--sender-filter`: Name of the sender to filter messages by
+  - Case-insensitive matching
+  - Cannot be empty
+
+- `--doc-id`: Google Docs document ID
+  - Found in the document URL: `https://docs.google.com/document/d/YOUR_DOCUMENT_ID/edit`
+  - Cannot be empty
+
+**Optional Arguments:**
+
+- `--format`: Message format type (default: `default`)
+  - `default`: `[{timestamp}] {sender}: {content}`
+  - `compact`: `{sender}: {content}`
+  - `verbose`: Detailed format with full date/time and metadata
+
+- `--state-file`: Path to the processing state file
+  - Defaults to `processingState.json` in the chat file directory
+  - Tracks which messages have been processed to enable resumable operations
+
+- `--config`: Path to a custom configuration file (appsettings.json)
+  - Overrides the default configuration file
+  - File must exist if specified
 
 ## Troubleshooting
 
