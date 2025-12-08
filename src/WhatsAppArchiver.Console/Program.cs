@@ -20,6 +20,19 @@ try
 {
     Log.Information("Starting WhatsApp Archiver application");
 
+    // Cache invalid path characters for efficient validation
+    var invalidPathChars = new HashSet<char>(Path.GetInvalidPathChars());
+
+    // Helper method to validate if a path contains invalid characters
+    bool ContainsInvalidPathChars(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+        return path.Any(invalidPathChars.Contains);
+    }
+
     // Define command-line options with validation
     var chatFileOption = new Option<string>("--chat-file")
     {
@@ -29,7 +42,7 @@ try
     chatFileOption.Validators.Add(result =>
     {
         var filePath = result.GetValue(chatFileOption)!;
-        if (filePath.Any(c => Path.GetInvalidPathChars().Contains(c)))
+        if (ContainsInvalidPathChars(filePath))
         {
             result.AddError("Chat file path contains invalid characters");
             return;
@@ -81,7 +94,7 @@ try
     stateFileOption.Validators.Add(result =>
     {
         var statePath = result.GetValue(stateFileOption);
-        if (!string.IsNullOrWhiteSpace(statePath) && statePath.Any(c => Path.GetInvalidPathChars().Contains(c)))
+        if (ContainsInvalidPathChars(statePath))
         {
             result.AddError("State file path contains invalid characters");
         }
@@ -96,7 +109,7 @@ try
         var configPath = result.GetValue(configOption);
         if (!string.IsNullOrWhiteSpace(configPath))
         {
-            if (configPath.Any(c => Path.GetInvalidPathChars().Contains(c)))
+            if (ContainsInvalidPathChars(configPath))
             {
                 result.AddError("Config file path contains invalid characters");
                 return;
