@@ -4,4 +4,3 @@ This line is orphaned with no prior message - should fail
 [25/12/2024, 09:18:45] John Smith: Hope you're having a wonderful holiday
 Invalid timestamp format here: 2024-12-25 10:00:00 - should fail
 [25/12/2024, 10:30:12] Alex Johnson: Thanks for the wishes! Just woke up 😴
-

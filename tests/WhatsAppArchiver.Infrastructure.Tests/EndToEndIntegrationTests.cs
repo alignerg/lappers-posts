@@ -272,8 +272,8 @@ public sealed class EndToEndIntegrationTests : IDisposable
         chatExport.Should().NotBeNull();
         chatExport.Metadata.Should().NotBeNull();
 
-        // Sample file has 7 total lines
-        chatExport.Metadata.TotalLines.Should().Be(7);
+        // Sample file has 6 total lines
+        chatExport.Metadata.TotalLines.Should().Be(6);
 
         // Should successfully parse 4 messages (lines with valid format)
         chatExport.Metadata.ParsedMessageCount.Should().Be(4);
