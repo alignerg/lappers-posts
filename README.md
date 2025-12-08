@@ -5,7 +5,9 @@ A .NET 10 console application that parses WhatsApp text exports, filters message
 ## Table of Contents
 
 - [Features](#features)
+- [Architecture Overview](#architecture-overview)
 - [Prerequisites](#prerequisites)
+- [WhatsApp Export Format Requirements](#whatsapp-export-format-requirements)
 - [Google Service Account Setup](#google-service-account-setup)
 - [Installation](#installation)
 - [Configuration](#configuration)
@@ -16,6 +18,9 @@ A .NET 10 console application that parses WhatsApp text exports, filters message
 - [Troubleshooting](#troubleshooting)
 - [Project Structure](#project-structure)
 - [Development](#development)
+  - [Build and Test](#build-and-test)
+  - [Testing and Code Coverage](#testing-and-code-coverage)
+  - [Architecture](#architecture)
 
 ## Features
 
@@ -27,11 +32,141 @@ A .NET 10 console application that parses WhatsApp text exports, filters message
 - Resilient operations with automatic retry policies
 - Structured logging with Serilog
 
+## Architecture Overview
+
+This application follows **Domain-Driven Design (DDD)** principles with a clean, layered architecture that enforces separation of concerns and promotes maintainability. The architecture consists of four distinct layers:
+
+### Domain Layer (`WhatsAppArchiver.Domain`)
+The core business logic layer containing:
+- **Entities**: `ChatExport`, `ChatMessage` - Core business objects representing the chat domain
+- **Value Objects**: `MessageTimestamp`, `MessageContent`, `Sender` - Immutable objects representing domain concepts
+- **Specifications**: Business rules for filtering and querying messages
+- **Formatters**: `IMessageFormatter` implementations for different message display formats
+- **Domain Services**: Stateless services implementing complex business operations
+
+**Key Principles:**
+- No dependencies on other layers
+- Contains all business logic and domain rules
+- Rich domain models with behavior, not just data
+- Immutable value objects for thread safety
+
+### Application Layer (`WhatsAppArchiver.Application`)
+Orchestrates domain operations and coordinates workflows:
+- **Command Handlers**: `ParseChatCommandHandler`, `UploadToGoogleDocsCommandHandler` - Execute business operations
+- **Commands**: DTOs representing user intentions
+- **Service Interfaces**: Defines contracts for infrastructure services
+- **Application Services**: Coordinate multiple domain operations
+
+**Key Principles:**
+- Depends only on Domain layer
+- No business logic (orchestration only)
+- Transaction boundaries and workflow coordination
+- Input validation before domain operations
+
+### Infrastructure Layer (`WhatsAppArchiver.Infrastructure`)
+Implements external integrations and technical capabilities:
+- **Google Docs Integration**: Service account authentication and API client
+- **File Parsers**: WhatsApp text file parsing with multiple format support
+- **State Repository**: JSON-based persistence for idempotent processing
+- **Resilience Policies**: Retry logic using Polly for external service calls
+
+**Key Principles:**
+- Implements interfaces defined in Application/Domain layers
+- All external dependencies (APIs, file system, database)
+- Technology-specific implementations
+- Adapters for third-party services
+
+### Console Layer (`WhatsAppArchiver.Console`)
+Application host and user interface:
+- **CLI Interface**: System.CommandLine for argument parsing and validation
+- **Dependency Injection**: Service registration and lifetime management
+- **Configuration**: Settings management and environment handling
+- **Logging Setup**: Serilog configuration
+
+**Key Principles:**
+- Entry point for the application
+- Minimal logic (configuration and startup only)
+- Dependency injection container setup
+- User-facing error handling
+
 ## Prerequisites
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) or later
 - Google Cloud Platform account
 - A Google Docs document ID where you want to upload the messages
+
+## WhatsApp Export Format Requirements
+
+The application supports two WhatsApp export date/time formats. When exporting your WhatsApp chat, select **"Export chat without media"** to get a text-only file.
+
+### Supported Date Formats
+
+#### Format 1: DD/MM/YYYY, HH:mm:ss (European/International)
+```
+[25/12/2024, 09:15:00] John Smith: Good morning everyone! 🎄
+[25/12/2024, 09:16:30] Maria Garcia: Merry Christmas to all! 🎁
+[25/12/2024, 09:18:45] John Smith: Hope you're having a wonderful holiday
+[26/12/2024, 14:20:33] Alex Johnson: Yesterday was amazing!
+```
+
+**Format characteristics:**
+- Day: 2 digits (01-31)
+- Month: 2 digits (01-12)
+- Year: 4 digits
+- Time: 24-hour format with seconds
+- Separator: Square brackets with comma
+
+#### Format 2: M/D/YY, H:mm:ss AM/PM (US/Mobile)
+```
+[1/5/24, 8:30:00 AM] Sarah Wilson: Hey, are you coming to the meeting?
+[1/5/24, 8:32:15 AM] Michael Brown: Yes, running 5 min late
+[12/31/24, 11:58:45 PM] Sarah Wilson: Happy New Year everyone! 🎆
+[1/1/25, 12:00:00 AM] Michael Brown: 🎉🎉🎉
+```
+
+**Format characteristics:**
+- Month: 1-2 digits (1-12)
+- Day: 1-2 digits (1-31)
+- Year: 2 digits
+- Time: 12-hour format with AM/PM and seconds
+- Separator: Square brackets with comma
+
+### Message Structure
+
+Each message line follows this pattern:
+```
+[TIMESTAMP] SENDER_NAME: MESSAGE_CONTENT
+```
+
+**Multi-line messages** are supported - continuation lines don't have a timestamp or sender:
+```
+[25/12/2024, 09:15:00] John Smith: This is a long message
+that spans multiple lines
+and continues here
+[25/12/2024, 09:16:00] Maria Garcia: Next message
+```
+
+### How to Export from WhatsApp
+
+**Android:**
+1. Open the chat you want to export
+2. Tap the three dots (⋮) menu → More → Export chat
+3. Select "WITHOUT MEDIA"
+4. Choose where to save the file
+
+**iOS:**
+1. Open the chat you want to export
+2. Tap the contact/group name at the top
+3. Scroll down and tap "Export Chat"
+4. Select "Without Media"
+5. Choose where to save the file
+
+**Important Notes:**
+- Always export **without media** to get the text format
+- The format depends on your phone's region settings
+- Both formats are automatically detected by the application
+- System messages (encryption notices, group changes) are skipped
+- Emojis and special characters are preserved
 
 ## Google Service Account Setup
 
@@ -340,6 +475,106 @@ dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-
   - Overrides the default configuration file
   - File must exist if specified
 
+### State File Behavior
+
+The application uses a **state file** to track processing progress and ensure **idempotent operations** - meaning you can safely run the same command multiple times without uploading duplicate messages.
+
+#### How State Files Work
+
+1. **Location**: By default, the state file is created in the same directory as your chat export file:
+   ```
+   /path/to/chat.txt          # Your WhatsApp export
+   /path/to/processingState.json  # Automatically created state file
+   ```
+
+2. **Content**: The state file contains:
+   - **Source file checksum**: Hash of the chat file to detect changes
+   - **Processed message IDs**: List of message identifiers already uploaded
+   - **Last processing timestamp**: When the operation last ran
+   - **Configuration metadata**: Sender filter and document ID used
+
+3. **Idempotency**: On subsequent runs with the same chat file:
+   - The application reads the state file
+   - Compares the file checksum - if changed, processes all messages as new
+   - Skips messages already in the processed list
+   - Only uploads new messages not previously sent
+   - Updates the state file with newly processed messages
+
+4. **Custom State File Location**: Use `--state-file` to specify a different location:
+   ```bash
+   dotnet run -- --chat-file ./exports/chat.txt \
+                 --sender-filter "John" \
+                 --doc-id "ABC123" \
+                 --state-file ./state/custom-state.json
+   ```
+
+#### State File Example
+
+```json
+{
+  "sourceFileChecksum": "a1b2c3d4e5f6...",
+  "processedMessageIds": [
+    "2024-12-25T09:15:00_John Smith_0",
+    "2024-12-25T09:18:45_John Smith_1",
+    "2024-12-26T14:20:33_Alex Johnson_0"
+  ],
+  "lastProcessedTimestamp": "2024-12-27T10:30:00Z",
+  "metadata": {
+    "senderFilter": "John Smith",
+    "documentId": "YOUR_DOCUMENT_ID"
+  }
+}
+```
+
+#### Use Cases
+
+**Resume after failure**: If upload fails mid-way (network issue, API limit), simply re-run:
+```bash
+# First run - uploads 100 messages, then fails
+dotnet run -- --chat-file ./chat.txt --sender-filter "John" --doc-id "ABC123"
+
+# Second run - automatically resumes from message 101
+dotnet run -- --chat-file ./chat.txt --sender-filter "John" --doc-id "ABC123"
+```
+
+**Incremental updates**: Export the same chat multiple times and only new messages are uploaded:
+```bash
+# Monday - export and upload
+dotnet run -- --chat-file ./monday-export.txt --sender-filter "John" --doc-id "ABC123"
+
+# Friday - export again with new messages
+# Copy to same filename: monday-export.txt (with new content)
+# State file detects file change and processes all messages as new
+dotnet run -- --chat-file ./monday-export.txt --sender-filter "John" --doc-id "ABC123"
+```
+
+**Multiple chat files**: Each chat file can have its own state:
+```bash
+# Family chat
+dotnet run -- --chat-file ./family.txt --sender-filter "Mom" --doc-id "DOC1"
+# Creates: ./processingState.json
+
+# Work chat (different directory)
+dotnet run -- --chat-file ./work/team.txt --sender-filter "Boss" --doc-id "DOC2"
+# Creates: ./work/processingState.json
+```
+
+**State file cleanup**: Delete the state file to force reprocessing:
+```bash
+# Windows
+del processingState.json
+
+# macOS/Linux
+rm processingState.json
+```
+
+#### Important Notes
+
+- **File changes**: If you edit the chat file, the checksum changes and all messages are reprocessed
+- **Different filters**: Using a different `--sender-filter` or `--doc-id` creates a new processing context
+- **Manual state management**: State files are plain JSON and can be manually edited if needed
+- **No state file**: If the state file is deleted or doesn't exist, all messages are processed as new
+
 ## Troubleshooting
 
 ### Common Issues
@@ -452,14 +687,161 @@ dotnet format src/WhatsAppArchiver.sln
 dotnet build src/WhatsAppArchiver.sln --no-restore /warnaserror
 ```
 
+### Testing and Code Coverage
+
+#### Running Tests
+
+```bash
+# Run all tests with detailed output
+dotnet test src/WhatsAppArchiver.sln --verbosity normal
+
+# Run tests for a specific project
+dotnet test tests/WhatsAppArchiver.Domain.Tests/WhatsAppArchiver.Domain.Tests.csproj
+
+# Run tests matching a filter
+dotnet test --filter "FullyQualifiedName~ChatMessage"
+```
+
+#### Code Coverage
+
+The project uses **Coverlet** for code coverage collection with a target of **85% coverage** for the Domain and Application layers.
+
+**Collect coverage during test execution:**
+
+```bash
+# Generate coverage in multiple formats (Cobertura, JSON, LCOV, OpenCover)
+dotnet test --collect:"XPlat Code Coverage"
+
+# Coverage reports are generated in: tests/{Project}/TestResults/{guid}/coverage.cobertura.xml
+```
+
+**Coverage configuration** is defined in `.coverletrc.json`:
+- **Target**: 85% line, branch, and method coverage
+- **Included assemblies**: `WhatsAppArchiver.Domain`, `WhatsAppArchiver.Application`
+- **Excluded assemblies**: Test projects, Console project, Program.cs
+- **Formats**: Cobertura, JSON, LCOV, OpenCover
+
+**View coverage reports:**
+
+```bash
+# Install the ReportGenerator tool (one-time setup)
+dotnet tool install -g dotnet-reportgenerator-globaltool
+
+# Generate HTML coverage report
+reportgenerator \
+  -reports:"tests/**/TestResults/**/coverage.cobertura.xml" \
+  -targetdir:"coveragereport" \
+  -reporttypes:Html
+
+# Open the report (macOS)
+open coveragereport/index.html
+
+# Open the report (Windows)
+start coveragereport/index.html
+
+# Open the report (Linux)
+xdg-open coveragereport/index.html
+```
+
+**Coverage threshold validation:**
+
+```bash
+# The build will fail if coverage drops below 85% for Domain/Application layers
+dotnet test --collect:"XPlat Code Coverage" /p:Threshold=85 /p:ThresholdType=line
+```
+
+#### Test Organization
+
+Tests are organized by layer, following the same structure as the source code:
+
+```
+tests/
+├── WhatsAppArchiver.Domain.Tests/       # Domain logic tests (target: 85%+ coverage)
+│   ├── Entities/                        # Entity behavior tests
+│   ├── ValueObjects/                    # Value object immutability tests
+│   ├── Specifications/                  # Business rule validation tests
+│   └── Formatters/                      # Message formatting tests
+│
+├── WhatsAppArchiver.Application.Tests/  # Application layer tests (target: 85%+ coverage)
+│   ├── Commands/                        # Command validation tests
+│   └── Handlers/                        # Handler orchestration tests
+│
+├── WhatsAppArchiver.Infrastructure.Tests/  # Infrastructure integration tests
+│   ├── Parsers/                         # File parsing tests with sample data
+│   ├── Repositories/                    # State persistence tests
+│   └── GoogleDocs/                      # Google Docs integration tests (mocked)
+│
+└── SampleData/                          # Sample WhatsApp exports for testing
+    ├── sample-dd-mm-yyyy.txt           # European date format
+    ├── sample-m-d-yy.txt               # US date format
+    ├── sample-edge-cases.txt           # Multi-line, emojis, special chars
+    └── sample-with-errors.txt          # Invalid format lines
+```
+
+#### Test Naming Convention
+
+All tests follow the pattern: `MethodName_Condition_ExpectedResult()`
+
+```csharp
+[Fact]
+public void Parse_ValidEuropeanFormat_ReturnsMessages()
+{
+    // Arrange
+    var parser = new WhatsAppTextFileParser();
+    
+    // Act
+    var result = await parser.ParseAsync("sample-dd-mm-yyyy.txt");
+    
+    // Assert
+    result.Messages.Should().NotBeEmpty();
+}
+```
+
+#### Running Specific Test Categories
+
+```bash
+# Run only Domain tests
+dotnet test tests/WhatsAppArchiver.Domain.Tests/
+
+# Run only Application tests  
+dotnet test tests/WhatsAppArchiver.Application.Tests/
+
+# Run only Infrastructure tests
+dotnet test tests/WhatsAppArchiver.Infrastructure.Tests/
+
+# Run all unit tests (Domain + Application)
+dotnet test --filter "FullyQualifiedName~Domain|FullyQualifiedName~Application"
+```
+
+#### Continuous Integration
+
+The CI pipeline runs:
+1. **Build**: Compile all projects with warnings as errors
+2. **Tests**: Execute all tests with code coverage collection
+3. **Coverage Check**: Validate 85% coverage threshold for Domain/Application
+4. **Format Check**: Ensure code follows formatting standards
+5. **Security Scan**: Run CodeQL analysis for vulnerabilities
+
 ### Architecture
 
-This application follows Domain-Driven Design (DDD) principles:
+This application follows Domain-Driven Design (DDD) principles with clean separation of concerns. For a detailed explanation of each layer and its responsibilities, see the [Architecture Overview](#architecture-overview) section above.
 
-- **Domain Layer**: Core business entities, value objects, and specifications
-- **Application Layer**: Command handlers and service interfaces
-- **Infrastructure Layer**: External service adapters (Google Docs, file system)
-- **Console Layer**: Application host and CLI interface
+**Layer Dependencies:**
+```
+Console Layer
+    ↓ depends on
+Application Layer
+    ↓ depends on
+Domain Layer (no dependencies)
+
+Infrastructure Layer → implements interfaces from → Application/Domain Layers
+```
+
+**Design Principles:**
+- **Dependency Inversion**: High-level modules don't depend on low-level modules; both depend on abstractions
+- **Separation of Concerns**: Each layer has a single, well-defined responsibility
+- **Testability**: Business logic is isolated and can be tested without external dependencies
+- **Domain-Centric**: The domain model is the heart of the application, free from technical concerns
 
 ### Key Technologies
 
