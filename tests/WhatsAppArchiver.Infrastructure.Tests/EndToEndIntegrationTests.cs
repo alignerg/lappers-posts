@@ -261,4 +261,50 @@ public sealed class EndToEndIntegrationTests : IDisposable
         senders.Should().Contain("Maria Garcia");
         senders.Should().Contain("Alex Johnson");
     }
+
+    [Fact(DisplayName = "Parse file with errors tracks failed line count in metadata")]
+    public async Task ParseFileWithErrors_TracksFailedLineCount_InMetadata()
+    {
+        var filePath = Path.Combine(_sampleDataPath, "sample-with-errors.txt");
+
+        var chatExport = await _parser.ParseAsync(filePath);
+
+        chatExport.Should().NotBeNull();
+        chatExport.Metadata.Should().NotBeNull();
+
+        // Sample file has 6 total lines
+        chatExport.Metadata.TotalLines.Should().Be(6);
+
+        // Should successfully parse 4 messages (lines with valid format)
+        chatExport.Metadata.ParsedMessageCount.Should().Be(4);
+
+        // Should have at least 1 failed line (orphaned first line with no prior message)
+        // The parser counts orphan lines and lines with invalid timestamps as failures
+        chatExport.Metadata.FailedLineCount.Should().BeGreaterThan(0);
+
+        // Verify successfully parsed messages are correct
+        chatExport.Messages.Should().HaveCount(4);
+        var senders = chatExport.Messages.Select(m => m.Sender).Distinct().ToList();
+        senders.Should().Contain("John Smith");
+        senders.Should().Contain("Maria Garcia");
+        senders.Should().Contain("Alex Johnson");
+    }
+
+    [Fact(DisplayName = "Parse file with errors can still process valid messages")]
+    public async Task ParseFileWithErrors_CanStillProcessValidMessages()
+    {
+        var filePath = Path.Combine(_sampleDataPath, "sample-with-errors.txt");
+
+        var chatExport = await _parser.ParseAsync(filePath);
+
+        // Even with parsing errors, valid messages should be processed correctly
+        chatExport.Messages.Should().HaveCount(4);
+
+        var johnMessages = chatExport.GetMessagesBySender("John Smith").ToList();
+        johnMessages.Should().HaveCount(2);
+
+        // Verify specific message content
+        johnMessages.Should().Contain(m => m.Content.Contains("Good morning everyone!"));
+        johnMessages.Should().Contain(m => m.Content.Contains("Hope you're having a wonderful holiday"));
+    }
 }

@@ -131,7 +131,7 @@ try
     rootCommand.Add(configOption);
 
     // Set the handler using ParseResult
-    rootCommand.SetAction(async (ParseResult parseResult) =>
+    rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancellationToken) =>
     {
         var chatFile = parseResult.GetValue(chatFileOption)!;
         var senderFilter = parseResult.GetValue(senderFilterOption)!;
@@ -226,13 +226,54 @@ try
         });
 
         using var host = hostBuilder.Build();
-        await host.StartAsync();
+        await host.StartAsync(cancellationToken);
 
         try
         {
-            // Execute the upload command
+            // Generate a correlation ID for tracking this operation
+            using var correlationIdScope = Serilog.Context.LogContext.PushProperty("CorrelationId", Guid.NewGuid().ToString("N")[..8]);
+
             using var scope = host.Services.CreateScope();
-            var handler = scope.ServiceProvider.GetRequiredService<UploadToGoogleDocsCommandHandler>();
+            var chatParser = scope.ServiceProvider.GetRequiredService<IChatParser>();
+
+            // Step 1: Parse entire chat file into memory
+            Log.Information("Starting to parse chat file: {ChatFile}", chatFile);
+            var chatExport = await chatParser.ParseAsync(chatFile, timeZoneOffset: null, cancellationToken);
+
+            // Step 2: Validate parsing results
+            if (chatExport.Metadata.FailedLineCount > 0)
+            {
+                var errorRate = (double)chatExport.Metadata.FailedLineCount / chatExport.Metadata.TotalLines * 100;
+                Log.Error("Parsing failed with {FailedLineCount} errors out of {TotalLines} total lines ({ErrorRate:F2}% error rate)",
+                    chatExport.Metadata.FailedLineCount,
+                    chatExport.Metadata.TotalLines,
+                    errorRate);
+
+                Console.Error.WriteLine("╔══════════════════════════════════════════════════════════════════════╗");
+                Console.Error.WriteLine("║                         PARSING ERROR REPORT                         ║");
+                Console.Error.WriteLine("╚══════════════════════════════════════════════════════════════════════╝");
+                Console.Error.WriteLine();
+                Console.Error.WriteLine($"Source File:         {chatExport.Metadata.SourceFileName}");
+                Console.Error.WriteLine($"Total Lines:         {chatExport.Metadata.TotalLines}");
+                Console.Error.WriteLine($"Parsed Messages:     {chatExport.Metadata.ParsedMessageCount}");
+                Console.Error.WriteLine($"Failed Lines:        {chatExport.Metadata.FailedLineCount}");
+                Console.Error.WriteLine($"Error Rate:          {errorRate:F2}%");
+                Console.Error.WriteLine();
+                Console.Error.WriteLine("The chat file contains lines that could not be parsed.");
+                Console.Error.WriteLine("Please review the file format and ensure it matches the expected WhatsApp");
+                Console.Error.WriteLine("export format (DD/MM/YYYY, HH:mm:ss or M/D/YY, H:mm AM/PM).");
+                Console.Error.WriteLine();
+
+                return 1;
+            }
+
+            // Step 3: Log successful parse
+            Log.Information("Successfully parsed chat file: {ParsedMessageCount} messages from {TotalLines} lines",
+                chatExport.Metadata.ParsedMessageCount,
+                chatExport.Metadata.TotalLines);
+
+            // Step 4: Upload formatted messages to Google Docs
+            var uploadHandler = scope.ServiceProvider.GetRequiredService<UploadToGoogleDocsCommandHandler>();
 
             var command = new UploadToGoogleDocsCommand(
                 FilePath: chatFile,
@@ -243,12 +284,18 @@ try
             Log.Information("Uploading messages from {ChatFile} by sender '{Sender}' to document {DocumentId} with format {Format}",
                 chatFile, senderFilter, docId, format);
 
-            var uploadedCount = await handler.HandleAsync(command);
+            var uploadedCount = await uploadHandler.HandleAsync(command, cancellationToken);
 
             Log.Information("Successfully uploaded {Count} messages to Google Docs", uploadedCount);
             Console.WriteLine($"Successfully uploaded {uploadedCount} messages to Google Docs");
 
             return 0;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            Log.Warning("Operation cancelled by user");
+            Console.WriteLine("Operation cancelled");
+            return 130; // Standard exit code for Ctrl+C
         }
         catch (Exception ex)
         {
@@ -257,7 +304,7 @@ try
         }
         finally
         {
-            await host.StopAsync();
+            await host.StopAsync(CancellationToken.None);
         }
     });
 
