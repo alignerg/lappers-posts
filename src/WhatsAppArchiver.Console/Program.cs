@@ -68,7 +68,9 @@ try
             result.AddError("Chat file path contains invalid characters");
             return;
         }
-        if (!File.Exists(filePath))
+        // Expand tilde before checking file existence
+        var expandedPath = ExpandTildePath(filePath);
+        if (!File.Exists(expandedPath))
         {
             result.AddError($"Chat file does not exist: {filePath}");
         }
@@ -135,7 +137,9 @@ try
                 result.AddError("Config file path contains invalid characters");
                 return;
             }
-            if (!File.Exists(configPath))
+            // Expand tilde before checking file existence
+            var expandedPath = ExpandTildePath(configPath);
+            if (!File.Exists(expandedPath))
             {
                 result.AddError($"Config file does not exist: {configPath}");
             }
