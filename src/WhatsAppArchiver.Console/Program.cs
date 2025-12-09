@@ -146,7 +146,7 @@ try
 
         // Expand tilde (~) in file paths if present
         // chatFile is required and non-null, so expand unconditionally
-        chatFile = PathUtilities.ExpandTildePath(chatFile);
+        chatFile = PathUtilities.ExpandTildePath(chatFile)!;
         // configFile is optional, so only expand if provided
         if (!string.IsNullOrWhiteSpace(configFile))
         {
@@ -191,11 +191,16 @@ try
         .ConfigureServices((hostContext, services) =>
         {
             // Retrieve configuration values
-            var googleDocsCredentialPath = hostContext.Configuration["WhatsAppArchiver:GoogleServiceAccount:CredentialsPath"]
-                ?? throw new InvalidOperationException("Configuration key 'WhatsAppArchiver:GoogleServiceAccount:CredentialsPath' is not configured.");
+            var googleDocsCredentialPath = hostContext.Configuration["WhatsAppArchiver:GoogleServiceAccount:CredentialsPath"];
+            if (string.IsNullOrWhiteSpace(googleDocsCredentialPath))
+            {
+                throw new InvalidOperationException("Configuration key 'WhatsAppArchiver:GoogleServiceAccount:CredentialsPath' is not configured.");
+            }
 
             // Expand tilde (~) in credential path if present
-            googleDocsCredentialPath = PathUtilities.ExpandTildePath(googleDocsCredentialPath);
+            // Safe to use ! because IsNullOrWhiteSpace ensures non-null input,
+            // and ExpandTildePath only returns null when the input is null
+            googleDocsCredentialPath = PathUtilities.ExpandTildePath(googleDocsCredentialPath)!;
 
             // Use the resolved state file path from command-line argument
             var stateRepositoryBasePath = Path.GetDirectoryName(resolvedStateFile);
