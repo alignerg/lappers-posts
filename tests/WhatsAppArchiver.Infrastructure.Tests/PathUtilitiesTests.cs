@@ -18,7 +18,8 @@ public sealed class PathUtilitiesTests
     public void ExpandTildePath_TildeWithForwardSlashPath_ReturnsExpandedPath()
     {
         var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var expected = Path.Combine(homeDir, "docs/lappers/file.json");
+        // Use Path.Combine to ensure platform-appropriate separators
+        var expected = Path.Combine(homeDir, "docs", "lappers", "file.json");
 
         var result = PathUtilities.ExpandTildePath("~/docs/lappers/file.json");
 
@@ -29,7 +30,8 @@ public sealed class PathUtilitiesTests
     public void ExpandTildePath_TildeWithBackslashPath_ReturnsExpandedPath()
     {
         var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var expected = Path.Combine(homeDir, "docs\\lappers\\file.json");
+        // Use Path.Combine to ensure platform-appropriate separators
+        var expected = Path.Combine(homeDir, "docs", "lappers", "file.json");
 
         var result = PathUtilities.ExpandTildePath("~\\docs\\lappers\\file.json");
 
