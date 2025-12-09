@@ -36,11 +36,6 @@ try
     // Helper method to expand tilde (~) in paths to user's home directory
     string ExpandTildePath(string path)
     {
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return path;
-        }
-
         // Check if path starts with ~/ or is exactly ~
         if (path.StartsWith("~/") || path == "~")
         {
