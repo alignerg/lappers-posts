@@ -146,8 +146,7 @@ try
 
         // Expand tilde (~) in file paths if present
         // chatFile is required and non-null, so expand unconditionally
-        chatFile = PathUtilities.ExpandTildePath(chatFile)
-            ?? throw new InvalidOperationException("Chat file path expansion returned null. Please provide a valid file path.");
+        chatFile = PathUtilities.ExpandTildePath(chatFile)!;
         // configFile is optional, so only expand if provided
         if (!string.IsNullOrWhiteSpace(configFile))
         {
@@ -199,8 +198,8 @@ try
             }
 
             // Expand tilde (~) in credential path if present
-            // Safe to use ! because IsNullOrWhiteSpace check ensures non-null input,
-            // and ExpandTildePath returns input unchanged for non-tilde paths
+            // Safe to use ! because IsNullOrWhiteSpace ensures non-null input,
+            // and ExpandTildePath only returns null when the input is null
             googleDocsCredentialPath = PathUtilities.ExpandTildePath(googleDocsCredentialPath)!;
 
             // Use the resolved state file path from command-line argument
