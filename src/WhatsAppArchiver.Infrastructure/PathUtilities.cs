@@ -51,7 +51,7 @@ public static class PathUtilities
             }
             
             // Replace ~ with home directory, skipping the ~/ or ~\ prefix
-            return Path.Combine(homeDirectory, path.Substring(2));
+            return Path.Combine(homeDirectory, path[2..]);
         }
 
         return path;
