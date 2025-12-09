@@ -146,7 +146,7 @@ try
 
         // Expand tilde (~) in file paths if present
         // chatFile is required and non-null, so expand unconditionally
-        chatFile = PathUtilities.ExpandTildePath(chatFile);
+        chatFile = PathUtilities.ExpandTildePath(chatFile)!;
         // configFile is optional, so only expand if provided
         if (!string.IsNullOrWhiteSpace(configFile))
         {
@@ -157,7 +157,7 @@ try
         var resolvedStateFile = stateFile;
         if (string.IsNullOrWhiteSpace(resolvedStateFile))
         {
-            var chatFileFullPath = Path.GetFullPath(chatFile);
+            var chatFileFullPath = Path.GetFullPath(chatFile!);
             var chatFileDirectory = Path.GetDirectoryName(chatFileFullPath);
             if (string.IsNullOrEmpty(chatFileDirectory))
             {
@@ -191,11 +191,14 @@ try
         .ConfigureServices((hostContext, services) =>
         {
             // Retrieve configuration values
-            var googleDocsCredentialPath = hostContext.Configuration["WhatsAppArchiver:GoogleServiceAccount:CredentialsPath"]
-                ?? throw new InvalidOperationException("Configuration key 'WhatsAppArchiver:GoogleServiceAccount:CredentialsPath' is not configured.");
+            var googleDocsCredentialPath = hostContext.Configuration["WhatsAppArchiver:GoogleServiceAccount:CredentialsPath"];
+            if (string.IsNullOrWhiteSpace(googleDocsCredentialPath))
+            {
+                throw new InvalidOperationException("Configuration key 'WhatsAppArchiver:GoogleServiceAccount:CredentialsPath' is not configured.");
+            }
 
             // Expand tilde (~) in credential path if present
-            googleDocsCredentialPath = PathUtilities.ExpandTildePath(googleDocsCredentialPath);
+            googleDocsCredentialPath = PathUtilities.ExpandTildePath(googleDocsCredentialPath)!;
 
             // Use the resolved state file path from command-line argument
             var stateRepositoryBasePath = Path.GetDirectoryName(resolvedStateFile);
@@ -259,7 +262,7 @@ try
 
             // Step 1: Parse entire chat file into memory
             Log.Information("Starting to parse chat file: {ChatFile}", chatFile);
-            var chatExport = await chatParser.ParseAsync(chatFile, timeZoneOffset: null, cancellationToken);
+            var chatExport = await chatParser.ParseAsync(chatFile!, timeZoneOffset: null, cancellationToken);
 
             // Step 2: Validate parsing results
             if (chatExport.Metadata.FailedLineCount > 0)
