@@ -32,7 +32,7 @@ public static class PathUtilities
     /// // Returns: "C:\Users\username\docs\file.txt" on Windows
     /// </code>
     /// </example>
-    public static string ExpandTildePath(string path)
+    public static string? ExpandTildePath(string? path)
     {
         if (string.IsNullOrWhiteSpace(path))
         {
