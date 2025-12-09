@@ -36,8 +36,13 @@ try
     // Helper method to expand tilde (~) in paths to user's home directory
     string ExpandTildePath(string path)
     {
-        // Check if path starts with ~/ or is exactly ~
-        if (path.StartsWith("~/") || path == "~")
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return path;
+        }
+
+        // Check if path starts with ~/ or ~\ or is exactly ~
+        if (path.StartsWith("~/") || path.StartsWith("~\\") || path == "~")
         {
             var homeDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             
@@ -47,8 +52,8 @@ try
                 return homeDirectory;
             }
             
-            // Replace ~ with home directory, skipping the ~/ prefix
-            return Path.Combine(homeDirectory, path[2..]);
+            // Replace ~ with home directory, skipping the ~/ or ~\ prefix
+            return Path.Combine(homeDirectory, path.Substring(2));
         }
 
         return path;
