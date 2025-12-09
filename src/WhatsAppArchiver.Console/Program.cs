@@ -33,32 +33,6 @@ try
         return path.Any(invalidPathChars.Contains);
     }
 
-    // Helper method to expand tilde (~) in paths to user's home directory
-    string ExpandTildePath(string path)
-    {
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return path;
-        }
-
-        // Check if path starts with ~/ or ~\ or is exactly ~
-        if (path.StartsWith("~/") || path.StartsWith("~\\") || path == "~")
-        {
-            var homeDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            
-            // If path is just ~, return home directory
-            if (path.Length == 1)
-            {
-                return homeDirectory;
-            }
-            
-            // Replace ~ with home directory, skipping the ~/ or ~\ prefix
-            return Path.Combine(homeDirectory, path.Substring(2));
-        }
-
-        return path;
-    }
-
     // Define command-line options with validation
     var chatFileOption = new Option<string>("--chat-file")
     {
@@ -74,7 +48,7 @@ try
             return;
         }
         // Expand tilde before checking file existence
-        var expandedPath = ExpandTildePath(filePath);
+        var expandedPath = PathUtilities.ExpandTildePath(filePath);
         if (!File.Exists(expandedPath))
         {
             result.AddError($"Chat file does not exist: {filePath}");
@@ -143,7 +117,7 @@ try
                 return;
             }
             // Expand tilde before checking file existence
-            var expandedPath = ExpandTildePath(configPath);
+            var expandedPath = PathUtilities.ExpandTildePath(configPath);
             if (!File.Exists(expandedPath))
             {
                 result.AddError($"Config file does not exist: {configPath}");
@@ -172,11 +146,11 @@ try
 
         // Expand tilde (~) in file paths if present
         // chatFile is required and non-null, so expand unconditionally
-        chatFile = ExpandTildePath(chatFile);
+        chatFile = PathUtilities.ExpandTildePath(chatFile);
         // configFile is optional, so only expand if provided
         if (!string.IsNullOrWhiteSpace(configFile))
         {
-            configFile = ExpandTildePath(configFile);
+            configFile = PathUtilities.ExpandTildePath(configFile);
         }
 
         // Determine state file path
@@ -194,7 +168,7 @@ try
         else
         {
             // Expand tilde (~) in state file path if present
-            resolvedStateFile = ExpandTildePath(resolvedStateFile);
+            resolvedStateFile = PathUtilities.ExpandTildePath(resolvedStateFile);
         }
 
         // Build the host with optional custom configuration
@@ -221,7 +195,7 @@ try
                 ?? throw new InvalidOperationException("Configuration key 'WhatsAppArchiver:GoogleServiceAccount:CredentialsPath' is not configured.");
 
             // Expand tilde (~) in credential path if present
-            googleDocsCredentialPath = ExpandTildePath(googleDocsCredentialPath);
+            googleDocsCredentialPath = PathUtilities.ExpandTildePath(googleDocsCredentialPath);
 
             // Use the resolved state file path from command-line argument
             var stateRepositoryBasePath = Path.GetDirectoryName(resolvedStateFile);
