@@ -320,7 +320,8 @@ try
                 FilePath: chatFile,
                 Sender: senderFilter,
                 DocumentId: docId,
-                FormatterType: format);
+                FormatterType: format,
+                CachedChatExport: chatExport);
 
             Log.Information("Uploading messages from {ChatFile} by sender '{Sender}' to document {DocumentId} with format {Format}",
                 chatFile, senderFilter, docId, format);
