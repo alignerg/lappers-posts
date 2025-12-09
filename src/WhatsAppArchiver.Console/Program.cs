@@ -167,7 +167,9 @@ try
         var configFile = parseResult.GetValue(configOption);
 
         // Expand tilde (~) in file paths if present
+        // chatFile is required and non-null, so expand unconditionally
         chatFile = ExpandTildePath(chatFile);
+        // configFile is optional, so only expand if provided
         if (!string.IsNullOrWhiteSpace(configFile))
         {
             configFile = ExpandTildePath(configFile);
