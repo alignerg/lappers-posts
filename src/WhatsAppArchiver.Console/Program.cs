@@ -157,7 +157,7 @@ try
         var resolvedStateFile = stateFile;
         if (string.IsNullOrWhiteSpace(resolvedStateFile))
         {
-            var chatFileFullPath = Path.GetFullPath(chatFile!);
+            var chatFileFullPath = Path.GetFullPath(chatFile);
             var chatFileDirectory = Path.GetDirectoryName(chatFileFullPath);
             if (string.IsNullOrEmpty(chatFileDirectory))
             {
@@ -262,7 +262,7 @@ try
 
             // Step 1: Parse entire chat file into memory
             Log.Information("Starting to parse chat file: {ChatFile}", chatFile);
-            var chatExport = await chatParser.ParseAsync(chatFile!, timeZoneOffset: null, cancellationToken);
+            var chatExport = await chatParser.ParseAsync(chatFile, timeZoneOffset: null, cancellationToken);
 
             // Step 2: Validate parsing results
             if (chatExport.Metadata.FailedLineCount > 0)
