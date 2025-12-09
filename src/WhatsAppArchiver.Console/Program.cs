@@ -33,6 +33,32 @@ try
         return path.Any(invalidPathChars.Contains);
     }
 
+    // Helper method to expand tilde (~) in paths to user's home directory
+    string ExpandTildePath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return path;
+        }
+
+        // Check if path starts with ~/ or is exactly ~
+        if (path.StartsWith("~/") || path == "~")
+        {
+            var homeDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            
+            // If path is just ~, return home directory
+            if (path.Length == 1)
+            {
+                return homeDirectory;
+            }
+            
+            // Replace ~ with home directory, skipping the ~/ prefix
+            return Path.Combine(homeDirectory, path[2..]);
+        }
+
+        return path;
+    }
+
     // Define command-line options with validation
     var chatFileOption = new Option<string>("--chat-file")
     {
@@ -140,6 +166,13 @@ try
         var stateFile = parseResult.GetValue(stateFileOption);
         var configFile = parseResult.GetValue(configOption);
 
+        // Expand tilde (~) in file paths if present
+        chatFile = ExpandTildePath(chatFile);
+        if (!string.IsNullOrWhiteSpace(configFile))
+        {
+            configFile = ExpandTildePath(configFile);
+        }
+
         // Determine state file path
         var resolvedStateFile = stateFile;
         if (string.IsNullOrWhiteSpace(resolvedStateFile))
@@ -151,6 +184,11 @@ try
                 chatFileDirectory = Directory.GetCurrentDirectory();
             }
             resolvedStateFile = Path.Combine(chatFileDirectory, "processingState.json");
+        }
+        else
+        {
+            // Expand tilde (~) in state file path if present
+            resolvedStateFile = ExpandTildePath(resolvedStateFile);
         }
 
         // Build the host with optional custom configuration
@@ -175,6 +213,9 @@ try
             // Retrieve configuration values
             var googleDocsCredentialPath = hostContext.Configuration["WhatsAppArchiver:GoogleServiceAccount:CredentialsPath"]
                 ?? throw new InvalidOperationException("Configuration key 'WhatsAppArchiver:GoogleServiceAccount:CredentialsPath' is not configured.");
+
+            // Expand tilde (~) in credential path if present
+            googleDocsCredentialPath = ExpandTildePath(googleDocsCredentialPath);
 
             // Use the resolved state file path from command-line argument
             var stateRepositoryBasePath = Path.GetDirectoryName(resolvedStateFile);
