@@ -89,16 +89,22 @@ try
     };
     formatOption.DefaultValueFactory = _ => MessageFormatType.Default;
 
-    var stateFileOption = new Option<string?>("--state-file")
+    var stateDirOption = new Option<string>("--state-dir")
     {
-        Description = "Path to the processing state file (defaults to processingState.json in the chat file directory)"
+        Description = "Directory path where processing state files will be stored",
+        Required = true
     };
-    stateFileOption.Validators.Add(result =>
+    stateDirOption.Validators.Add(result =>
     {
-        var statePath = result.GetValue(stateFileOption);
+        var statePath = result.GetValue(stateDirOption);
+        if (string.IsNullOrWhiteSpace(statePath))
+        {
+            result.AddError("State directory path cannot be empty");
+            return;
+        }
         if (ContainsInvalidPathChars(statePath))
         {
-            result.AddError("State file path contains invalid characters");
+            result.AddError("State directory path contains invalid characters");
         }
     });
 
@@ -131,7 +137,7 @@ try
     rootCommand.Add(senderFilterOption);
     rootCommand.Add(docIdOption);
     rootCommand.Add(formatOption);
-    rootCommand.Add(stateFileOption);
+    rootCommand.Add(stateDirOption);
     rootCommand.Add(configOption);
 
     // Set the handler using ParseResult
@@ -141,34 +147,18 @@ try
         var senderFilter = parseResult.GetValue(senderFilterOption)!;
         var docId = parseResult.GetValue(docIdOption)!;
         var format = parseResult.GetValue(formatOption);
-        var stateFile = parseResult.GetValue(stateFileOption);
+        var stateDir = parseResult.GetValue(stateDirOption)!;
         var configFile = parseResult.GetValue(configOption);
 
         // Expand tilde (~) in file paths if present
         // chatFile is required and non-null, so expand unconditionally
         chatFile = PathUtilities.ExpandTildePath(chatFile)!;
+        // stateDir is required and non-null, so expand unconditionally
+        stateDir = PathUtilities.ExpandTildePath(stateDir)!;
         // configFile is optional, so only expand if provided
         if (!string.IsNullOrWhiteSpace(configFile))
         {
             configFile = PathUtilities.ExpandTildePath(configFile);
-        }
-
-        // Determine state file path
-        var resolvedStateFile = stateFile;
-        if (string.IsNullOrWhiteSpace(resolvedStateFile))
-        {
-            var chatFileFullPath = Path.GetFullPath(chatFile);
-            var chatFileDirectory = Path.GetDirectoryName(chatFileFullPath);
-            if (string.IsNullOrEmpty(chatFileDirectory))
-            {
-                chatFileDirectory = Directory.GetCurrentDirectory();
-            }
-            resolvedStateFile = Path.Combine(chatFileDirectory, "processingState.json");
-        }
-        else
-        {
-            // Expand tilde (~) in state file path if present
-            resolvedStateFile = PathUtilities.ExpandTildePath(resolvedStateFile);
         }
 
         // Build the host with optional custom configuration
@@ -202,14 +192,6 @@ try
             // and ExpandTildePath only returns null when the input is null
             googleDocsCredentialPath = PathUtilities.ExpandTildePath(googleDocsCredentialPath)!;
 
-            // Use the resolved state file path from command-line argument
-            var stateRepositoryBasePath = Path.GetDirectoryName(resolvedStateFile);
-            if (string.IsNullOrEmpty(stateRepositoryBasePath))
-            {
-                // If no directory component is present, use the current directory as fallback.
-                stateRepositoryBasePath = Directory.GetCurrentDirectory();
-            }
-
             // Register WhatsAppTextFileParser as Singleton because it's stateless and thread-safe.
             // The parser only reads files and doesn't maintain any mutable state between operations.
             services.AddSingleton<IChatParser>(sp =>
@@ -241,7 +223,7 @@ try
             {
                 var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<JsonFileStateRepository>>();
 
-                return new JsonFileStateRepository(stateRepositoryBasePath, logger);
+                return new JsonFileStateRepository(stateDir, logger);
             });
 
             // Register handlers as Scoped services to align with Scoped dependencies (IGoogleDocsService).

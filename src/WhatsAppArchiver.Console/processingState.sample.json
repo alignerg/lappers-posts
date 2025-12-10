@@ -17,8 +17,8 @@
   // with underscores). Long names are truncated and appended with a hash.
   //
   // LOCATION:
-  // State files are stored in the directory specified by:
-  // appsettings.json -> WhatsAppArchiver:StateRepository:BasePath
+  // State files are stored in the directory specified via the --state-dir
+  // command-line argument when running the application.
   //
   // PURPOSE:
   // - Track which messages have been successfully processed
@@ -195,7 +195,7 @@
   "usage_notes": {
     "automatic_creation": "State files are created automatically by the application. You should not need to create or edit them manually.",
     
-    "file_location": "Files are stored in the directory specified by appsettings.json -> WhatsAppArchiver:StateRepository:BasePath",
+    "file_location": "Files are stored in the directory specified via the --state-dir command-line argument",
     
     "resumability": "If processing is interrupted, the application will load the state file and resume from where it left off.",
     
