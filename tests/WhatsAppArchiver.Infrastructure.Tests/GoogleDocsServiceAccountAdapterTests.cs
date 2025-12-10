@@ -576,8 +576,7 @@ public class GoogleDocsServiceAccountAdapterTests
             .Select(r => r.InsertText!.Text)
             .ToList();
 
-        // Verify no empty text is inserted
-        insertTextRequests.Should().NotContain(string.Empty);
+        // Verify no empty or null text is inserted
         insertTextRequests.Should().NotContain(text => string.IsNullOrEmpty(text));
     }
 
