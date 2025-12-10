@@ -97,6 +97,11 @@ try
     stateDirOption.Validators.Add(result =>
     {
         var statePath = result.GetValue(stateDirOption);
+        if (string.IsNullOrWhiteSpace(statePath))
+        {
+            result.AddError("State directory path cannot be empty");
+            return;
+        }
         if (ContainsInvalidPathChars(statePath))
         {
             result.AddError("State directory path contains invalid characters");
