@@ -7,13 +7,13 @@ namespace WhatsAppArchiver.Domain.Tests.Formatting;
 
 public class IDocumentFormatterTests
 {
-    [Fact(DisplayName = "IDocumentFormatter extends IMessageFormatter")]
-    public void TypeInheritance_IDocumentFormatter_ExtendsIMessageFormatter()
+    [Fact(DisplayName = "IDocumentFormatter is a standalone interface")]
+    public void TypeInheritance_IDocumentFormatter_DoesNotExtendIMessageFormatter()
     {
         var documentFormatterType = typeof(IDocumentFormatter);
         var messageFormatterType = typeof(IMessageFormatter);
 
-        Assert.True(messageFormatterType.IsAssignableFrom(documentFormatterType));
+        Assert.False(messageFormatterType.IsAssignableFrom(documentFormatterType));
     }
 
     [Fact(DisplayName = "IDocumentFormatter has FormatDocument method")]
@@ -48,17 +48,6 @@ public class IDocumentFormatterTests
         Assert.Contains("Document with 2 messages", result);
     }
 
-    [Fact(DisplayName = "Document formatter throws NotSupportedException for FormatMessage")]
-    public void FormatMessage_DocumentFormatter_ThrowsNotSupportedException()
-    {
-        var formatter = new TestDocumentFormatter();
-        var message = ChatMessage.Create(DateTimeOffset.UtcNow, "Alice", "Test");
-
-        var exception = Assert.Throws<NotSupportedException>(() => formatter.FormatMessage(message));
-
-        Assert.Contains("Document-level formatters do not support individual message formatting", exception.Message);
-    }
-
     [Fact(DisplayName = "FormatDocument with null export throws ArgumentNullException")]
     public void FormatDocument_NullChatExport_ThrowsArgumentNullException()
     {
@@ -69,6 +58,23 @@ public class IDocumentFormatterTests
         Assert.Equal("chatExport", exception.ParamName);
     }
 
+    [Fact(DisplayName = "Document formatter can compose message formatter")]
+    public void FormatDocument_WithMessageFormatter_UsesComposition()
+    {
+        var messageFormatter = new DefaultMessageFormatter();
+        var formatter = new CompositeDocumentFormatter(messageFormatter);
+        var messages = new[]
+        {
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 30, 0, TimeSpan.Zero), "Alice", "Hello")
+        };
+        var metadata = ParsingMetadata.Create("test.txt", DateTimeOffset.UtcNow, messages.Length, messages.Length, 0);
+        var chatExport = ChatExport.Create(messages, metadata);
+
+        var result = formatter.FormatDocument(chatExport);
+
+        Assert.Contains("[15/01/2024, 10:30:00] Alice: Hello", result);
+    }
+
     private sealed class TestDocumentFormatter : IDocumentFormatter
     {
         public string FormatDocument(ChatExport chatExport)
@@ -77,11 +83,27 @@ public class IDocumentFormatterTests
 
             return $"Document with {chatExport.MessageCount} messages";
         }
+    }
 
-        public string FormatMessage(ChatMessage message)
+    private sealed class CompositeDocumentFormatter : IDocumentFormatter
+    {
+        private readonly IMessageFormatter _messageFormatter;
+
+        public CompositeDocumentFormatter(IMessageFormatter messageFormatter)
         {
-            throw new NotSupportedException(
-                "Document-level formatters do not support individual message formatting.");
+            _messageFormatter = messageFormatter;
+        }
+
+        public string FormatDocument(ChatExport chatExport)
+        {
+            ArgumentNullException.ThrowIfNull(chatExport);
+
+            var formatted = new System.Text.StringBuilder();
+            foreach (var message in chatExport.Messages)
+            {
+                formatted.AppendLine(_messageFormatter.FormatMessage(message));
+            }
+            return formatted.ToString();
         }
     }
 }

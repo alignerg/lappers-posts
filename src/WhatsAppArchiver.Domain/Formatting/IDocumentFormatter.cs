@@ -1,5 +1,4 @@
 using WhatsAppArchiver.Domain.Aggregates;
-using WhatsAppArchiver.Domain.Entities;
 
 namespace WhatsAppArchiver.Domain.Formatting;
 
@@ -8,37 +7,45 @@ namespace WhatsAppArchiver.Domain.Formatting;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This interface extends <see cref="IMessageFormatter"/> to provide document-level formatting
-/// capabilities. There are two types of formatters in the system:
+/// This interface provides document-level formatting capabilities for processing
+/// entire <see cref="ChatExport"/> aggregates at once. There are two types of formatters in the system:
 /// </para>
 /// <list type="bullet">
 /// <item>
 /// <description>
-/// <strong>Document-level formatters</strong>: Process the entire <see cref="ChatExport"/> aggregate
-/// at once, allowing for global formatting decisions, document structure, and aggregate-level operations.
-/// These formatters should implement <see cref="FormatDocument"/> and throw <see cref="NotSupportedException"/>
-/// from <see cref="IMessageFormatter.FormatMessage"/>.
+/// <strong>Document-level formatters</strong>: Implement <see cref="IDocumentFormatter"/> to process
+/// the entire <see cref="ChatExport"/> aggregate at once, allowing for global formatting decisions,
+/// document structure, and aggregate-level operations.
 /// </description>
 /// </item>
 /// <item>
 /// <description>
-/// <strong>Message-level formatters</strong>: Process one <see cref="ChatMessage"/> at a time,
-/// focusing on individual message formatting. These formatters only implement
-/// <see cref="IMessageFormatter.FormatMessage"/> and do not need to implement this interface.
+/// <strong>Message-level formatters</strong>: Implement <see cref="IMessageFormatter"/> to process
+/// one message at a time, focusing on individual message formatting without knowledge of the full document.
 /// </description>
 /// </item>
 /// </list>
 /// <para>
 /// Document-level formatters are useful when the output format requires knowledge of the entire
 /// chat history, such as generating structured documents, creating indexes, or applying
-/// aggregate-level transformations.
+/// aggregate-level transformations. If individual message formatting is also needed,
+/// document formatters can compose a message formatter internally.
 /// </para>
 /// </remarks>
 /// <example>
 /// <code>
+/// using System.Text;
+/// 
 /// // Document-level formatter implementation
 /// public class HtmlDocumentFormatter : IDocumentFormatter
 /// {
+///     private readonly IMessageFormatter _messageFormatter;
+///     
+///     public HtmlDocumentFormatter(IMessageFormatter messageFormatter)
+///     {
+///         _messageFormatter = messageFormatter;
+///     }
+///     
 ///     public string FormatDocument(ChatExport chatExport)
 ///     {
 ///         var html = new StringBuilder();
@@ -46,26 +53,22 @@ namespace WhatsAppArchiver.Domain.Formatting;
 ///         
 ///         foreach (var message in chatExport.Messages)
 ///         {
-///             html.AppendFormat("&lt;p&gt;{0}: {1}&lt;/p&gt;", message.Sender, message.Content);
+///             var formattedMessage = _messageFormatter.FormatMessage(message);
+///             html.AppendFormat("&lt;p&gt;{0}&lt;/p&gt;", formattedMessage);
 ///         }
 ///         
 ///         html.Append("&lt;/body&gt;&lt;/html&gt;");
 ///         return html.ToString();
 ///     }
-///     
-///     public string FormatMessage(ChatMessage message)
-///     {
-///         throw new NotSupportedException(
-///             "Document-level formatters do not support individual message formatting.");
-///     }
 /// }
 /// 
 /// // Usage
-/// IDocumentFormatter formatter = new HtmlDocumentFormatter();
+/// IMessageFormatter messageFormatter = new DefaultMessageFormatter();
+/// IDocumentFormatter formatter = new HtmlDocumentFormatter(messageFormatter);
 /// string document = formatter.FormatDocument(chatExport);
 /// </code>
 /// </example>
-public interface IDocumentFormatter : IMessageFormatter
+public interface IDocumentFormatter
 {
     /// <summary>
     /// Formats an entire chat export document according to the formatter's strategy.
