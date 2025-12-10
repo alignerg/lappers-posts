@@ -8,7 +8,7 @@ namespace WhatsAppArchiver.Domain.Tests.Formatting;
 public class IDocumentFormatterTests
 {
     [Fact(DisplayName = "IDocumentFormatter extends IMessageFormatter")]
-    public void IDocumentFormatter_ExtendsIMessageFormatter()
+    public void TypeInheritance_IDocumentFormatter_ExtendsIMessageFormatter()
     {
         var documentFormatterType = typeof(IDocumentFormatter);
         var messageFormatterType = typeof(IMessageFormatter);
@@ -17,7 +17,7 @@ public class IDocumentFormatterTests
     }
 
     [Fact(DisplayName = "IDocumentFormatter has FormatDocument method")]
-    public void IDocumentFormatter_HasFormatDocumentMethod()
+    public void InterfaceStructure_IDocumentFormatter_HasFormatDocumentMethod()
     {
         var method = typeof(IDocumentFormatter).GetMethod("FormatDocument");
 
