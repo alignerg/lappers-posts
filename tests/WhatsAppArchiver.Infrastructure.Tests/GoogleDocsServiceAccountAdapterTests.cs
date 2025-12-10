@@ -549,11 +549,11 @@ public class GoogleDocsServiceAccountAdapterTests
         combinedText.Should().Be(content);
     }
 
-    [Fact(DisplayName = "UploadAsync with content ending with newline does not create empty insert requests")]
-    public async Task UploadAsync_ContentEndingWithNewline_DoesNotCreateEmptyInsertRequests()
+    [Fact(DisplayName = "UploadAsync with multiple consecutive newlines does not create empty insert requests")]
+    public async Task UploadAsync_MultipleConsecutiveNewlines_DoesNotCreateEmptyInsertRequests()
     {
         var documentId = "test-doc-123";
-        var content = "Line 1\nLine 2\n";
+        var content = "Line 1\n\n\nLine 2";
         IList<Request>? capturedRequests = null;
 
         _clientWrapperMock
@@ -578,6 +578,11 @@ public class GoogleDocsServiceAccountAdapterTests
 
         // Verify no empty or null text is inserted
         insertTextRequests.Should().NotContain(text => string.IsNullOrEmpty(text));
+        
+        // Requests are inserted in reverse order for correct document assembly
+        // When reversed and concatenated, they should produce the original content exactly
+        var combinedText = string.Concat(insertTextRequests.AsEnumerable().Reverse());
+        combinedText.Should().Be(content);
     }
 
     #endregion
