@@ -168,6 +168,12 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
                 paragraphText += "\n";
             }
 
+            // Skip empty paragraphs as Google Docs API requires non-empty text
+            if (string.IsNullOrEmpty(paragraphText))
+            {
+                continue;
+            }
+
             requests.Add(new Request
             {
                 InsertText = new InsertTextRequest
