@@ -314,9 +314,6 @@ The compiled application will be in:
     "GoogleServiceAccount": {
       "CredentialsPath": "PATH_TO_YOUR_CREDENTIALS_FILE"
     },
-    "StateRepository": {
-      "BasePath": "./state"
-    },
     "DefaultFormatter": "default",
     "Logging": {
       "MinimumLevel": "Information",
@@ -333,10 +330,6 @@ The compiled application will be in:
   - Windows example: `C:\\Users\\YourUsername\\.credentials\\google-service-account.json`
   - macOS example: `~/.credentials/google-service-account.json` or `/Users/YourUsername/.credentials/google-service-account.json`
   - Relative path example: `./credentials/google-service-account.json`
-
-- **BasePath**: Directory where processing state files will be stored
-  - The application creates this directory if it doesn't exist
-  - State files enable resumable operations and prevent duplicate uploads
 
 - **DefaultFormatter**: Message formatting style
   - `default`: `[{timestamp}] {sender}: {content}`
@@ -359,7 +352,7 @@ The compiled application will be in:
 cd src\WhatsAppArchiver.Console\bin\Release\net10.0
 
 # Run the application with required arguments
-.\WhatsAppArchiver.Console.exe --chat-file "path\to\chat.txt" --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID"
+.\WhatsAppArchiver.Console.exe --chat-file "path\to\chat.txt" --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --state-dir ".\state"
 ```
 
 #### Option 2: Using dotnet run
@@ -369,7 +362,7 @@ cd src\WhatsAppArchiver.Console\bin\Release\net10.0
 cd src\WhatsAppArchiver.Console
 
 # Run with dotnet and required arguments
-dotnet run --configuration Release -- --chat-file "path\to\chat.txt" --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID"
+dotnet run --configuration Release -- --chat-file "path\to\chat.txt" --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --state-dir ".\state"
 ```
 
 #### Example with Full Paths (Windows)
@@ -377,11 +370,11 @@ dotnet run --configuration Release -- --chat-file "path\to\chat.txt" --sender-fi
 ```powershell
 # Using the executable
 cd C:\Projects\lappers-posts\src\WhatsAppArchiver.Console\bin\Release\net10.0
-.\WhatsAppArchiver.Console.exe --chat-file "C:\exports\chat.txt" --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID"
+.\WhatsAppArchiver.Console.exe --chat-file "C:\exports\chat.txt" --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --state-dir "C:\state"
 
 # Using dotnet run
 cd C:\Projects\lappers-posts\src\WhatsAppArchiver.Console
-dotnet run --configuration Release -- --chat-file "C:\exports\chat.txt" --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID"
+dotnet run --configuration Release -- --chat-file "C:\exports\chat.txt" --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --state-dir "C:\state"
 ```
 
 ### macOS
@@ -396,7 +389,7 @@ cd src/WhatsAppArchiver.Console/bin/Release/net10.0
 chmod +x WhatsAppArchiver.Console
 
 # Run the application with required arguments
-./WhatsAppArchiver.Console --chat-file "./exports/chat.txt" --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID"
+./WhatsAppArchiver.Console --chat-file "./exports/chat.txt" --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --state-dir "./state"
 ```
 
 #### Option 2: Using dotnet run
@@ -406,7 +399,7 @@ chmod +x WhatsAppArchiver.Console
 cd src/WhatsAppArchiver.Console
 
 # Run with dotnet and required arguments
-dotnet run --configuration Release -- --chat-file "./exports/chat.txt" --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID"
+dotnet run --configuration Release -- --chat-file "./exports/chat.txt" --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --state-dir "./state"
 ```
 
 #### Example with Full Paths (macOS)
@@ -414,34 +407,31 @@ dotnet run --configuration Release -- --chat-file "./exports/chat.txt" --sender-
 ```bash
 # Using the executable
 cd /Users/yourusername/Projects/lappers-posts/src/WhatsAppArchiver.Console/bin/Release/net10.0
-./WhatsAppArchiver.Console --chat-file "/Users/yourusername/exports/chat.txt" --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID"
+./WhatsAppArchiver.Console --chat-file "/Users/yourusername/exports/chat.txt" --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --state-dir "/Users/yourusername/state"
 
 # Using dotnet run
 cd /Users/yourusername/Projects/lappers-posts/src/WhatsAppArchiver.Console
-dotnet run --configuration Release -- --chat-file "/Users/yourusername/exports/chat.txt" --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID"
+dotnet run --configuration Release -- --chat-file "/Users/yourusername/exports/chat.txt" --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --state-dir "/Users/yourusername/state"
 ```
 
 ## Usage Examples
 
 ### Upload Messages to Google Docs
 
-The application requires three mandatory arguments and supports several optional arguments:
+The application requires four mandatory arguments and supports several optional arguments:
 
 ```bash
 # Basic usage with required arguments
-dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID"
+dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --state-dir ./state
 
 # Use a specific message format
-dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --format compact
-
-# Specify a custom state file location
-dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --state-file ./custom-state.json
+dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --state-dir ./state --format compact
 
 # Use a custom configuration file
-dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --config ./custom-appsettings.json
+dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --state-dir ./state --config ./custom-appsettings.json
 
-# Combine multiple optional arguments
-dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --format verbose --state-file ./state/chat-state.json --config ./custom-appsettings.json
+# Combine multiple arguments with different state directory
+dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --state-dir ~/docs/lappers/state --format verbose --config ./custom-appsettings.json
 ```
 
 ### Command-Line Arguments
@@ -460,6 +450,11 @@ dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-
   - Found in the document URL: `https://docs.google.com/document/d/YOUR_DOCUMENT_ID/edit`
   - Cannot be empty
 
+- `--state-dir`: Directory path where processing state files will be stored
+  - The application creates this directory if it doesn't exist
+  - State files track which messages have been processed to enable resumable operations
+  - Supports both absolute and relative paths (including tilde expansion on Unix-like systems)
+
 **Optional Arguments:**
 
 - `--format`: Message format type (default: `default`)
@@ -467,113 +462,110 @@ dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-
   - `compact`: `{sender}: {content}`
   - `verbose`: Detailed format with full date/time and metadata
 
-- `--state-file`: Path to the processing state file
-  - Defaults to `processingState.json` in the chat file directory
-  - Tracks which messages have been processed to enable resumable operations
-
 - `--config`: Path to a custom configuration file (appsettings.json)
   - Overrides the default configuration file
   - File must exist if specified
 
 ### State File Behavior
 
-The application uses a **state file** to track processing progress and ensure **idempotent operations** - meaning you can safely run the same command multiple times without uploading duplicate messages.
+The application uses **state files** to track processing progress and ensure **idempotent operations** - meaning you can safely run the same command multiple times without uploading duplicate messages.
 
 #### How State Files Work
 
-1. **Location**: By default, the state file is created in the same directory as your chat export file:
+1. **Location**: State files are stored in the directory you specify with the `--state-dir` argument:
    ```
-   /path/to/chat.txt          # Your WhatsApp export
-   /path/to/processingState.json  # Automatically created state file
+   /state/                        # State directory (specified via --state-dir)
+   /state/1syiodaz_rzgytu7c-mu__peyyczv0byfjfurf_stvy8__rudi_anderson.json  # Auto-generated state file
    ```
 
-2. **Content**: The state file contains:
-   - **Source file checksum**: Hash of the chat file to detect changes
+2. **Filename Generation**: The application automatically generates state filenames based on:
+   - **Document ID**: Sanitized and normalized
+   - **Sender filter**: Sanitized and normalized (if provided)
+   - Format: `{documentId}__{senderName}.json` or `{documentId}.json` (without sender filter)
+
+3. **Content**: Each state file contains:
+   - **Document ID**: The Google Docs document being updated
    - **Processed message IDs**: List of message identifiers already uploaded
    - **Last processing timestamp**: When the operation last ran
-   - **Configuration metadata**: Sender filter and document ID used
+   - **Sender filter**: The sender name being filtered (if applicable)
 
-3. **Idempotency**: On subsequent runs with the same chat file:
-   - The application reads the state file
-   - Compares the file checksum - if changed, processes all messages as new
+4. **Idempotency**: On subsequent runs:
+   - The application loads the appropriate state file from the specified directory
    - Skips messages already in the processed list
    - Only uploads new messages not previously sent
    - Updates the state file with newly processed messages
-
-4. **Custom State File Location**: Use `--state-file` to specify a different location:
-   ```bash
-   dotnet run -- --chat-file ./exports/chat.txt \
-                 --sender-filter "John" \
-                 --doc-id "ABC123" \
-                 --state-file ./state/custom-state.json
-   ```
 
 #### State File Example
 
 ```json
 {
-  "sourceFileChecksum": "a1b2c3d4e5f6...",
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "documentId": "1a2b3c4d5e6f7g8h9i0j",
+  "lastProcessedTimestamp": "2024-12-06T10:30:45.123Z",
   "processedMessageIds": [
-    "2024-12-25T09:15:00_John Smith_0",
-    "2024-12-25T09:18:45_John Smith_1",
-    "2024-12-26T14:20:33_Alex Johnson_0"
+    {
+      "timestamp": "2024-12-05T08:15:30.000Z",
+      "contentHash": "a1b2c3d4e5f6g7h8"
+    }
   ],
-  "lastProcessedTimestamp": "2024-12-27T10:30:00Z",
-  "metadata": {
-    "senderFilter": "John Smith",
-    "documentId": "YOUR_DOCUMENT_ID"
+  "senderName": "John Smith"
   }
 }
 ```
 
 #### Use Cases
 
-**Resume after failure**: If upload fails mid-way (network issue, API limit), simply re-run:
+**Resume after failure**: If upload fails mid-way (network issue, API limit), simply re-run with the same arguments:
 ```bash
 # First run - uploads 100 messages, then fails
-dotnet run -- --chat-file ./chat.txt --sender-filter "John" --doc-id "ABC123"
+dotnet run -- --chat-file ./chat.txt --sender-filter "John" --doc-id "ABC123" --state-dir ./state
 
 # Second run - automatically resumes from message 101
-dotnet run -- --chat-file ./chat.txt --sender-filter "John" --doc-id "ABC123"
+dotnet run -- --chat-file ./chat.txt --sender-filter "John" --doc-id "ABC123" --state-dir ./state
 ```
 
-**Incremental updates**: Export the same chat multiple times and only new messages are uploaded:
+**Incremental updates**: Process new messages from updated chat exports:
 ```bash
 # Monday - export and upload
-dotnet run -- --chat-file ./monday-export.txt --sender-filter "John" --doc-id "ABC123"
+dotnet run -- --chat-file ./monday-export.txt --sender-filter "John" --doc-id "ABC123" --state-dir ./state
 
 # Friday - export again with new messages
-# Copy to same filename: monday-export.txt (with new content)
-# State file detects file change and processes all messages as new
-dotnet run -- --chat-file ./monday-export.txt --sender-filter "John" --doc-id "ABC123"
+dotnet run -- --chat-file ./friday-export.txt --sender-filter "John" --doc-id "ABC123" --state-dir ./state
+# Only new messages are uploaded; previously processed ones are skipped
 ```
 
-**Multiple chat files**: Each chat file can have its own state:
+**Multiple documents/senders**: Each combination gets its own state file in the same directory:
 ```bash
-# Family chat
-dotnet run -- --chat-file ./family.txt --sender-filter "Mom" --doc-id "DOC1"
-# Creates: ./processingState.json
+# Family chat - one sender
+dotnet run -- --chat-file ./family.txt --sender-filter "Mom" --doc-id "DOC1" --state-dir ./state
+# Creates: ./state/doc1__mom.json
 
-# Work chat (different directory)
-dotnet run -- --chat-file ./work/team.txt --sender-filter "Boss" --doc-id "DOC2"
-# Creates: ./work/processingState.json
+# Work chat - different sender
+dotnet run -- --chat-file ./work.txt --sender-filter "Boss" --doc-id "DOC2" --state-dir ./state
+# Creates: ./state/doc2__boss.json
+
+# Both state files coexist in the same directory
 ```
 
-**State file cleanup**: Delete the state file to force reprocessing:
+**State file cleanup**: Delete state files to force reprocessing:
 ```bash
-# Windows
-del processingState.json
+# Windows - delete all state files
+del state\*.json
 
-# macOS/Linux
-rm processingState.json
+# macOS/Linux - delete all state files
+rm state/*.json
+
+# Or delete a specific state file
+rm state/doc1__mom.json
 ```
 
 #### Important Notes
 
-- **File changes**: If you edit the chat file, the checksum changes and all messages are reprocessed
-- **Different filters**: Using a different `--sender-filter` or `--doc-id` creates a new processing context
+- **Automatic filenames**: State filenames are automatically generated from document ID and sender filter
+- **Different filters**: Using a different `--sender-filter` or `--doc-id` creates a separate state file
 - **Manual state management**: State files are plain JSON and can be manually edited if needed
-- **No state file**: If the state file is deleted or doesn't exist, all messages are processed as new
+- **No state file**: If a state file doesn't exist, all messages are processed as new
+- **Directory required**: You must always specify `--state-dir` - there is no default location
 
 ## Troubleshooting
 
