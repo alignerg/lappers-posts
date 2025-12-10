@@ -549,6 +549,38 @@ public class GoogleDocsServiceAccountAdapterTests
         combinedText.Should().Be(content);
     }
 
+    [Fact(DisplayName = "UploadAsync with content ending with newline does not create empty insert requests")]
+    public async Task UploadAsync_ContentEndingWithNewline_DoesNotCreateEmptyInsertRequests()
+    {
+        var documentId = "test-doc-123";
+        var content = "Line 1\nLine 2\n";
+        IList<Request>? capturedRequests = null;
+
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(
+                documentId,
+                It.IsAny<IList<Request>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<string, IList<Request>, CancellationToken>((_, requests, _) =>
+            {
+                capturedRequests = requests;
+            })
+            .Returns(Task.CompletedTask);
+
+        await _adapter.UploadAsync(documentId, content);
+
+        capturedRequests.Should().NotBeNull();
+        
+        var insertTextRequests = capturedRequests!
+            .Where(r => r.InsertText != null)
+            .Select(r => r.InsertText!.Text)
+            .ToList();
+
+        // Verify no empty text is inserted
+        insertTextRequests.Should().NotContain(string.Empty);
+        insertTextRequests.Should().NotContain(text => string.IsNullOrEmpty(text));
+    }
+
     #endregion
 
     #region IDisposable Tests
