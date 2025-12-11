@@ -31,6 +31,9 @@ public static class FormatterFactory
             MessageFormatType.Default => new DefaultMessageFormatter(),
             MessageFormatType.Compact => new CompactMessageFormatter(),
             MessageFormatType.Verbose => new VerboseMessageFormatter(),
+            MessageFormatType.MarkdownDocument => throw new ArgumentException(
+                "MarkdownDocument format type requires IDocumentFormatter for batch processing. Use a document formatter implementation instead of FormatterFactory.Create().",
+                nameof(formatType)),
             _ => throw new ArgumentOutOfRangeException(nameof(formatType), formatType, "Unknown message format type.")
         };
     }

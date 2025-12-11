@@ -39,6 +39,17 @@ public class FormatterFactoryTests
         Assert.Equal("formatType", exception.ParamName);
     }
 
+    [Fact(DisplayName = "Create with MarkdownDocument throws ArgumentException indicating IDocumentFormatter required")]
+    public void Create_MarkdownDocumentType_ThrowsArgumentExceptionWithDocumentFormatterMessage()
+    {
+        var exception = Assert.Throws<ArgumentException>(() =>
+            FormatterFactory.Create(MessageFormatType.MarkdownDocument));
+
+        Assert.Equal("formatType", exception.ParamName);
+        Assert.Contains("IDocumentFormatter", exception.Message);
+        Assert.Contains("batch processing", exception.Message);
+    }
+
     [Theory(DisplayName = "Create returns IMessageFormatter for all valid types")]
     [InlineData(MessageFormatType.Default)]
     [InlineData(MessageFormatType.Compact)]
