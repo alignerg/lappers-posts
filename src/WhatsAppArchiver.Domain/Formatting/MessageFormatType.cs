@@ -25,7 +25,8 @@ public enum MessageFormatType
     Verbose,
 
     /// <summary>
-    /// Structured markdown document with friendly date headers (MMMM d, yyyy) and individual timestamped posts. Requires IDocumentFormatter for batch processing.
+    /// Structured markdown document with friendly date headers (MMMM d, yyyy)
+    /// and individual timestamped posts. Requires IDocumentFormatter for batch processing.
     /// </summary>
     MarkdownDocument = 3
 }
