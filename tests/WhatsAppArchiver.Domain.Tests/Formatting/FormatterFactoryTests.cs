@@ -40,7 +40,7 @@ public class FormatterFactoryTests
     }
 
     [Fact(DisplayName = "Create with MarkdownDocument throws ArgumentException indicating IDocumentFormatter required")]
-    public void Create_MarkdownDocumentType_ThrowsArgumentExceptionWithDocumentFormatterMessage()
+    public void Create_MarkdownDocumentType_ThrowsArgumentException()
     {
         var exception = Assert.Throws<ArgumentException>(() =>
             FormatterFactory.Create(MessageFormatType.MarkdownDocument));
