@@ -35,6 +35,12 @@ namespace WhatsAppArchiver.Domain.Formatting;
 /// support message-level formatting via <see cref="FormatMessage"/> - that method
 /// throws <see cref="NotSupportedException"/> to enforce document-level processing.
 /// </para>
+/// <para>
+/// <strong>Note:</strong> The document title uses the sender name from the first message
+/// in the export. For multi-participant chats, this represents the first person who sent
+/// a message in the chronological order, not necessarily the chat owner. For empty exports,
+/// "Unknown User" is used as a placeholder.
+/// </para>
 /// </remarks>
 /// <example>
 /// <code>
@@ -76,7 +82,7 @@ public sealed class MarkdownDocumentFormatter : IDocumentFormatter, IMessageForm
     /// comes from the first message. If the export is empty, uses "Unknown User".</description>
     /// </item>
     /// <item>
-    /// <description>Metadata section with current export date (MMMM d, yyyy) and total message count.</description>
+    /// <description>Metadata section with parsing date from metadata (MMMM d, yyyy) and total message count.</description>
     /// </item>
     /// <item>
     /// <description>Messages grouped by date, with H2 headers in "MMMM d, yyyy" format.</description>
