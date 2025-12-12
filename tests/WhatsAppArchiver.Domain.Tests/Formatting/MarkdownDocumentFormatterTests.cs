@@ -9,174 +9,257 @@ public class MarkdownDocumentFormatterTests
 {
     private readonly MarkdownDocumentFormatter _formatter = new();
 
-    private static ParsingMetadata CreateTestMetadata(int messageCount = 0)
-        => ParsingMetadata.Create("test.txt", DateTimeOffset.UtcNow, messageCount, messageCount, 0);
-
-    [Fact(DisplayName = "FormatDocument with single day messages produces correct structure")]
-    public void FormatDocument_SingleDayMessages_ProducesCorrectStructure()
+    [Fact(DisplayName = "FormatDocument with valid export returns expected markdown structure")]
+    public void FormatDocument_ValidExport_ReturnsExpectedMarkdownStructure()
     {
-        var timestamp = new DateTimeOffset(2024, 12, 8, 10, 30, 0, TimeSpan.Zero);
         var messages = new[]
         {
-            ChatMessage.Create(timestamp, "John Doe", "First message"),
-            ChatMessage.Create(timestamp.AddHours(1), "John Doe", "Second message"),
-            ChatMessage.Create(timestamp.AddHours(2), "John Doe", "Third message")
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 30, 0, TimeSpan.Zero), "John Doe", "Hello!")
         };
-        var metadata = CreateTestMetadata(3);
+        var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 1, 15, 12, 0, 0, TimeSpan.Zero), 1, 1, 0);
         var chatExport = ChatExport.Create(messages, metadata);
 
         var result = _formatter.FormatDocument(chatExport);
 
         Assert.Contains("# WhatsApp Conversation Export - John Doe", result);
-        Assert.Contains("**Total Messages:** 3", result);
-        Assert.Contains("## December 8, 2024", result);
+        Assert.Contains("**Export Date:**", result);
+        Assert.Contains("**Total Messages:** 1", result);
+        Assert.Contains("---", result);
+        Assert.Contains("## January 15, 2024", result);
         Assert.Contains("**10:30**", result);
-        Assert.Contains("**11:30**", result);
-        Assert.Contains("**12:30**", result);
-        var separatorCount = result.Split("---", StringSplitOptions.None).Length - 1;
-        Assert.Equal(4, separatorCount); // 1 after metadata + 3 after messages
+        Assert.Contains("Hello!", result);
     }
 
-    [Fact(DisplayName = "FormatDocument with multiple days groups by date chronologically")]
-    public void FormatDocument_MultipleDays_GroupsByDateChronologically()
-    {
-        var messages = new[]
-        {
-            ChatMessage.Create(new DateTimeOffset(2024, 12, 10, 14, 0, 0, TimeSpan.Zero), "Alice", "Day 3"),
-            ChatMessage.Create(new DateTimeOffset(2024, 12, 8, 10, 0, 0, TimeSpan.Zero), "Alice", "Day 1"),
-            ChatMessage.Create(new DateTimeOffset(2024, 12, 9, 12, 0, 0, TimeSpan.Zero), "Alice", "Day 2")
-        };
-        var metadata = CreateTestMetadata(3);
-        var chatExport = ChatExport.Create(messages, metadata);
-
-        var result = _formatter.FormatDocument(chatExport);
-
-        var dec8Index = result.IndexOf("## December 8, 2024", StringComparison.Ordinal);
-        var dec9Index = result.IndexOf("## December 9, 2024", StringComparison.Ordinal);
-        var dec10Index = result.IndexOf("## December 10, 2024", StringComparison.Ordinal);
-        
-        Assert.True(dec8Index < dec9Index, "December 8 should come before December 9");
-        Assert.True(dec9Index < dec10Index, "December 9 should come before December 10");
-    }
-
-    [Fact(DisplayName = "FormatDocument with multi-line message preserves line breaks")]
-    public void FormatDocument_MultiLineMessage_PreservesLineBreaks()
-    {
-        var multiLineContent = "First paragraph\n\nSecond paragraph\n\nThird paragraph";
-        var messages = new[]
-        {
-            ChatMessage.Create(DateTimeOffset.UtcNow, "Bob", multiLineContent)
-        };
-        var metadata = CreateTestMetadata(1);
-        var chatExport = ChatExport.Create(messages, metadata);
-
-        var result = _formatter.FormatDocument(chatExport);
-
-        Assert.Contains("First paragraph", result);
-        Assert.Contains("Second paragraph", result);
-        Assert.Contains("Third paragraph", result);
-    }
-
-    [Fact(DisplayName = "FormatDocument with empty export returns header only")]
-    public void FormatDocument_EmptyExport_ReturnsHeaderOnly()
-    {
-        var metadata = CreateTestMetadata(0);
-        var chatExport = ChatExport.Create(Array.Empty<ChatMessage>(), metadata);
-
-        var result = _formatter.FormatDocument(chatExport);
-
-        Assert.Contains("# WhatsApp Conversation Export - Unknown User", result);
-        Assert.Contains("**Total Messages:** 0", result);
-        
-        var afterMetadataSeparator = result.Substring(result.IndexOf("---", StringComparison.Ordinal));
-        Assert.DoesNotContain("## ", afterMetadataSeparator);
-    }
-
-    [Fact(DisplayName = "FormatDocument with special characters does not escape markdown")]
-    public void FormatDocument_SpecialCharacters_DoesNotEscapeMarkdown()
-    {
-        var contentWithSpecialChars = "Hello *bold* _italic_ #hashtag -dash";
-        var messages = new[]
-        {
-            ChatMessage.Create(DateTimeOffset.UtcNow, "Charlie", contentWithSpecialChars)
-        };
-        var metadata = CreateTestMetadata(1);
-        var chatExport = ChatExport.Create(messages, metadata);
-
-        var result = _formatter.FormatDocument(chatExport);
-
-        Assert.Contains("Hello *bold* _italic_ #hashtag -dash", result);
-    }
-
-    [Fact(DisplayName = "FormatDocument date format uses friendly format")]
-    public void FormatDocument_DateFormat_UsesFriendlyFormat()
-    {
-        var timestamp = new DateTimeOffset(2024, 12, 8, 10, 0, 0, TimeSpan.Zero);
-        var messages = new[]
-        {
-            ChatMessage.Create(timestamp, "Dave", "Test message")
-        };
-        var metadata = CreateTestMetadata(1);
-        var chatExport = ChatExport.Create(messages, metadata);
-
-        var result = _formatter.FormatDocument(chatExport);
-
-        Assert.Contains("## December 8, 2024", result);
-        Assert.DoesNotContain("12/8/2024", result);
-        Assert.DoesNotContain("2024-12-08", result);
-    }
-
-    [Fact(DisplayName = "FormatDocument time format uses 24-hour format")]
-    public void FormatDocument_TimeFormat_Uses24HourFormat()
-    {
-        var messages = new[]
-        {
-            ChatMessage.Create(new DateTimeOffset(2024, 12, 8, 1, 0, 0, TimeSpan.Zero), "Eve", "1 AM message"),
-            ChatMessage.Create(new DateTimeOffset(2024, 12, 8, 13, 0, 0, TimeSpan.Zero), "Eve", "1 PM message"),
-            ChatMessage.Create(new DateTimeOffset(2024, 12, 8, 23, 59, 0, TimeSpan.Zero), "Eve", "Late night")
-        };
-        var metadata = CreateTestMetadata(3);
-        var chatExport = ChatExport.Create(messages, metadata);
-
-        var result = _formatter.FormatDocument(chatExport);
-
-        Assert.Contains("**01:00**", result);
-        Assert.Contains("**13:00**", result);
-        Assert.Contains("**23:59**", result);
-    }
-
-    [Fact(DisplayName = "FormatMessage throws NotSupportedException")]
-    public void FormatMessage_Called_ThrowsNotSupportedException()
-    {
-        var message = ChatMessage.Create(DateTimeOffset.UtcNow, "Test", "Content");
-
-        var exception = Assert.Throws<NotSupportedException>(() => _formatter.FormatMessage(message));
-
-        Assert.Contains("FormatDocument", exception.Message);
-        Assert.Contains("batch processing", exception.Message);
-    }
-
-    [Fact(DisplayName = "FormatDocument with null chat export throws ArgumentNullException")]
-    public void FormatDocument_NullChatExport_ThrowsArgumentNullException()
+    [Fact(DisplayName = "FormatDocument with null export throws ArgumentNullException")]
+    public void FormatDocument_NullExport_ThrowsArgumentNullException()
     {
         var exception = Assert.Throws<ArgumentNullException>(() => _formatter.FormatDocument(null!));
 
         Assert.Equal("chatExport", exception.ParamName);
     }
 
-    [Fact(DisplayName = "FormatDocument includes export date in metadata")]
-    public void FormatDocument_ValidExport_IncludesExportDate()
+    [Fact(DisplayName = "FormatDocument extracts sender name from first message")]
+    public void FormatDocument_ValidExport_ExtractsSenderNameFromFirstMessage()
     {
         var messages = new[]
         {
-            ChatMessage.Create(DateTimeOffset.UtcNow, "Frank", "Message")
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 0, 0, TimeSpan.Zero), "Alice Smith", "First message"),
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 1, 0, TimeSpan.Zero), "Bob Jones", "Second message")
         };
-        var metadata = CreateTestMetadata(1);
+        var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 1, 15, 12, 0, 0, TimeSpan.Zero), 2, 2, 0);
         var chatExport = ChatExport.Create(messages, metadata);
 
         var result = _formatter.FormatDocument(chatExport);
 
-        Assert.Contains("**Export Date:**", result);
-        Assert.Matches(@"\*\*Export Date:\*\* \w+ \d+, \d{4}", result);
+        Assert.Contains("# WhatsApp Conversation Export - Alice Smith", result);
+    }
+
+    [Fact(DisplayName = "FormatDocument includes export date in MMMM d, yyyy format")]
+    public void FormatDocument_ValidExport_IncludesExportDateInCorrectFormat()
+    {
+        var parseDate = new DateTimeOffset(2024, 6, 15, 10, 30, 0, TimeSpan.Zero);
+        var messages = new[]
+        {
+            ChatMessage.Create(new DateTimeOffset(2024, 6, 14, 10, 0, 0, TimeSpan.Zero), "John", "Test")
+        };
+        var metadata = ParsingMetadata.Create("test.txt", parseDate, 1, 1, 0);
+        var chatExport = ChatExport.Create(messages, metadata);
+
+        var result = _formatter.FormatDocument(chatExport);
+
+        Assert.Contains("**Export Date:** June 15, 2024", result);
+    }
+
+    [Fact(DisplayName = "FormatDocument includes total message count")]
+    public void FormatDocument_ValidExport_IncludesTotalMessageCount()
+    {
+        var messages = new[]
+        {
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 0, 0, TimeSpan.Zero), "John", "Message 1"),
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 1, 0, TimeSpan.Zero), "John", "Message 2"),
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 2, 0, TimeSpan.Zero), "John", "Message 3")
+        };
+        var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 1, 15, 12, 0, 0, TimeSpan.Zero), 3, 3, 0);
+        var chatExport = ChatExport.Create(messages, metadata);
+
+        var result = _formatter.FormatDocument(chatExport);
+
+        Assert.Contains("**Total Messages:** 3", result);
+    }
+
+    [Fact(DisplayName = "FormatDocument groups messages by date")]
+    public void FormatDocument_MessagesOnDifferentDates_GroupsByDate()
+    {
+        var messages = new[]
+        {
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 30, 0, TimeSpan.Zero), "John", "Day 1 message"),
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 16, 09, 15, 0, TimeSpan.Zero), "John", "Day 2 message")
+        };
+        var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 1, 17, 12, 0, 0, TimeSpan.Zero), 2, 2, 0);
+        var chatExport = ChatExport.Create(messages, metadata);
+
+        var result = _formatter.FormatDocument(chatExport);
+
+        Assert.Contains("## January 15, 2024", result);
+        Assert.Contains("## January 16, 2024", result);
+    }
+
+    [Fact(DisplayName = "FormatDocument orders date groups chronologically")]
+    public void FormatDocument_UnorderedMessages_OrdersDateGroupsChronologically()
+    {
+        var messages = new[]
+        {
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 16, 10, 0, 0, TimeSpan.Zero), "John", "Later"),
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 0, 0, TimeSpan.Zero), "John", "Earlier")
+        };
+        var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 1, 17, 12, 0, 0, TimeSpan.Zero), 2, 2, 0);
+        var chatExport = ChatExport.Create(messages, metadata);
+
+        var result = _formatter.FormatDocument(chatExport);
+
+        var indexOfJan15 = result.IndexOf("## January 15, 2024");
+        var indexOfJan16 = result.IndexOf("## January 16, 2024");
+
+        Assert.True(indexOfJan15 < indexOfJan16, "January 15 should appear before January 16");
+    }
+
+    [Fact(DisplayName = "FormatDocument formats timestamps in 24-hour HH:mm format")]
+    public void FormatDocument_ValidMessages_FormatsTimestampsIn24HourFormat()
+    {
+        var messages = new[]
+        {
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 14, 45, 30, TimeSpan.Zero), "John", "Afternoon message"),
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 09, 05, 15, TimeSpan.Zero), "John", "Morning message")
+        };
+        var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 1, 15, 18, 0, 0, TimeSpan.Zero), 2, 2, 0);
+        var chatExport = ChatExport.Create(messages, metadata);
+
+        var result = _formatter.FormatDocument(chatExport);
+
+        Assert.Contains("**14:45**", result);
+        Assert.Contains("**09:05**", result);
+        
+        // Verify chronological order within same date
+        var indexOfMorning = result.IndexOf("**09:05**");
+        var indexOfAfternoon = result.IndexOf("**14:45**");
+        Assert.True(indexOfMorning < indexOfAfternoon, "Morning message (09:05) should appear before afternoon message (14:45)");
+    }
+
+    [Fact(DisplayName = "FormatDocument preserves multi-line message content")]
+    public void FormatDocument_MultiLineContent_PreservesLineBreaks()
+    {
+        var multiLineContent = "This is line 1\nThis is line 2\nThis is line 3";
+        var messages = new[]
+        {
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 0, 0, TimeSpan.Zero), "John", multiLineContent)
+        };
+        var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 1, 15, 12, 0, 0, TimeSpan.Zero), 1, 1, 0);
+        var chatExport = ChatExport.Create(messages, metadata);
+
+        var result = _formatter.FormatDocument(chatExport);
+
+        Assert.Contains("This is line 1\nThis is line 2\nThis is line 3", result);
+    }
+
+    [Fact(DisplayName = "FormatDocument includes horizontal rule separators between messages")]
+    public void FormatDocument_ValidMessages_IncludesHorizontalRuleSeparators()
+    {
+        var messages = new[]
+        {
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 0, 0, TimeSpan.Zero), "John", "Message 1"),
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 1, 0, TimeSpan.Zero), "John", "Message 2")
+        };
+        var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 1, 15, 12, 0, 0, TimeSpan.Zero), 2, 2, 0);
+        var chatExport = ChatExport.Create(messages, metadata);
+
+        var result = _formatter.FormatDocument(chatExport);
+
+        var separatorCount = result.Split("---").Length - 1;
+        Assert.True(separatorCount >= 3, "Should have at least 3 separators (header + 2 messages)");
+    }
+
+    [Fact(DisplayName = "FormatDocument with empty export returns header with zero messages")]
+    public void FormatDocument_EmptyExport_ReturnsHeaderWithZeroMessages()
+    {
+        var messages = Array.Empty<ChatMessage>();
+        var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 1, 15, 12, 0, 0, TimeSpan.Zero), 0, 0, 0);
+        var chatExport = ChatExport.Create(messages, metadata);
+
+        var result = _formatter.FormatDocument(chatExport);
+
+        Assert.Contains("# WhatsApp Conversation Export - Unknown", result);
+        Assert.Contains("**Total Messages:** 0", result);
+        Assert.Contains("---", result);
+        Assert.DoesNotContain("##", result); // No date sections
+    }
+
+    [Fact(DisplayName = "FormatMessage throws NotSupportedException")]
+    public void FormatMessage_AnyChatMessage_ThrowsNotSupportedException()
+    {
+        var message = ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 0, 0, TimeSpan.Zero), "John", "Test");
+
+        var exception = Assert.Throws<NotSupportedException>(() => _formatter.FormatMessage(message));
+
+        Assert.Contains("MarkdownDocumentFormatter requires FormatDocument method for batch processing", exception.Message);
+        Assert.Contains("Use IDocumentFormatter.FormatDocument instead", exception.Message);
+    }
+
+    [Fact(DisplayName = "FormatDocument produces valid markdown with multiple messages on same date")]
+    public void FormatDocument_MultipleSameDateMessages_ProducesValidMarkdown()
+    {
+        var messages = new[]
+        {
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 30, 0, TimeSpan.Zero), "John", "First"),
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 35, 0, TimeSpan.Zero), "John", "Second"),
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 40, 0, TimeSpan.Zero), "John", "Third")
+        };
+        var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 1, 15, 12, 0, 0, TimeSpan.Zero), 3, 3, 0);
+        var chatExport = ChatExport.Create(messages, metadata);
+
+        var result = _formatter.FormatDocument(chatExport);
+
+        // Should have only one date header
+        var dateHeaderCount = result.Split("## January 15, 2024").Length - 1;
+        Assert.Equal(1, dateHeaderCount);
+
+        // Should have all three messages
+        Assert.Contains("**10:30**", result);
+        Assert.Contains("First", result);
+        Assert.Contains("**10:35**", result);
+        Assert.Contains("Second", result);
+        Assert.Contains("**10:40**", result);
+        Assert.Contains("Third", result);
+    }
+
+    [Fact(DisplayName = "FormatDocument handles special characters in message content")]
+    public void FormatDocument_SpecialCharacters_PreservesContent()
+    {
+        var specialContent = "Test @#$%^&*() with special chars 🎉";
+        var messages = new[]
+        {
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 0, 0, TimeSpan.Zero), "John", specialContent)
+        };
+        var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 1, 15, 12, 0, 0, TimeSpan.Zero), 1, 1, 0);
+        var chatExport = ChatExport.Create(messages, metadata);
+
+        var result = _formatter.FormatDocument(chatExport);
+
+        Assert.Contains(specialContent, result);
+    }
+
+    [Fact(DisplayName = "FormatDocument handles sender names with special characters")]
+    public void FormatDocument_SenderWithSpecialChars_PreservesName()
+    {
+        var specialSender = "José María O'Connor";
+        var messages = new[]
+        {
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 0, 0, TimeSpan.Zero), specialSender, "Hello")
+        };
+        var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 1, 15, 12, 0, 0, TimeSpan.Zero), 1, 1, 0);
+        var chatExport = ChatExport.Create(messages, metadata);
+
+        var result = _formatter.FormatDocument(chatExport);
+
+        Assert.Contains($"# WhatsApp Conversation Export - {specialSender}", result);
     }
 }

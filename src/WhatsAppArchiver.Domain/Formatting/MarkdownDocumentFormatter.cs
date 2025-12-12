@@ -5,63 +5,76 @@ using WhatsAppArchiver.Domain.Entities;
 namespace WhatsAppArchiver.Domain.Formatting;
 
 /// <summary>
-/// Provides structured markdown document formatting for entire chat exports.
+/// Formats chat exports as structured markdown documents with friendly date headers.
 /// </summary>
 /// <remarks>
 /// <para>
-/// This formatter implements <see cref="IDocumentFormatter"/> to generate a complete
-/// markdown document from a <see cref="ChatExport"/> aggregate. The output includes:
+/// This formatter implements <see cref="IDocumentFormatter"/> to process entire
+/// <see cref="ChatExport"/> aggregates and produce a well-structured markdown document.
+/// The output includes:
 /// </para>
 /// <list type="bullet">
 /// <item>
-/// <description>H1 title with sender name from the first message</description>
+/// <description>H1 title with sender name extracted from the first message</description>
 /// </item>
 /// <item>
-/// <description>Metadata section with export date and total message count</description>
+/// <description>Metadata section showing export date and total message count</description>
 /// </item>
 /// <item>
-/// <description>Date-grouped sections with friendly date headers (MMMM d, yyyy)</description>
+/// <description>Messages grouped by date with H2 headers in MMMM d, yyyy format</description>
 /// </item>
 /// <item>
-/// <description>Individual timestamped posts with 24-hour format (HH:mm)</description>
+/// <description>Individual messages with bold timestamps in 24-hour format (HH:mm)</description>
 /// </item>
 /// <item>
-/// <description>Horizontal rule separators between posts</description>
+/// <description>Horizontal rules separating messages for readability</description>
 /// </item>
 /// </list>
 /// <para>
-/// This formatter processes the entire chat export at once, enabling document-level
-/// decisions such as grouping by date and generating aggregate metadata. It does not
-/// support message-level formatting via <see cref="FormatMessage"/> - that method
-/// throws <see cref="NotSupportedException"/> to enforce document-level processing.
-/// </para>
-/// <para>
-/// <strong>Note:</strong> The document title uses the sender name from the first message
-/// in the export. For multi-participant chats, this represents the first person who sent
-/// a message in the chronological order, not necessarily the chat owner. For empty exports,
-/// "Unknown User" is used as a placeholder.
+/// This formatter is designed for batch processing and cannot format individual messages.
+/// Attempting to call <see cref="FormatMessage"/> will result in a <see cref="NotSupportedException"/>.
 /// </para>
 /// </remarks>
 /// <example>
 /// <code>
 /// var formatter = new MarkdownDocumentFormatter();
+/// var messages = new[]
+/// {
+///     ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 30, 0, TimeSpan.Zero), "John Doe", "Hello!"),
+///     ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 35, 0, TimeSpan.Zero), "John Doe", "How are you?"),
+///     ChatMessage.Create(new DateTimeOffset(2024, 1, 16, 09, 15, 0, TimeSpan.Zero), "John Doe", "Good morning!")
+/// };
+/// var metadata = ParsingMetadata.Create("chat.txt", new DateTimeOffset(2024, 1, 17, 12, 0, 0, TimeSpan.Zero), 3, 3, 0);
 /// var chatExport = ChatExport.Create(messages, metadata);
-/// string markdownDocument = formatter.FormatDocument(chatExport);
-/// // Produces:
+/// 
+/// string markdown = formatter.FormatDocument(chatExport);
+/// 
+/// // Output:
 /// // # WhatsApp Conversation Export - John Doe
-/// //
-/// // **Export Date:** December 12, 2025
-/// // **Total Messages:** 42
-/// //
+/// // 
+/// // **Export Date:** January 17, 2024
+/// // **Total Messages:** 3
+/// // 
 /// // ---
-/// //
-/// // ## December 12, 2025
-/// //
+/// // 
+/// // ## January 15, 2024
+/// // 
 /// // **10:30**
-/// // Hello, world!
-/// //
+/// // Hello!
+/// // 
 /// // ---
-/// // ...
+/// // 
+/// // **10:35**
+/// // How are you?
+/// // 
+/// // ---
+/// // 
+/// // ## January 16, 2024
+/// // 
+/// // **09:15**
+/// // Good morning!
+/// // 
+/// // ---
 /// </code>
 /// </example>
 public sealed class MarkdownDocumentFormatter : IDocumentFormatter, IMessageFormatter
@@ -70,33 +83,32 @@ public sealed class MarkdownDocumentFormatter : IDocumentFormatter, IMessageForm
     /// Formats an entire chat export as a structured markdown document.
     /// </summary>
     /// <param name="chatExport">The chat export aggregate to format.</param>
-    /// <returns>A structured markdown document with date headers and timestamped posts.</returns>
+    /// <returns>A formatted markdown document string.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="chatExport"/> is null.</exception>
     /// <remarks>
     /// <para>
-    /// The output structure includes:
+    /// The formatter processes messages in the following way:
     /// </para>
     /// <list type="number">
     /// <item>
-    /// <description>H1 header with "WhatsApp Conversation Export - {senderName}" where senderName
-    /// comes from the first message. If the export is empty, uses "Unknown User".</description>
+    /// <description>Extracts the sender name from the first message (if available)</description>
     /// </item>
     /// <item>
-    /// <description>Metadata section with parsing date from metadata (MMMM d, yyyy) and total message count.</description>
+    /// <description>Creates a title section with H1 header and metadata</description>
     /// </item>
     /// <item>
-    /// <description>Messages grouped by date, with H2 headers in "MMMM d, yyyy" format.</description>
+    /// <description>Groups messages by date (using message.Timestamp.Date)</description>
     /// </item>
     /// <item>
-    /// <description>Each message formatted with bold timestamp (HH:mm) followed by content on next line.</description>
+    /// <description>For each date group, adds an H2 header with the date in MMMM d, yyyy format</description>
     /// </item>
     /// <item>
-    /// <description>Horizontal rule (---) separator with blank line before it after each message.</description>
+    /// <description>For each message, adds a bold timestamp (HH:mm), content, and separator</description>
     /// </item>
     /// </list>
     /// <para>
     /// Multi-line message content is preserved as-is, maintaining original line breaks.
-    /// Messages are sorted chronologically within each date group.
+    /// Empty exports (no messages) return a document with only the header and "Total Messages: 0".
     /// </para>
     /// </remarks>
     public string FormatDocument(ChatExport chatExport)
@@ -105,51 +117,56 @@ public sealed class MarkdownDocumentFormatter : IDocumentFormatter, IMessageForm
 
         var markdown = new StringBuilder();
 
-        // Extract sender name from first message, or use placeholder for empty exports
-        var senderName = chatExport.Messages.Count > 0
+        // Extract sender name from first message
+        var senderName = chatExport.MessageCount > 0
             ? chatExport.Messages[0].Sender
-            : "Unknown User";
+            : "Unknown";
 
-        // H1 title
+        // Build H1 title
         markdown.AppendLine($"# WhatsApp Conversation Export - {senderName}");
         markdown.AppendLine();
 
-        // Metadata section
+        // Add metadata lines
         markdown.AppendLine($"**Export Date:** {chatExport.Metadata.ParsedAt:MMMM d, yyyy}");
         markdown.AppendLine($"**Total Messages:** {chatExport.MessageCount}");
         markdown.AppendLine();
 
-        // Horizontal rule separator after metadata
+        // Add horizontal rule separator
         markdown.AppendLine("---");
 
-        // Group messages by date and format each group
-        if (chatExport.Messages.Count > 0)
+        // Handle empty exports
+        if (chatExport.MessageCount == 0)
         {
-            var messagesByDate = chatExport.Messages
-                .GroupBy(m => m.Timestamp.LocalDateTime.Date)
-                .OrderBy(g => g.Key);
+            return markdown.ToString();
+        }
 
-            foreach (var dateGroup in messagesByDate)
+        // Group messages by date and order by date
+        var messagesByDate = chatExport.Messages
+            .GroupBy(m => m.Timestamp.Date)
+            .OrderBy(g => g.Key);
+
+        // Process each date group
+        foreach (var dateGroup in messagesByDate)
+        {
+            markdown.AppendLine();
+
+            // Add H2 header for the date
+            markdown.AppendLine($"## {dateGroup.Key:MMMM d, yyyy}");
+
+            // Process each message in the date group
+            foreach (var message in dateGroup.OrderBy(m => m.Timestamp))
             {
                 markdown.AppendLine();
 
-                // H2 date header with friendly format
-                markdown.AppendLine($"## {dateGroup.Key:MMMM d, yyyy}");
+                // Add bold timestamp (24-hour format)
+                markdown.AppendLine($"**{message.Timestamp:HH:mm}**");
+
+                // Add message content (preserve line breaks)
+                markdown.AppendLine(message.Content);
+
+                // Add separator
                 markdown.AppendLine();
-
-                // Format each message in the date group
-                foreach (var message in dateGroup.OrderBy(m => m.Timestamp))
-                {
-                    // Bold timestamp in 24-hour format
-                    markdown.AppendLine($"**{message.Timestamp:HH:mm}**");
-
-                    // Message content (preserves multi-line content)
-                    markdown.AppendLine(message.Content);
-
-                    // Horizontal rule separator with blank line before
-                    markdown.AppendLine();
-                    markdown.AppendLine("---");
-                }
+                markdown.AppendLine("---");
             }
         }
 
@@ -157,20 +174,21 @@ public sealed class MarkdownDocumentFormatter : IDocumentFormatter, IMessageForm
     }
 
     /// <summary>
-    /// Not supported for document-level formatters.
+    /// Throws <see cref="NotSupportedException"/> as this formatter requires batch processing.
     /// </summary>
-    /// <param name="message">The chat message.</param>
-    /// <returns>This method always throws an exception.</returns>
-    /// <exception cref="NotSupportedException">Always thrown to enforce document-level processing.</exception>
+    /// <param name="message">The chat message (not used).</param>
+    /// <returns>This method never returns; it always throws an exception.</returns>
+    /// <exception cref="NotSupportedException">
+    /// Always thrown to indicate that individual message formatting is not supported.
+    /// </exception>
     /// <remarks>
-    /// <see cref="MarkdownDocumentFormatter"/> is a document-level formatter that requires
-    /// access to the entire <see cref="ChatExport"/> aggregate to generate properly structured
-    /// output with date grouping and document metadata. Use <see cref="FormatDocument"/> instead.
+    /// This formatter is designed to process entire chat exports at once using the
+    /// <see cref="FormatDocument"/> method. Use <see cref="IDocumentFormatter.FormatDocument"/>
+    /// instead for proper batch processing with date grouping and document structure.
     /// </remarks>
     public string FormatMessage(ChatMessage message)
     {
         throw new NotSupportedException(
-            "MarkdownDocumentFormatter requires FormatDocument method for batch processing. " +
-            "Use IDocumentFormatter.FormatDocument instead.");
+            "MarkdownDocumentFormatter requires FormatDocument method for batch processing. Use IDocumentFormatter.FormatDocument instead.");
     }
 }
