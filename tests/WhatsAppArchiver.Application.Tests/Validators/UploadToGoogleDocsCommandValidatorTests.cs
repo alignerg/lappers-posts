@@ -137,6 +137,7 @@ public class UploadToGoogleDocsCommandValidatorTests
     [InlineData(MessageFormatType.Default)]
     [InlineData(MessageFormatType.Compact)]
     [InlineData(MessageFormatType.Verbose)]
+    [InlineData(MessageFormatType.MarkdownDocument)]
     public void Validate_ValidFormatterType_ReturnsValidResult(MessageFormatType formatterType)
     {
         var command = new UploadToGoogleDocsCommand(
