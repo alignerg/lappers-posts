@@ -138,6 +138,11 @@ public class MarkdownDocumentFormatterTests
 
         Assert.Contains("**14:45**", result);
         Assert.Contains("**09:05**", result);
+        
+        // Verify chronological order within same date
+        var indexOfMorning = result.IndexOf("**09:05**");
+        var indexOfAfternoon = result.IndexOf("**14:45**");
+        Assert.True(indexOfMorning < indexOfAfternoon, "Morning message (09:05) should appear before afternoon message (14:45)");
     }
 
     [Fact(DisplayName = "FormatDocument preserves multi-line message content")]
@@ -186,19 +191,6 @@ public class MarkdownDocumentFormatterTests
         Assert.Contains("**Total Messages:** 0", result);
         Assert.Contains("---", result);
         Assert.DoesNotContain("##", result); // No date sections
-    }
-
-    [Fact(DisplayName = "FormatDocument with empty export includes no date sections")]
-    public void FormatDocument_EmptyExport_IncludesNoDateSections()
-    {
-        var messages = Array.Empty<ChatMessage>();
-        var metadata = ParsingMetadata.Create("test.txt", DateTimeOffset.UtcNow, 0, 0, 0);
-        var chatExport = ChatExport.Create(messages, metadata);
-
-        var result = _formatter.FormatDocument(chatExport);
-
-        var dateHeaderCount = result.Split("##").Length - 1;
-        Assert.Equal(0, dateHeaderCount);
     }
 
     [Fact(DisplayName = "FormatMessage throws NotSupportedException")]

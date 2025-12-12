@@ -44,7 +44,7 @@ namespace WhatsAppArchiver.Domain.Formatting;
 ///     ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 35, 0, TimeSpan.Zero), "John Doe", "How are you?"),
 ///     ChatMessage.Create(new DateTimeOffset(2024, 1, 16, 09, 15, 0, TimeSpan.Zero), "John Doe", "Good morning!")
 /// };
-/// var metadata = ParsingMetadata.Create("chat.txt", DateTimeOffset.UtcNow, 3, 3, 0);
+/// var metadata = ParsingMetadata.Create("chat.txt", new DateTimeOffset(2024, 1, 17, 12, 0, 0, TimeSpan.Zero), 3, 3, 0);
 /// var chatExport = ChatExport.Create(messages, metadata);
 /// 
 /// string markdown = formatter.FormatDocument(chatExport);
@@ -52,7 +52,7 @@ namespace WhatsAppArchiver.Domain.Formatting;
 /// // Output:
 /// // # WhatsApp Conversation Export - John Doe
 /// // 
-/// // **Export Date:** January 15, 2024
+/// // **Export Date:** January 17, 2024
 /// // **Total Messages:** 3
 /// // 
 /// // ---
@@ -118,7 +118,7 @@ public sealed class MarkdownDocumentFormatter : IDocumentFormatter, IMessageForm
         var markdown = new StringBuilder();
 
         // Extract sender name from first message
-        var senderName = chatExport.Messages.Count > 0
+        var senderName = chatExport.MessageCount > 0
             ? chatExport.Messages[0].Sender
             : "Unknown";
 
@@ -154,7 +154,7 @@ public sealed class MarkdownDocumentFormatter : IDocumentFormatter, IMessageForm
             markdown.AppendLine($"## {dateGroup.Key:MMMM d, yyyy}");
 
             // Process each message in the date group
-            foreach (var message in dateGroup)
+            foreach (var message in dateGroup.OrderBy(m => m.Timestamp))
             {
                 markdown.AppendLine();
 
