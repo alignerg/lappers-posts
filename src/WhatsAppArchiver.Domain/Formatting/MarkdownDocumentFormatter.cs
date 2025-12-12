@@ -127,7 +127,7 @@ public sealed class MarkdownDocumentFormatter : IDocumentFormatter, IMessageForm
         markdown.AppendLine();
 
         // Add metadata lines
-        markdown.AppendLine($"**Export Date:** {DateTime.Now:MMMM d, yyyy}");
+        markdown.AppendLine($"**Export Date:** {chatExport.Metadata.ParsedAt:MMMM d, yyyy}");
         markdown.AppendLine($"**Total Messages:** {chatExport.MessageCount}");
         markdown.AppendLine();
 

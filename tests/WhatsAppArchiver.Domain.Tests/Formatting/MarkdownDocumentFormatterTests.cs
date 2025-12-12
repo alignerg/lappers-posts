@@ -57,17 +57,17 @@ public class MarkdownDocumentFormatterTests
     [Fact(DisplayName = "FormatDocument includes export date in MMMM d, yyyy format")]
     public void FormatDocument_ValidExport_IncludesExportDateInCorrectFormat()
     {
+        var parseDate = new DateTimeOffset(2024, 6, 15, 10, 30, 0, TimeSpan.Zero);
         var messages = new[]
         {
             ChatMessage.Create(DateTimeOffset.UtcNow, "John", "Test")
         };
-        var metadata = ParsingMetadata.Create("test.txt", DateTimeOffset.UtcNow, 1, 1, 0);
+        var metadata = ParsingMetadata.Create("test.txt", parseDate, 1, 1, 0);
         var chatExport = ChatExport.Create(messages, metadata);
 
         var result = _formatter.FormatDocument(chatExport);
 
-        var expectedDatePattern = DateTime.Now.ToString("MMMM d, yyyy");
-        Assert.Contains($"**Export Date:** {expectedDatePattern}", result);
+        Assert.Contains("**Export Date:** June 15, 2024", result);
     }
 
     [Fact(DisplayName = "FormatDocument includes total message count")]
