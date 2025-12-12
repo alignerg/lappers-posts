@@ -85,7 +85,7 @@ try
 
     var formatOption = new Option<MessageFormatType>("--format")
     {
-        Description = "Message format type (default|compact|verbose|markdowndocument). markdowndocument: Structured markdown with friendly date headers and timestamped posts"
+        Description = "Message format type (Default|Compact|Verbose|MarkdownDocument)\nMarkdownDocument: Structured markdown with friendly date headers and timestamped posts (parsing is case-insensitive)"
     };
     formatOption.DefaultValueFactory = _ => MessageFormatType.Default;
 
