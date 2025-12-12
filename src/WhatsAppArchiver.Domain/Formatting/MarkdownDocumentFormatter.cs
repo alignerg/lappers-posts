@@ -109,7 +109,7 @@ public sealed class MarkdownDocumentFormatter : IDocumentFormatter, IMessageForm
         markdown.AppendLine();
 
         // Metadata section
-        markdown.AppendLine($"**Export Date:** {DateTime.Now:MMMM d, yyyy}");
+        markdown.AppendLine($"**Export Date:** {chatExport.Metadata.ParsedAt:MMMM d, yyyy}");
         markdown.AppendLine($"**Total Messages:** {chatExport.MessageCount}");
         markdown.AppendLine();
 
@@ -120,7 +120,7 @@ public sealed class MarkdownDocumentFormatter : IDocumentFormatter, IMessageForm
         if (chatExport.Messages.Count > 0)
         {
             var messagesByDate = chatExport.Messages
-                .GroupBy(m => m.Timestamp.Date)
+                .GroupBy(m => m.Timestamp.LocalDateTime.Date)
                 .OrderBy(g => g.Key);
 
             foreach (var dateGroup in messagesByDate)

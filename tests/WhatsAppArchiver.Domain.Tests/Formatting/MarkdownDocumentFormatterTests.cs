@@ -87,7 +87,9 @@ public class MarkdownDocumentFormatterTests
 
         Assert.Contains("# WhatsApp Conversation Export - Unknown User", result);
         Assert.Contains("**Total Messages:** 0", result);
-        Assert.DoesNotContain("##", result.Substring(result.IndexOf("---", StringComparison.Ordinal)));
+        
+        var afterMetadataSeparator = result.Substring(result.IndexOf("---", StringComparison.Ordinal));
+        Assert.DoesNotContain("## ", afterMetadataSeparator);
     }
 
     [Fact(DisplayName = "FormatDocument with special characters does not escape markdown")]
