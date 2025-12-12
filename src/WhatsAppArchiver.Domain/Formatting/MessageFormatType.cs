@@ -12,15 +12,21 @@ public enum MessageFormatType
     /// <summary>
     /// Default format: [{timestamp}] {sender}: {content}
     /// </summary>
-    Default,
+    Default = 0,
 
     /// <summary>
     /// Compact format: {sender}: {content}
     /// </summary>
-    Compact,
+    Compact = 1,
 
     /// <summary>
     /// Verbose format with detailed date, time, and sender metadata.
     /// </summary>
-    Verbose
+    Verbose = 2,
+
+    /// <summary>
+    /// Structured markdown document with friendly date headers (MMMM d, yyyy)
+    /// and individual timestamped posts. Requires IDocumentFormatter for batch processing.
+    /// </summary>
+    MarkdownDocument = 3
 }
