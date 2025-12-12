@@ -1,6 +1,7 @@
 using System.Text;
 using WhatsAppArchiver.Application.Commands;
 using WhatsAppArchiver.Application.Services;
+using WhatsAppArchiver.Domain.Aggregates;
 using WhatsAppArchiver.Domain.Entities;
 using WhatsAppArchiver.Domain.Formatting;
 using WhatsAppArchiver.Domain.Specifications;
@@ -68,8 +69,27 @@ public sealed class UploadToGoogleDocsCommandHandler
     /// <returns>The number of messages uploaded.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="command"/> is null.</exception>
     /// <remarks>
+    /// <para>
     /// If the command contains a cached ChatExport, it will be used directly to avoid re-parsing.
     /// Otherwise, the file will be parsed using the chat parser service.
+    /// </para>
+    /// <para>
+    /// The handler supports two formatting strategies:
+    /// </para>
+    /// <list type="bullet">
+    /// <item>
+    /// <description>
+    /// <strong>Document-level formatting</strong>: For formatters implementing <see cref="IDocumentFormatter"/>,
+    /// processes the entire export at once to enable aggregate-level operations like date grouping and document structure.
+    /// </description>
+    /// </item>
+    /// <item>
+    /// <description>
+    /// <strong>Message-level formatting</strong>: For standard <see cref="IMessageFormatter"/> implementations,
+    /// processes messages individually for simple formatting scenarios.
+    /// </description>
+    /// </item>
+    /// </list>
     /// </remarks>
     public async Task<int> HandleAsync(
         UploadToGoogleDocsCommand command,
@@ -99,7 +119,19 @@ public sealed class UploadToGoogleDocsCommandHandler
         }
 
         var formatter = FormatterFactory.Create(command.FormatterType);
-        var content = FormatMessages(unprocessedMessages, formatter);
+
+        string content;
+        if (formatter is IDocumentFormatter documentFormatter)
+        {
+            // Document-level formatting: process entire export at once
+            var exportToFormat = ChatExport.Create(unprocessedMessages, chatExport.Metadata);
+            content = documentFormatter.FormatDocument(exportToFormat);
+        }
+        else
+        {
+            // Message-level formatting: process messages individually
+            content = FormatMessages(unprocessedMessages, formatter);
+        }
 
         await _googleDocsService.AppendAsync(command.DocumentId, content, cancellationToken);
 

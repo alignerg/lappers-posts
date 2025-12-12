@@ -361,6 +361,66 @@ public class UploadToGoogleDocsCommandHandlerTests
             Times.Once);
     }
 
+    [Fact(DisplayName = "HandleAsync with document formatter uses FormatDocument method")]
+    public async Task HandleAsync_WithDocumentFormatter_UsesFormatDocumentMethod()
+    {
+        var command = new UploadToGoogleDocsCommand(
+            "/path/to/chat.txt", "Alice", "doc-123", MessageFormatType.MarkdownDocument);
+        var now = DateTimeOffset.Now;
+        var messages = new[]
+        {
+            ChatMessage.Create(now, "Alice", "Hello"),
+            ChatMessage.Create(now.AddMinutes(1), "Alice", "How are you?")
+        };
+        var metadata = new ParsingMetadata("chat.txt", now, 2, 2, 0);
+        var chatExport = new ChatExport(Guid.NewGuid(), messages, metadata);
+        var checkpoint = ProcessingCheckpoint.Create(command.DocumentId, SenderFilter.Create(command.Sender));
+
+        SetupMocks(command, chatExport, checkpoint);
+
+        await _handler.HandleAsync(command);
+
+        _googleDocsServiceMock.Verify(
+            x => x.AppendAsync(
+                command.DocumentId,
+                It.Is<string>(s =>
+                    s.Contains("# WhatsApp Conversation Export - Alice") &&
+                    s.Contains("**Total Messages:** 2")),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact(DisplayName = "HandleAsync with message-level formatter uses FormatMessages method")]
+    public async Task HandleAsync_WithMessageLevelFormatter_UsesFormatMessagesMethod()
+    {
+        var command = new UploadToGoogleDocsCommand(
+            "/path/to/chat.txt", "Alice", "doc-123", MessageFormatType.Default);
+        var now = DateTimeOffset.Now;
+        var messages = new[]
+        {
+            ChatMessage.Create(now, "Alice", "Hello"),
+            ChatMessage.Create(now.AddMinutes(1), "Alice", "How are you?")
+        };
+        var metadata = new ParsingMetadata("chat.txt", now, 2, 2, 0);
+        var chatExport = new ChatExport(Guid.NewGuid(), messages, metadata);
+        var checkpoint = ProcessingCheckpoint.Create(command.DocumentId, SenderFilter.Create(command.Sender));
+
+        SetupMocks(command, chatExport, checkpoint);
+
+        await _handler.HandleAsync(command);
+
+        _googleDocsServiceMock.Verify(
+            x => x.AppendAsync(
+                command.DocumentId,
+                It.Is<string>(s =>
+                    s.Contains("Alice") &&
+                    s.Contains("Hello") &&
+                    s.Contains("How are you?") &&
+                    !s.Contains("# WhatsApp Conversation Export")),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
     private void SetupMocks(
         UploadToGoogleDocsCommand command,
         ChatExport chatExport,
