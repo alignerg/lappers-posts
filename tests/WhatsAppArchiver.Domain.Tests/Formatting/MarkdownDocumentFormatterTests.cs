@@ -16,7 +16,7 @@ public class MarkdownDocumentFormatterTests
         {
             ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 30, 0, TimeSpan.Zero), "John Doe", "Hello!")
         };
-        var metadata = ParsingMetadata.Create("test.txt", DateTimeOffset.UtcNow, 1, 1, 0);
+        var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 1, 15, 12, 0, 0, TimeSpan.Zero), 1, 1, 0);
         var chatExport = ChatExport.Create(messages, metadata);
 
         var result = _formatter.FormatDocument(chatExport);
@@ -43,10 +43,10 @@ public class MarkdownDocumentFormatterTests
     {
         var messages = new[]
         {
-            ChatMessage.Create(DateTimeOffset.UtcNow, "Alice Smith", "First message"),
-            ChatMessage.Create(DateTimeOffset.UtcNow.AddMinutes(1), "Bob Jones", "Second message")
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 0, 0, TimeSpan.Zero), "Alice Smith", "First message"),
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 1, 0, TimeSpan.Zero), "Bob Jones", "Second message")
         };
-        var metadata = ParsingMetadata.Create("test.txt", DateTimeOffset.UtcNow, 2, 2, 0);
+        var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 1, 15, 12, 0, 0, TimeSpan.Zero), 2, 2, 0);
         var chatExport = ChatExport.Create(messages, metadata);
 
         var result = _formatter.FormatDocument(chatExport);
@@ -60,7 +60,7 @@ public class MarkdownDocumentFormatterTests
         var parseDate = new DateTimeOffset(2024, 6, 15, 10, 30, 0, TimeSpan.Zero);
         var messages = new[]
         {
-            ChatMessage.Create(DateTimeOffset.UtcNow, "John", "Test")
+            ChatMessage.Create(new DateTimeOffset(2024, 6, 14, 10, 0, 0, TimeSpan.Zero), "John", "Test")
         };
         var metadata = ParsingMetadata.Create("test.txt", parseDate, 1, 1, 0);
         var chatExport = ChatExport.Create(messages, metadata);
@@ -75,11 +75,11 @@ public class MarkdownDocumentFormatterTests
     {
         var messages = new[]
         {
-            ChatMessage.Create(DateTimeOffset.UtcNow, "John", "Message 1"),
-            ChatMessage.Create(DateTimeOffset.UtcNow.AddMinutes(1), "John", "Message 2"),
-            ChatMessage.Create(DateTimeOffset.UtcNow.AddMinutes(2), "John", "Message 3")
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 0, 0, TimeSpan.Zero), "John", "Message 1"),
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 1, 0, TimeSpan.Zero), "John", "Message 2"),
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 2, 0, TimeSpan.Zero), "John", "Message 3")
         };
-        var metadata = ParsingMetadata.Create("test.txt", DateTimeOffset.UtcNow, 3, 3, 0);
+        var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 1, 15, 12, 0, 0, TimeSpan.Zero), 3, 3, 0);
         var chatExport = ChatExport.Create(messages, metadata);
 
         var result = _formatter.FormatDocument(chatExport);
@@ -95,7 +95,7 @@ public class MarkdownDocumentFormatterTests
             ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 30, 0, TimeSpan.Zero), "John", "Day 1 message"),
             ChatMessage.Create(new DateTimeOffset(2024, 1, 16, 09, 15, 0, TimeSpan.Zero), "John", "Day 2 message")
         };
-        var metadata = ParsingMetadata.Create("test.txt", DateTimeOffset.UtcNow, 2, 2, 0);
+        var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 1, 17, 12, 0, 0, TimeSpan.Zero), 2, 2, 0);
         var chatExport = ChatExport.Create(messages, metadata);
 
         var result = _formatter.FormatDocument(chatExport);
@@ -112,7 +112,7 @@ public class MarkdownDocumentFormatterTests
             ChatMessage.Create(new DateTimeOffset(2024, 1, 16, 10, 0, 0, TimeSpan.Zero), "John", "Later"),
             ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 0, 0, TimeSpan.Zero), "John", "Earlier")
         };
-        var metadata = ParsingMetadata.Create("test.txt", DateTimeOffset.UtcNow, 2, 2, 0);
+        var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 1, 17, 12, 0, 0, TimeSpan.Zero), 2, 2, 0);
         var chatExport = ChatExport.Create(messages, metadata);
 
         var result = _formatter.FormatDocument(chatExport);
@@ -131,7 +131,7 @@ public class MarkdownDocumentFormatterTests
             ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 14, 45, 30, TimeSpan.Zero), "John", "Afternoon message"),
             ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 09, 05, 15, TimeSpan.Zero), "John", "Morning message")
         };
-        var metadata = ParsingMetadata.Create("test.txt", DateTimeOffset.UtcNow, 2, 2, 0);
+        var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 1, 15, 18, 0, 0, TimeSpan.Zero), 2, 2, 0);
         var chatExport = ChatExport.Create(messages, metadata);
 
         var result = _formatter.FormatDocument(chatExport);
@@ -151,9 +151,9 @@ public class MarkdownDocumentFormatterTests
         var multiLineContent = "This is line 1\nThis is line 2\nThis is line 3";
         var messages = new[]
         {
-            ChatMessage.Create(DateTimeOffset.UtcNow, "John", multiLineContent)
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 0, 0, TimeSpan.Zero), "John", multiLineContent)
         };
-        var metadata = ParsingMetadata.Create("test.txt", DateTimeOffset.UtcNow, 1, 1, 0);
+        var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 1, 15, 12, 0, 0, TimeSpan.Zero), 1, 1, 0);
         var chatExport = ChatExport.Create(messages, metadata);
 
         var result = _formatter.FormatDocument(chatExport);
@@ -166,10 +166,10 @@ public class MarkdownDocumentFormatterTests
     {
         var messages = new[]
         {
-            ChatMessage.Create(DateTimeOffset.UtcNow, "John", "Message 1"),
-            ChatMessage.Create(DateTimeOffset.UtcNow.AddMinutes(1), "John", "Message 2")
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 0, 0, TimeSpan.Zero), "John", "Message 1"),
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 1, 0, TimeSpan.Zero), "John", "Message 2")
         };
-        var metadata = ParsingMetadata.Create("test.txt", DateTimeOffset.UtcNow, 2, 2, 0);
+        var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 1, 15, 12, 0, 0, TimeSpan.Zero), 2, 2, 0);
         var chatExport = ChatExport.Create(messages, metadata);
 
         var result = _formatter.FormatDocument(chatExport);
@@ -182,7 +182,7 @@ public class MarkdownDocumentFormatterTests
     public void FormatDocument_EmptyExport_ReturnsHeaderWithZeroMessages()
     {
         var messages = Array.Empty<ChatMessage>();
-        var metadata = ParsingMetadata.Create("test.txt", DateTimeOffset.UtcNow, 0, 0, 0);
+        var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 1, 15, 12, 0, 0, TimeSpan.Zero), 0, 0, 0);
         var chatExport = ChatExport.Create(messages, metadata);
 
         var result = _formatter.FormatDocument(chatExport);
@@ -196,7 +196,7 @@ public class MarkdownDocumentFormatterTests
     [Fact(DisplayName = "FormatMessage throws NotSupportedException")]
     public void FormatMessage_AnyChatMessage_ThrowsNotSupportedException()
     {
-        var message = ChatMessage.Create(DateTimeOffset.UtcNow, "John", "Test");
+        var message = ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 0, 0, TimeSpan.Zero), "John", "Test");
 
         var exception = Assert.Throws<NotSupportedException>(() => _formatter.FormatMessage(message));
 
@@ -213,7 +213,7 @@ public class MarkdownDocumentFormatterTests
             ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 35, 0, TimeSpan.Zero), "John", "Second"),
             ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 40, 0, TimeSpan.Zero), "John", "Third")
         };
-        var metadata = ParsingMetadata.Create("test.txt", DateTimeOffset.UtcNow, 3, 3, 0);
+        var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 1, 15, 12, 0, 0, TimeSpan.Zero), 3, 3, 0);
         var chatExport = ChatExport.Create(messages, metadata);
 
         var result = _formatter.FormatDocument(chatExport);
@@ -237,9 +237,9 @@ public class MarkdownDocumentFormatterTests
         var specialContent = "Test @#$%^&*() with special chars 🎉";
         var messages = new[]
         {
-            ChatMessage.Create(DateTimeOffset.UtcNow, "John", specialContent)
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 0, 0, TimeSpan.Zero), "John", specialContent)
         };
-        var metadata = ParsingMetadata.Create("test.txt", DateTimeOffset.UtcNow, 1, 1, 0);
+        var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 1, 15, 12, 0, 0, TimeSpan.Zero), 1, 1, 0);
         var chatExport = ChatExport.Create(messages, metadata);
 
         var result = _formatter.FormatDocument(chatExport);
@@ -253,9 +253,9 @@ public class MarkdownDocumentFormatterTests
         var specialSender = "José María O'Connor";
         var messages = new[]
         {
-            ChatMessage.Create(DateTimeOffset.UtcNow, specialSender, "Hello")
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 0, 0, TimeSpan.Zero), specialSender, "Hello")
         };
-        var metadata = ParsingMetadata.Create("test.txt", DateTimeOffset.UtcNow, 1, 1, 0);
+        var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 1, 15, 12, 0, 0, TimeSpan.Zero), 1, 1, 0);
         var chatExport = ChatExport.Create(messages, metadata);
 
         var result = _formatter.FormatDocument(chatExport);
