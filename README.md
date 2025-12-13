@@ -335,6 +335,7 @@ The compiled application will be in:
   - `default`: `[{timestamp}] {sender}: {content}`
   - `compact`: `{sender}: {content}`
   - `verbose`: Detailed format with full date/time and metadata
+  - `markdowndocument`: Structured markdown with friendly date headers (e.g., "December 5, 2024") and individual timestamped posts. The format parameter parsing is case-insensitive.
 
 - **Logging**: Configure application logging
   - `MinimumLevel`: Trace, Debug, Information, Warning, Error, or Critical
@@ -427,6 +428,9 @@ dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-
 # Use a specific message format
 dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --state-dir ./state --format compact
 
+# Use markdown document format with friendly date headers
+dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --state-dir ./state --format markdowndocument
+
 # Use a custom configuration file
 dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --state-dir ./state --config ./custom-appsettings.json
 
@@ -461,6 +465,7 @@ dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-
   - `default`: `[{timestamp}] {sender}: {content}`
   - `compact`: `{sender}: {content}`
   - `verbose`: Detailed format with full date/time and metadata
+  - `markdowndocument`: Structured markdown with friendly date headers (e.g., "December 5, 2024") and individual timestamped posts (case-insensitive)
 
 - `--config`: Path to a custom configuration file (appsettings.json)
   - Overrides the default configuration file
