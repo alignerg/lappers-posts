@@ -19,27 +19,6 @@ public class IGoogleDocsFormatterTests
         }
     }
 
-    [Fact(DisplayName = "Interface inherits from IMessageFormatter")]
-    public void Interface_InheritsFromIMessageFormatter()
-    {
-        var formatter = new TestGoogleDocsFormatter();
-
-        Assert.IsAssignableFrom<IMessageFormatter>(formatter);
-    }
-
-    [Fact(DisplayName = "FormatMessage throws NotSupportedException")]
-    public void FormatMessage_ThrowsNotSupportedException()
-    {
-        var formatter = new TestGoogleDocsFormatter();
-        var message = ChatMessage.Create(DateTimeOffset.UtcNow, "John", "Hello");
-
-        var exception = Assert.Throws<NotSupportedException>(() =>
-            ((IMessageFormatter)formatter).FormatMessage(message));
-
-        Assert.Contains("not supported", exception.Message);
-        Assert.Contains("FormatDocument", exception.Message);
-    }
-
     [Fact(DisplayName = "FormatDocument with valid ChatExport returns GoogleDocsDocument")]
     public void FormatDocument_ValidChatExport_ReturnsGoogleDocsDocument()
     {

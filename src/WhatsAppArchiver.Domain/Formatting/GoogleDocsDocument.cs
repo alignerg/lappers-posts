@@ -1,5 +1,3 @@
-using System.Text;
-
 namespace WhatsAppArchiver.Domain.Formatting;
 
 /// <summary>
@@ -41,24 +39,17 @@ public sealed class GoogleDocsDocument
     /// </remarks>
     public string ToPlainText()
     {
-        var builder = new StringBuilder();
-
-        foreach (var section in _sections)
+        var plainTextLines = _sections.Select(section => section switch
         {
-            var plainText = section switch
-            {
-                HeadingSection heading => heading.Text,
-                BoldTextSection bold => bold.Text,
-                ParagraphSection paragraph => paragraph.Text,
-                HorizontalRuleSection => "---",
-                MetadataSection metadata => $"{metadata.Label}: {metadata.Value}",
-                _ => section.Content
-            };
+            HeadingSection heading => heading.Text,
+            BoldTextSection bold => bold.Text,
+            ParagraphSection paragraph => paragraph.Text,
+            HorizontalRuleSection => "---",
+            MetadataSection metadata => $"{metadata.Label}: {metadata.Value}",
+            _ => section.Content
+        });
 
-            builder.AppendLine(plainText);
-        }
-
-        return builder.ToString().TrimEnd();
+        return string.Join(Environment.NewLine, plainTextLines);
     }
 }
 
