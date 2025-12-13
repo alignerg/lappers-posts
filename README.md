@@ -335,7 +335,7 @@ The compiled application will be in:
   - `default`: `[{timestamp}] {sender}: {content}`
   - `compact`: `{sender}: {content}`
   - `verbose`: Detailed format with full date/time and metadata
-  - `markdowndocument`: Structured markdown with friendly date headers and individual timestamped posts
+  - `markdowndocument`: Structured markdown with friendly date headers (e.g., "December 5, 2024") and individual timestamped posts. The format parameter parsing is case-insensitive.
 
 - **Logging**: Configure application logging
   - `MinimumLevel`: Trace, Debug, Information, Warning, Error, or Critical
