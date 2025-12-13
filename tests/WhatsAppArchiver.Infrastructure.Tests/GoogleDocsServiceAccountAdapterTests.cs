@@ -720,10 +720,10 @@ public class GoogleDocsServiceAccountAdapterTests
 
     #endregion
 
-    #region AppendRichAsync Tests
+    #region InsertRichAsync Tests
 
-    [Fact(DisplayName = "AppendRichAsync with heading sections creates heading style requests")]
-    public async Task AppendRichAsync_WithHeadingSections_CreatesHeadingStyleRequests()
+    [Fact(DisplayName = "InsertRichAsync with heading sections creates heading style requests")]
+    public async Task InsertRichAsync_WithHeadingSections_CreatesHeadingStyleRequests()
     {
         var documentId = "test-doc-123";
         var document = new GoogleDocsDocument();
@@ -743,7 +743,7 @@ public class GoogleDocsServiceAccountAdapterTests
             })
             .Returns(Task.CompletedTask);
 
-        await _adapter.AppendRichAsync(documentId, document);
+        await _adapter.InsertRichAsync(documentId, document);
 
         capturedRequests.Should().NotBeNull();
         
@@ -757,8 +757,8 @@ public class GoogleDocsServiceAccountAdapterTests
         paragraphStyleRequests[1]!.ParagraphStyle.NamedStyleType.Should().Be("HEADING_2");
     }
 
-    [Fact(DisplayName = "AppendRichAsync with all heading levels creates correct style requests")]
-    public async Task AppendRichAsync_WithAllHeadingLevels_CreatesCorrectStyleRequests()
+    [Fact(DisplayName = "InsertRichAsync with all heading levels creates correct style requests")]
+    public async Task InsertRichAsync_WithAllHeadingLevels_CreatesCorrectStyleRequests()
     {
         var documentId = "test-doc-123";
         var document = new GoogleDocsDocument();
@@ -782,7 +782,7 @@ public class GoogleDocsServiceAccountAdapterTests
             })
             .Returns(Task.CompletedTask);
 
-        await _adapter.AppendRichAsync(documentId, document);
+        await _adapter.InsertRichAsync(documentId, document);
 
         capturedRequests.Should().NotBeNull();
         
@@ -800,8 +800,8 @@ public class GoogleDocsServiceAccountAdapterTests
         paragraphStyleRequests[5]!.ParagraphStyle.NamedStyleType.Should().Be("HEADING_6");
     }
 
-    [Fact(DisplayName = "AppendRichAsync with bold sections creates bold text style requests")]
-    public async Task AppendRichAsync_WithBoldSections_CreatesBoldTextStyleRequests()
+    [Fact(DisplayName = "InsertRichAsync with bold sections creates bold text style requests")]
+    public async Task InsertRichAsync_WithBoldSections_CreatesBoldTextStyleRequests()
     {
         var documentId = "test-doc-123";
         var document = new GoogleDocsDocument();
@@ -820,7 +820,7 @@ public class GoogleDocsServiceAccountAdapterTests
             })
             .Returns(Task.CompletedTask);
 
-        await _adapter.AppendRichAsync(documentId, document);
+        await _adapter.InsertRichAsync(documentId, document);
 
         capturedRequests.Should().NotBeNull();
         
@@ -834,8 +834,8 @@ public class GoogleDocsServiceAccountAdapterTests
         textStyleRequests[0]!.Fields.Should().Be("bold");
     }
 
-    [Fact(DisplayName = "AppendRichAsync with horizontal rule inserts unicode line")]
-    public async Task AppendRichAsync_WithHorizontalRule_InsertsUnicodeLine()
+    [Fact(DisplayName = "InsertRichAsync with horizontal rule inserts unicode line")]
+    public async Task InsertRichAsync_WithHorizontalRule_InsertsUnicodeLine()
     {
         var documentId = "test-doc-123";
         var document = new GoogleDocsDocument();
@@ -854,7 +854,7 @@ public class GoogleDocsServiceAccountAdapterTests
             })
             .Returns(Task.CompletedTask);
 
-        await _adapter.AppendRichAsync(documentId, document);
+        await _adapter.InsertRichAsync(documentId, document);
 
         capturedRequests.Should().NotBeNull();
         
@@ -868,8 +868,8 @@ public class GoogleDocsServiceAccountAdapterTests
         insertTextRequests[0].Should().EndWith("\n");
     }
 
-    [Fact(DisplayName = "AppendRichAsync with metadata applies bold to labels")]
-    public async Task AppendRichAsync_WithMetadata_AppliesBoldToLabels()
+    [Fact(DisplayName = "InsertRichAsync with metadata applies bold to labels")]
+    public async Task InsertRichAsync_WithMetadata_AppliesBoldToLabels()
     {
         var documentId = "test-doc-123";
         var document = new GoogleDocsDocument();
@@ -889,7 +889,7 @@ public class GoogleDocsServiceAccountAdapterTests
             })
             .Returns(Task.CompletedTask);
 
-        await _adapter.AppendRichAsync(documentId, document);
+        await _adapter.InsertRichAsync(documentId, document);
 
         capturedRequests.Should().NotBeNull();
         
@@ -907,8 +907,8 @@ public class GoogleDocsServiceAccountAdapterTests
         });
     }
 
-    [Fact(DisplayName = "AppendRichAsync complex document calculates indices correctly")]
-    public async Task AppendRichAsync_ComplexDocument_CalculatesIndicesCorrectly()
+    [Fact(DisplayName = "InsertRichAsync complex document calculates indices correctly")]
+    public async Task InsertRichAsync_ComplexDocument_CalculatesIndicesCorrectly()
     {
         var documentId = "test-doc-123";
         var document = new GoogleDocsDocument();
@@ -930,7 +930,7 @@ public class GoogleDocsServiceAccountAdapterTests
             })
             .Returns(Task.CompletedTask);
 
-        await _adapter.AppendRichAsync(documentId, document);
+        await _adapter.InsertRichAsync(documentId, document);
 
         capturedRequests.Should().NotBeNull();
 
@@ -957,8 +957,8 @@ public class GoogleDocsServiceAccountAdapterTests
         insertRequests[4]!.Location.Index.Should().Be(currentIndex);
     }
 
-    [Fact(DisplayName = "AppendRichAsync empty document no requests")]
-    public async Task AppendRichAsync_EmptyDocument_NoRequests()
+    [Fact(DisplayName = "InsertRichAsync empty document no requests")]
+    public async Task InsertRichAsync_EmptyDocument_NoRequests()
     {
         var documentId = "test-doc-123";
         var document = new GoogleDocsDocument();
@@ -976,7 +976,7 @@ public class GoogleDocsServiceAccountAdapterTests
             })
             .Returns(Task.CompletedTask);
 
-        await _adapter.AppendRichAsync(documentId, document);
+        await _adapter.InsertRichAsync(documentId, document);
 
         capturedRequests.Should().NotBeNull();
         capturedRequests.Should().BeEmpty();

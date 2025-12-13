@@ -139,7 +139,7 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
     /// This method inserts content at index 1, which is the beginning of the document content in the Google Docs API.
     /// To append to the end of a document, you would need to first retrieve the document length and use that as the start index.
     /// </remarks>
-    public async Task AppendRichAsync(
+    public async Task InsertRichAsync(
         string documentId,
         GoogleDocsDocument document,
         CancellationToken cancellationToken = default)
