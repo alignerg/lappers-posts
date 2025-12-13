@@ -54,6 +54,7 @@ public class FormatterFactoryTests
     [InlineData(MessageFormatType.Compact)]
     [InlineData(MessageFormatType.Verbose)]
     [InlineData(MessageFormatType.MarkdownDocument)]
+    [InlineData(MessageFormatType.GoogleDocs)]
     public void Create_AllValidTypes_ReturnsIMessageFormatter(MessageFormatType formatType)
     {
         var formatter = FormatterFactory.Create(formatType);
@@ -87,5 +88,30 @@ public class FormatterFactoryTests
         var result = FormatterFactory.IsDocumentFormatter(formatType);
 
         Assert.False(result);
+    }
+
+    [Fact(DisplayName = "Create with GoogleDocs returns GoogleDocsDocumentFormatter")]
+    public void Create_GoogleDocsType_ReturnsGoogleDocsDocumentFormatter()
+    {
+        var formatter = FormatterFactory.Create(MessageFormatType.GoogleDocs);
+
+        Assert.IsType<GoogleDocsDocumentFormatter>(formatter);
+    }
+
+    [Fact(DisplayName = "Create with GoogleDocs implements IGoogleDocsFormatter")]
+    public void Create_GoogleDocsType_ImplementsIGoogleDocsFormatter()
+    {
+        var formatter = FormatterFactory.Create(MessageFormatType.GoogleDocs);
+
+        Assert.IsAssignableFrom<IGoogleDocsFormatter>(formatter);
+        Assert.IsAssignableFrom<IMessageFormatter>(formatter);
+    }
+
+    [Fact(DisplayName = "IsDocumentFormatter with GoogleDocs returns true")]
+    public void IsDocumentFormatter_GoogleDocs_ReturnsTrue()
+    {
+        var result = FormatterFactory.IsDocumentFormatter(MessageFormatType.GoogleDocs);
+
+        Assert.True(result);
     }
 }
