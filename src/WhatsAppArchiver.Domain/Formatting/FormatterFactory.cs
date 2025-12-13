@@ -54,16 +54,17 @@ public static class FormatterFactory
     /// <param name="formatType">The type of formatting to apply.</param>
     /// <returns>
     /// An <see cref="IMessageFormatter"/> instance for the specified format type.
-    /// For document-level format types (e.g., MarkdownDocument), the returned instance
-    /// also implements <see cref="IDocumentFormatter"/>.
+    /// For document-level format types (e.g., MarkdownDocument, GoogleDocs), the returned instance
+    /// also implements <see cref="IDocumentFormatter"/> or <see cref="IGoogleDocsFormatter"/> respectively.
     /// </returns>
     /// <exception cref="ArgumentOutOfRangeException">
     /// Thrown when <paramref name="formatType"/> is not a valid <see cref="MessageFormatType"/> value.
     /// </exception>
     /// <remarks>
     /// Document-level formatters (those where <see cref="IsDocumentFormatter"/> returns true)
-    /// implement both <see cref="IMessageFormatter"/> and <see cref="IDocumentFormatter"/>.
-    /// Cast to <see cref="IDocumentFormatter"/> to access document-level formatting capabilities.
+    /// implement both <see cref="IMessageFormatter"/> and either <see cref="IDocumentFormatter"/>
+    /// (for MarkdownDocument) or <see cref="IGoogleDocsFormatter"/> (for GoogleDocs).
+    /// Cast to the appropriate interface to access document-level formatting capabilities.
     /// </remarks>
     public static IMessageFormatter Create(MessageFormatType formatType)
     {
@@ -83,17 +84,18 @@ public static class FormatterFactory
     /// </summary>
     /// <param name="formatType">The format type to check.</param>
     /// <returns>
-    /// <c>true</c> if the format type requires <see cref="IDocumentFormatter"/> for processing
-    /// entire <see cref="Aggregates.ChatExport"/> aggregates; otherwise, <c>false</c> for
-    /// message-level formatters.
+    /// <c>true</c> if the format type requires document-level formatting (<see cref="IDocumentFormatter"/>
+    /// or <see cref="IGoogleDocsFormatter"/>) for processing entire <see cref="Aggregates.ChatExport"/>
+    /// aggregates; otherwise, <c>false</c> for message-level formatters.
     /// </returns>
     /// <remarks>
     /// Use this method to determine the appropriate formatting approach:
     /// <list type="bullet">
     /// <item>
     /// <description>
-    /// If <c>true</c>, cast the formatter to <see cref="IDocumentFormatter"/> and use
-    /// <see cref="IDocumentFormatter.FormatDocument"/> to process the entire export.
+    /// If <c>true</c>, cast the formatter to <see cref="IDocumentFormatter"/> or
+    /// <see cref="IGoogleDocsFormatter"/> and use the appropriate FormatDocument method
+    /// to process the entire export.
     /// </description>
     /// </item>
     /// <item>

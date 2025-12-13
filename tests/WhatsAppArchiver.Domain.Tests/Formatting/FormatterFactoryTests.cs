@@ -91,7 +91,7 @@ public class FormatterFactoryTests
     }
 
     [Fact(DisplayName = "Create with GoogleDocs returns GoogleDocsDocumentFormatter")]
-    public void CreateFormatter_GoogleDocsType_ReturnsGoogleDocsDocumentFormatter()
+    public void Create_GoogleDocsType_ReturnsGoogleDocsDocumentFormatter()
     {
         var formatter = FormatterFactory.Create(MessageFormatType.GoogleDocs);
 
@@ -99,7 +99,7 @@ public class FormatterFactoryTests
     }
 
     [Fact(DisplayName = "Create with GoogleDocs implements IGoogleDocsFormatter")]
-    public void CreateFormatter_GoogleDocsType_ImplementsIGoogleDocsFormatter()
+    public void Create_GoogleDocsType_ImplementsIGoogleDocsFormatter()
     {
         var formatter = FormatterFactory.Create(MessageFormatType.GoogleDocs);
 
