@@ -722,6 +722,55 @@ public class GoogleDocsServiceAccountAdapterTests
 
     #region InsertRichAsync Tests
 
+    [Fact(DisplayName = "InsertRichAsync with null document ID throws ArgumentException")]
+    public async Task InsertRichAsync_NullDocumentId_ThrowsArgumentException()
+    {
+        var document = new GoogleDocsDocument();
+
+        var act = () => _adapter.InsertRichAsync(null!, document);
+
+        await act.Should().ThrowAsync<ArgumentException>()
+            .WithParameterName("documentId");
+    }
+
+    [Fact(DisplayName = "InsertRichAsync with empty document ID throws ArgumentException")]
+    public async Task InsertRichAsync_EmptyDocumentId_ThrowsArgumentException()
+    {
+        var document = new GoogleDocsDocument();
+
+        var act = () => _adapter.InsertRichAsync(string.Empty, document);
+
+        await act.Should().ThrowAsync<ArgumentException>()
+            .WithParameterName("documentId");
+    }
+
+    [Fact(DisplayName = "InsertRichAsync with null document throws ArgumentNullException")]
+    public async Task InsertRichAsync_NullDocument_ThrowsArgumentNullException()
+    {
+        var act = () => _adapter.InsertRichAsync("doc-123", null!);
+
+        await act.Should().ThrowAsync<ArgumentNullException>()
+            .WithParameterName("document");
+    }
+
+    [Fact(DisplayName = "InsertRichAsync after disposal throws ObjectDisposedException")]
+    public async Task InsertRichAsync_AfterDisposal_ThrowsObjectDisposedException()
+    {
+        var clientWrapperMock = new Mock<IGoogleDocsClientWrapper>();
+        var pipeline = ResiliencePipeline.Empty;
+
+        var adapter = new GoogleDocsServiceAccountAdapter(
+            clientWrapperMock.Object,
+            pipeline);
+
+        adapter.Dispose();
+
+        var document = new GoogleDocsDocument();
+        var act = () => adapter.InsertRichAsync("doc-123", document);
+
+        await act.Should().ThrowAsync<ObjectDisposedException>();
+    }
+
     [Fact(DisplayName = "InsertRichAsync with heading sections creates heading style requests")]
     public async Task InsertRichAsync_WithHeadingSections_CreatesHeadingStyleRequests()
     {
