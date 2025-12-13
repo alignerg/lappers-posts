@@ -83,7 +83,7 @@ public sealed class GoogleDocsDocumentFormatter : IGoogleDocsFormatter, IMessage
         document.Add(new HeadingSection(1, $"WhatsApp Conversation Export - {senderName}"));
 
         // Add metadata sections
-        document.Add(new MetadataSection("Export Date", DateTime.Now.ToString("MMMM d, yyyy")));
+        document.Add(new MetadataSection("Export Date", chatExport.Metadata.ParsedAt.ToString("MMMM d, yyyy")));
         document.Add(new MetadataSection("Total Messages", chatExport.MessageCount.ToString()));
 
         // Add horizontal rule separator
