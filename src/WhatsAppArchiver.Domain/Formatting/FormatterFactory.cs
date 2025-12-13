@@ -73,6 +73,7 @@ public static class FormatterFactory
             MessageFormatType.Compact => new CompactMessageFormatter(),
             MessageFormatType.Verbose => new VerboseMessageFormatter(),
             MessageFormatType.MarkdownDocument => new MarkdownDocumentFormatter(),
+            MessageFormatType.GoogleDocs => new GoogleDocsDocumentFormatter(),
             _ => throw new ArgumentOutOfRangeException(nameof(formatType), formatType, "Unknown message format type.")
         };
     }
@@ -119,5 +120,5 @@ public static class FormatterFactory
     /// </code>
     /// </example>
     public static bool IsDocumentFormatter(MessageFormatType formatType)
-        => formatType == MessageFormatType.MarkdownDocument;
+        => formatType is MessageFormatType.MarkdownDocument or MessageFormatType.GoogleDocs;
 }
