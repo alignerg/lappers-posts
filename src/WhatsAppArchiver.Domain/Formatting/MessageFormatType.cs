@@ -28,5 +28,11 @@ public enum MessageFormatType
     /// Structured markdown document with friendly date headers (MMMM d, yyyy)
     /// and individual timestamped posts. Requires IDocumentFormatter for batch processing.
     /// </summary>
-    MarkdownDocument = 3
+    MarkdownDocument = 3,
+
+    /// <summary>
+    /// Rich formatted Google Docs with heading styles, bold timestamps, and visual separators.
+    /// Requires IGoogleDocsFormatter for batch processing.
+    /// </summary>
+    GoogleDocs = 4
 }
