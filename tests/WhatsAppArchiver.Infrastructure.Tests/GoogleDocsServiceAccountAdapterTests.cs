@@ -757,6 +757,49 @@ public class GoogleDocsServiceAccountAdapterTests
         paragraphStyleRequests[1]!.ParagraphStyle.NamedStyleType.Should().Be("HEADING_2");
     }
 
+    [Fact(DisplayName = "AppendRichAsync with all heading levels creates correct style requests")]
+    public async Task AppendRichAsync_WithAllHeadingLevels_CreatesCorrectStyleRequests()
+    {
+        var documentId = "test-doc-123";
+        var document = new GoogleDocsDocument();
+        document.Add(new HeadingSection(1, "Heading 1"));
+        document.Add(new HeadingSection(2, "Heading 2"));
+        document.Add(new HeadingSection(3, "Heading 3"));
+        document.Add(new HeadingSection(4, "Heading 4"));
+        document.Add(new HeadingSection(5, "Heading 5"));
+        document.Add(new HeadingSection(6, "Heading 6"));
+
+        IList<Request>? capturedRequests = null;
+
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(
+                documentId,
+                It.IsAny<IList<Request>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<string, IList<Request>, CancellationToken>((_, requests, _) =>
+            {
+                capturedRequests = requests;
+            })
+            .Returns(Task.CompletedTask);
+
+        await _adapter.AppendRichAsync(documentId, document);
+
+        capturedRequests.Should().NotBeNull();
+        
+        var paragraphStyleRequests = capturedRequests!
+            .Where(r => r.UpdateParagraphStyle != null)
+            .Select(r => r.UpdateParagraphStyle)
+            .ToList();
+
+        paragraphStyleRequests.Should().HaveCount(6);
+        paragraphStyleRequests[0]!.ParagraphStyle.NamedStyleType.Should().Be("HEADING_1");
+        paragraphStyleRequests[1]!.ParagraphStyle.NamedStyleType.Should().Be("HEADING_2");
+        paragraphStyleRequests[2]!.ParagraphStyle.NamedStyleType.Should().Be("HEADING_3");
+        paragraphStyleRequests[3]!.ParagraphStyle.NamedStyleType.Should().Be("HEADING_4");
+        paragraphStyleRequests[4]!.ParagraphStyle.NamedStyleType.Should().Be("HEADING_5");
+        paragraphStyleRequests[5]!.ParagraphStyle.NamedStyleType.Should().Be("HEADING_6");
+    }
+
     [Fact(DisplayName = "AppendRichAsync with bold sections creates bold text style requests")]
     public async Task AppendRichAsync_WithBoldSections_CreatesBoldTextStyleRequests()
     {

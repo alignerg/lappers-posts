@@ -29,6 +29,8 @@ namespace WhatsAppArchiver.Infrastructure;
 /// </example>
 public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDisposable
 {
+    private const string HorizontalRuleText = "━━━━━━━━━━━━━━━━━━━━\n";
+    
     private readonly IGoogleDocsClientWrapper _clientWrapper;
     private readonly ResiliencePipeline _resiliencePipeline;
     private bool _disposed;
@@ -125,14 +127,18 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
     }
 
     /// <summary>
-    /// Appends a structured document with rich formatting to the end of a Google Docs document.
+    /// Inserts a structured document with rich formatting at the beginning of a Google Docs document.
     /// </summary>
     /// <param name="documentId">The unique identifier of the Google Docs document.</param>
-    /// <param name="document">The structured document to append with rich formatting.</param>
+    /// <param name="document">The structured document to insert with rich formatting.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
-    /// <returns>A task representing the asynchronous append operation.</returns>
+    /// <returns>A task representing the asynchronous insert operation.</returns>
     /// <exception cref="ArgumentException">Thrown when <paramref name="documentId"/> is null or empty.</exception>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="document"/> is null.</exception>
+    /// <remarks>
+    /// This method inserts content at index 1, which is the beginning of the document content in the Google Docs API.
+    /// To append to the end of a document, you would need to first retrieve the document length and use that as the start index.
+    /// </remarks>
     public async Task AppendRichAsync(
         string documentId,
         GoogleDocsDocument document,
@@ -144,8 +150,7 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        // Start at index 1 for appending to the end
-        // In Google Docs API, index 1 is the beginning of the document content
+        // Insert at index 1, which is the beginning of the document content in Google Docs API
         var requests = CreateRichContentRequests(document, startIndex: 1);
 
         await _resiliencePipeline.ExecuteAsync(
@@ -254,8 +259,18 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
                             }
                         });
 
-                        // Apply heading style
-                        var namedStyleType = heading.Level == 1 ? "HEADING_1" : "HEADING_2";
+                        // Map heading levels 1-6 to Google Docs named style types
+                        var namedStyleType = heading.Level switch
+                        {
+                            1 => "HEADING_1",
+                            2 => "HEADING_2",
+                            3 => "HEADING_3",
+                            4 => "HEADING_4",
+                            5 => "HEADING_5",
+                            6 => "HEADING_6",
+                            _ => throw new ArgumentOutOfRangeException(nameof(heading.Level), heading.Level, "Unsupported heading level. Only levels 1-6 are supported.")
+                        };
+                        
                         requests.Add(new Request
                         {
                             UpdateParagraphStyle = new UpdateParagraphStyleRequest
@@ -334,15 +349,14 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
 
                 case HorizontalRuleSection:
                     {
-                        var ruleText = "━━━━━━━━━━━━━━━━━━━━\n";
-                        var textLength = ruleText.Length;
+                        var textLength = HorizontalRuleText.Length;
 
                         // Insert horizontal rule
                         requests.Add(new Request
                         {
                             InsertText = new InsertTextRequest
                             {
-                                Text = ruleText,
+                                Text = HorizontalRuleText,
                                 Location = new Location { Index = currentIndex }
                             }
                         });
@@ -400,6 +414,10 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
                         currentIndex += valueText.Length;
                         break;
                     }
+
+                default:
+                    throw new NotSupportedException(
+                        $"Unsupported DocumentSection type: {section.GetType().FullName}");
             }
         }
 
