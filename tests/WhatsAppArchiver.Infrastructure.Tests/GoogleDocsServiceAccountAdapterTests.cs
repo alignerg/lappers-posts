@@ -3,6 +3,7 @@ using Google.Apis.Docs.v1.Data;
 using Moq;
 using Polly;
 using WhatsAppArchiver.Infrastructure;
+using WhatsAppArchiver.Domain.Formatting;
 
 namespace WhatsAppArchiver.Infrastructure.Tests;
 
@@ -715,6 +716,227 @@ public class GoogleDocsServiceAccountAdapterTests
 
         act.Should().Throw<ArgumentException>()
             .WithParameterName("credentialFilePath");
+    }
+
+    #endregion
+
+    #region AppendRichAsync Tests
+
+    [Fact(DisplayName = "AppendRichAsync with heading sections creates heading style requests")]
+    public async Task AppendRichAsync_WithHeadingSections_CreatesHeadingStyleRequests()
+    {
+        var documentId = "test-doc-123";
+        var document = new GoogleDocsDocument();
+        document.Add(new HeadingSection(1, "Main Heading"));
+        document.Add(new HeadingSection(2, "Sub Heading"));
+
+        IList<Request>? capturedRequests = null;
+
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(
+                documentId,
+                It.IsAny<IList<Request>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<string, IList<Request>, CancellationToken>((_, requests, _) =>
+            {
+                capturedRequests = requests;
+            })
+            .Returns(Task.CompletedTask);
+
+        await _adapter.AppendRichAsync(documentId, document);
+
+        capturedRequests.Should().NotBeNull();
+        
+        var paragraphStyleRequests = capturedRequests!
+            .Where(r => r.UpdateParagraphStyle != null)
+            .Select(r => r.UpdateParagraphStyle)
+            .ToList();
+
+        paragraphStyleRequests.Should().HaveCount(2);
+        paragraphStyleRequests[0]!.ParagraphStyle.NamedStyleType.Should().Be("HEADING_1");
+        paragraphStyleRequests[1]!.ParagraphStyle.NamedStyleType.Should().Be("HEADING_2");
+    }
+
+    [Fact(DisplayName = "AppendRichAsync with bold sections creates bold text style requests")]
+    public async Task AppendRichAsync_WithBoldSections_CreatesBoldTextStyleRequests()
+    {
+        var documentId = "test-doc-123";
+        var document = new GoogleDocsDocument();
+        document.Add(new BoldTextSection("Important Text"));
+
+        IList<Request>? capturedRequests = null;
+
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(
+                documentId,
+                It.IsAny<IList<Request>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<string, IList<Request>, CancellationToken>((_, requests, _) =>
+            {
+                capturedRequests = requests;
+            })
+            .Returns(Task.CompletedTask);
+
+        await _adapter.AppendRichAsync(documentId, document);
+
+        capturedRequests.Should().NotBeNull();
+        
+        var textStyleRequests = capturedRequests!
+            .Where(r => r.UpdateTextStyle != null)
+            .Select(r => r.UpdateTextStyle)
+            .ToList();
+
+        textStyleRequests.Should().HaveCount(1);
+        textStyleRequests[0]!.TextStyle.Bold.Should().BeTrue();
+        textStyleRequests[0]!.Fields.Should().Be("bold");
+    }
+
+    [Fact(DisplayName = "AppendRichAsync with horizontal rule inserts unicode line")]
+    public async Task AppendRichAsync_WithHorizontalRule_InsertsUnicodeLine()
+    {
+        var documentId = "test-doc-123";
+        var document = new GoogleDocsDocument();
+        document.Add(new HorizontalRuleSection());
+
+        IList<Request>? capturedRequests = null;
+
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(
+                documentId,
+                It.IsAny<IList<Request>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<string, IList<Request>, CancellationToken>((_, requests, _) =>
+            {
+                capturedRequests = requests;
+            })
+            .Returns(Task.CompletedTask);
+
+        await _adapter.AppendRichAsync(documentId, document);
+
+        capturedRequests.Should().NotBeNull();
+        
+        var insertTextRequests = capturedRequests!
+            .Where(r => r.InsertText != null)
+            .Select(r => r.InsertText!.Text)
+            .ToList();
+
+        insertTextRequests.Should().HaveCount(1);
+        insertTextRequests[0].Should().StartWith("━");
+        insertTextRequests[0].Should().EndWith("\n");
+    }
+
+    [Fact(DisplayName = "AppendRichAsync with metadata applies bold to labels")]
+    public async Task AppendRichAsync_WithMetadata_AppliesBoldToLabels()
+    {
+        var documentId = "test-doc-123";
+        var document = new GoogleDocsDocument();
+        document.Add(new MetadataSection("Author", "John Doe"));
+        document.Add(new MetadataSection("Date", "2024-01-01"));
+
+        IList<Request>? capturedRequests = null;
+
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(
+                documentId,
+                It.IsAny<IList<Request>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<string, IList<Request>, CancellationToken>((_, requests, _) =>
+            {
+                capturedRequests = requests;
+            })
+            .Returns(Task.CompletedTask);
+
+        await _adapter.AppendRichAsync(documentId, document);
+
+        capturedRequests.Should().NotBeNull();
+        
+        var textStyleRequests = capturedRequests!
+            .Where(r => r.UpdateTextStyle != null)
+            .Select(r => r.UpdateTextStyle)
+            .ToList();
+
+        textStyleRequests.Should().HaveCount(2);
+        textStyleRequests.Should().AllSatisfy(req =>
+        {
+            req.Should().NotBeNull();
+            req!.TextStyle.Bold.Should().BeTrue();
+            req.Fields.Should().Be("bold");
+        });
+    }
+
+    [Fact(DisplayName = "AppendRichAsync complex document calculates indices correctly")]
+    public async Task AppendRichAsync_ComplexDocument_CalculatesIndicesCorrectly()
+    {
+        var documentId = "test-doc-123";
+        var document = new GoogleDocsDocument();
+        document.Add(new HeadingSection(1, "Title"));
+        document.Add(new ParagraphSection("First paragraph"));
+        document.Add(new BoldTextSection("Bold"));
+        document.Add(new MetadataSection("Key", "Value"));
+
+        IList<Request>? capturedRequests = null;
+
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(
+                documentId,
+                It.IsAny<IList<Request>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<string, IList<Request>, CancellationToken>((_, requests, _) =>
+            {
+                capturedRequests = requests;
+            })
+            .Returns(Task.CompletedTask);
+
+        await _adapter.AppendRichAsync(documentId, document);
+
+        capturedRequests.Should().NotBeNull();
+
+        var insertRequests = capturedRequests!
+            .Where(r => r.InsertText != null)
+            .Select(r => r.InsertText)
+            .ToList();
+
+        insertRequests.Should().HaveCount(5);
+        
+        var currentIndex = 1;
+        insertRequests[0]!.Location.Index.Should().Be(currentIndex);
+        currentIndex += insertRequests[0]!.Text.Length;
+        
+        insertRequests[1]!.Location.Index.Should().Be(currentIndex);
+        currentIndex += insertRequests[1]!.Text.Length;
+        
+        insertRequests[2]!.Location.Index.Should().Be(currentIndex);
+        currentIndex += insertRequests[2]!.Text.Length;
+        
+        insertRequests[3]!.Location.Index.Should().Be(currentIndex);
+        currentIndex += insertRequests[3]!.Text.Length;
+        
+        insertRequests[4]!.Location.Index.Should().Be(currentIndex);
+    }
+
+    [Fact(DisplayName = "AppendRichAsync empty document no requests")]
+    public async Task AppendRichAsync_EmptyDocument_NoRequests()
+    {
+        var documentId = "test-doc-123";
+        var document = new GoogleDocsDocument();
+
+        IList<Request>? capturedRequests = null;
+
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(
+                documentId,
+                It.IsAny<IList<Request>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<string, IList<Request>, CancellationToken>((_, requests, _) =>
+            {
+                capturedRequests = requests;
+            })
+            .Returns(Task.CompletedTask);
+
+        await _adapter.AppendRichAsync(documentId, document);
+
+        capturedRequests.Should().NotBeNull();
+        capturedRequests.Should().BeEmpty();
     }
 
     #endregion

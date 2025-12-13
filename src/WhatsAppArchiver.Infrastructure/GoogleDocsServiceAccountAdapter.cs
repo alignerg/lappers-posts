@@ -6,6 +6,7 @@ using Google.Apis.Services;
 using Polly;
 using Polly.Retry;
 using WhatsAppArchiver.Application.Services;
+using WhatsAppArchiver.Domain.Formatting;
 
 [assembly: InternalsVisibleTo("WhatsAppArchiver.Infrastructure.Tests")]
 
@@ -124,6 +125,39 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
     }
 
     /// <summary>
+    /// Appends a structured document with rich formatting to the end of a Google Docs document.
+    /// </summary>
+    /// <param name="documentId">The unique identifier of the Google Docs document.</param>
+    /// <param name="document">The structured document to append with rich formatting.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>A task representing the asynchronous append operation.</returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="documentId"/> is null or empty.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="document"/> is null.</exception>
+    public async Task AppendRichAsync(
+        string documentId,
+        GoogleDocsDocument document,
+        CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ValidateDocumentId(documentId);
+        ArgumentNullException.ThrowIfNull(document);
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        // Start at index 1 for appending to the end
+        // In Google Docs API, index 1 is the beginning of the document content
+        var requests = CreateRichContentRequests(document, startIndex: 1);
+
+        await _resiliencePipeline.ExecuteAsync(
+            async token =>
+            {
+                token.ThrowIfCancellationRequested();
+                await _clientWrapper.BatchUpdateAsync(documentId, requests, token).ConfigureAwait(false);
+            },
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Creates batch insert requests for the content, split into paragraphs.
     /// </summary>
     /// <param name="content">The content to insert.</param>
@@ -185,6 +219,188 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
                     }
                 }
             });
+        }
+
+        return requests;
+    }
+
+    /// <summary>
+    /// Creates batch requests for rich formatted content from a GoogleDocsDocument.
+    /// </summary>
+    /// <param name="document">The structured document with formatting sections.</param>
+    /// <param name="startIndex">The index at which to start inserting content.</param>
+    /// <returns>A list of requests for batch update with text and formatting.</returns>
+    private static List<Request> CreateRichContentRequests(GoogleDocsDocument document, int startIndex)
+    {
+        var requests = new List<Request>();
+        var currentIndex = startIndex;
+
+        foreach (var section in document.Sections)
+        {
+            switch (section)
+            {
+                case HeadingSection heading:
+                    {
+                        var textWithNewline = heading.Text + "\n";
+                        var textLength = textWithNewline.Length;
+
+                        // Insert text
+                        requests.Add(new Request
+                        {
+                            InsertText = new InsertTextRequest
+                            {
+                                Text = textWithNewline,
+                                Location = new Location { Index = currentIndex }
+                            }
+                        });
+
+                        // Apply heading style
+                        var namedStyleType = heading.Level == 1 ? "HEADING_1" : "HEADING_2";
+                        requests.Add(new Request
+                        {
+                            UpdateParagraphStyle = new UpdateParagraphStyleRequest
+                            {
+                                Range = new Google.Apis.Docs.v1.Data.Range
+                                {
+                                    StartIndex = currentIndex,
+                                    EndIndex = currentIndex + textLength
+                                },
+                                ParagraphStyle = new ParagraphStyle
+                                {
+                                    NamedStyleType = namedStyleType
+                                },
+                                Fields = "namedStyleType"
+                            }
+                        });
+
+                        currentIndex += textLength;
+                        break;
+                    }
+
+                case BoldTextSection bold:
+                    {
+                        var textLength = bold.Text.Length;
+
+                        // Insert text
+                        requests.Add(new Request
+                        {
+                            InsertText = new InsertTextRequest
+                            {
+                                Text = bold.Text,
+                                Location = new Location { Index = currentIndex }
+                            }
+                        });
+
+                        // Apply bold style
+                        requests.Add(new Request
+                        {
+                            UpdateTextStyle = new UpdateTextStyleRequest
+                            {
+                                Range = new Google.Apis.Docs.v1.Data.Range
+                                {
+                                    StartIndex = currentIndex,
+                                    EndIndex = currentIndex + textLength
+                                },
+                                TextStyle = new TextStyle
+                                {
+                                    Bold = true
+                                },
+                                Fields = "bold"
+                            }
+                        });
+
+                        currentIndex += textLength;
+                        break;
+                    }
+
+                case ParagraphSection paragraph:
+                    {
+                        var textWithNewline = paragraph.Text + "\n";
+                        var textLength = textWithNewline.Length;
+
+                        // Insert text
+                        requests.Add(new Request
+                        {
+                            InsertText = new InsertTextRequest
+                            {
+                                Text = textWithNewline,
+                                Location = new Location { Index = currentIndex }
+                            }
+                        });
+
+                        currentIndex += textLength;
+                        break;
+                    }
+
+                case HorizontalRuleSection:
+                    {
+                        var ruleText = "━━━━━━━━━━━━━━━━━━━━\n";
+                        var textLength = ruleText.Length;
+
+                        // Insert horizontal rule
+                        requests.Add(new Request
+                        {
+                            InsertText = new InsertTextRequest
+                            {
+                                Text = ruleText,
+                                Location = new Location { Index = currentIndex }
+                            }
+                        });
+
+                        currentIndex += textLength;
+                        break;
+                    }
+
+                case MetadataSection metadata:
+                    {
+                        var labelText = metadata.Label + ": ";
+                        var valueText = metadata.Value + "\n";
+                        var labelLength = labelText.Length;
+
+                        // Insert label
+                        requests.Add(new Request
+                        {
+                            InsertText = new InsertTextRequest
+                            {
+                                Text = labelText,
+                                Location = new Location { Index = currentIndex }
+                            }
+                        });
+
+                        // Apply bold to label
+                        requests.Add(new Request
+                        {
+                            UpdateTextStyle = new UpdateTextStyleRequest
+                            {
+                                Range = new Google.Apis.Docs.v1.Data.Range
+                                {
+                                    StartIndex = currentIndex,
+                                    EndIndex = currentIndex + labelLength
+                                },
+                                TextStyle = new TextStyle
+                                {
+                                    Bold = true
+                                },
+                                Fields = "bold"
+                            }
+                        });
+
+                        currentIndex += labelLength;
+
+                        // Insert value
+                        requests.Add(new Request
+                        {
+                            InsertText = new InsertTextRequest
+                            {
+                                Text = valueText,
+                                Location = new Location { Index = currentIndex }
+                            }
+                        });
+
+                        currentIndex += valueText.Length;
+                        break;
+                    }
+            }
         }
 
         return requests;
