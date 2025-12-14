@@ -162,6 +162,33 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
             cancellationToken).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
+    /// <exception cref="ArgumentException">Thrown when <paramref name="documentId"/> is null or empty.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="document"/> is null.</exception>
+    public async Task AppendRichAsync(
+        string documentId,
+        GoogleDocsDocument document,
+        CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ValidateDocumentId(documentId);
+        ArgumentNullException.ThrowIfNull(document);
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        // Insert at index 1, which is the beginning of the document content in Google Docs API
+        // Note: Despite the name "Append", this follows the same pattern as AppendAsync for consistency
+        var requests = CreateRichContentRequests(document, startIndex: 1);
+
+        await _resiliencePipeline.ExecuteAsync(
+            async token =>
+            {
+                token.ThrowIfCancellationRequested();
+                await _clientWrapper.BatchUpdateAsync(documentId, requests, token).ConfigureAwait(false);
+            },
+            cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>
     /// Creates batch insert requests for the content, split into paragraphs.
     /// </summary>

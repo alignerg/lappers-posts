@@ -388,6 +388,12 @@ public class UploadToGoogleDocsCommandHandlerTests
                     s.Contains("**Total Messages:** 2")),
                 It.IsAny<CancellationToken>()),
             Times.Once);
+        _googleDocsServiceMock.Verify(
+            x => x.AppendRichAsync(
+                It.IsAny<string>(),
+                It.IsAny<GoogleDocsDocument>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact(DisplayName = "HandleAsync with message-level formatter uses FormatMessages method")]
@@ -417,6 +423,69 @@ public class UploadToGoogleDocsCommandHandlerTests
                     s.Contains("Hello") &&
                     s.Contains("How are you?") &&
                     !s.Contains("# WhatsApp Conversation Export")),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact(DisplayName = "HandleAsync with GoogleDocs formatter calls AppendRichAsync")]
+    public async Task HandleAsync_WithGoogleDocsFormatter_CallsAppendRichAsync()
+    {
+        var command = new UploadToGoogleDocsCommand(
+            "/path/to/chat.txt", "Alice", "doc-123", MessageFormatType.GoogleDocs);
+        var now = DateTimeOffset.Now;
+        var messages = new[]
+        {
+            ChatMessage.Create(now, "Alice", "Hello"),
+            ChatMessage.Create(now.AddMinutes(1), "Alice", "How are you?")
+        };
+        var metadata = new ParsingMetadata("chat.txt", now, 2, 2, 0);
+        var chatExport = new ChatExport(Guid.NewGuid(), messages, metadata);
+        var checkpoint = ProcessingCheckpoint.Create(command.DocumentId, SenderFilter.Create(command.Sender));
+
+        SetupMocks(command, chatExport, checkpoint);
+
+        await _handler.HandleAsync(command);
+
+        _googleDocsServiceMock.Verify(
+            x => x.AppendRichAsync(
+                command.DocumentId,
+                It.IsAny<GoogleDocsDocument>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        _googleDocsServiceMock.Verify(
+            x => x.AppendAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact(DisplayName = "HandleAsync with GoogleDocs formatter passes correct document")]
+    public async Task HandleAsync_WithGoogleDocsFormatter_PassesCorrectDocument()
+    {
+        var command = new UploadToGoogleDocsCommand(
+            "/path/to/chat.txt", "Alice", "doc-123", MessageFormatType.GoogleDocs);
+        var now = DateTimeOffset.Now;
+        var messages = new[]
+        {
+            ChatMessage.Create(now, "Alice", "Hello"),
+            ChatMessage.Create(now.AddMinutes(1), "Alice", "How are you?")
+        };
+        var metadata = new ParsingMetadata("chat.txt", now, 2, 2, 0);
+        var chatExport = new ChatExport(Guid.NewGuid(), messages, metadata);
+        var checkpoint = ProcessingCheckpoint.Create(command.DocumentId, SenderFilter.Create(command.Sender));
+
+        SetupMocks(command, chatExport, checkpoint);
+
+        await _handler.HandleAsync(command);
+
+        _googleDocsServiceMock.Verify(
+            x => x.AppendRichAsync(
+                command.DocumentId,
+                It.Is<GoogleDocsDocument>(doc =>
+                    doc.Sections.OfType<HeadingSection>().Any(h => h.Text.Contains("Alice")) &&
+                    doc.Sections.OfType<ParagraphSection>().Any(p => p.Text.Contains("Hello")) &&
+                    doc.Sections.OfType<ParagraphSection>().Any(p => p.Text.Contains("How are you?"))),
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }

@@ -120,20 +120,26 @@ public sealed class UploadToGoogleDocsCommandHandler
 
         var formatter = FormatterFactory.Create(command.FormatterType);
 
-        string content;
-        if (formatter is IDocumentFormatter documentFormatter)
+        if (formatter is IGoogleDocsFormatter googleDocsFormatter)
         {
-            // Document-level formatting: process entire export at once
+            // Rich Google Docs formatting
             var exportToFormat = ChatExport.Create(unprocessedMessages, chatExport.Metadata);
-            content = documentFormatter.FormatDocument(exportToFormat);
+            var richDocument = googleDocsFormatter.FormatDocument(exportToFormat);
+            await _googleDocsService.AppendRichAsync(command.DocumentId, richDocument, cancellationToken);
+        }
+        else if (formatter is IDocumentFormatter documentFormatter)
+        {
+            // Plain text document formatting (e.g., markdown)
+            var exportToFormat = ChatExport.Create(unprocessedMessages, chatExport.Metadata);
+            var content = documentFormatter.FormatDocument(exportToFormat);
+            await _googleDocsService.AppendAsync(command.DocumentId, content, cancellationToken);
         }
         else
         {
-            // Message-level formatting: process messages individually
-            content = FormatMessages(unprocessedMessages, formatter);
+            // Message-level formatting
+            var content = FormatMessages(unprocessedMessages, formatter);
+            await _googleDocsService.AppendAsync(command.DocumentId, content, cancellationToken);
         }
-
-        await _googleDocsService.AppendAsync(command.DocumentId, content, cancellationToken);
 
         foreach (var message in unprocessedMessages)
         {
