@@ -1006,7 +1006,7 @@ public class GoogleDocsServiceAccountAdapterTests
         insertRequests[4]!.Location.Index.Should().Be(currentIndex);
     }
 
-    [Fact(DisplayName = "InsertRichAsync empty document no requests")]
+    [Fact(DisplayName = "InsertRichAsync handles empty document with no requests")]
     public async Task InsertRichAsync_EmptyDocument_NoRequests()
     {
         var documentId = "test-doc-123";
