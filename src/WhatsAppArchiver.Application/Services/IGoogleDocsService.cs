@@ -1,3 +1,5 @@
+using WhatsAppArchiver.Domain.Formatting;
+
 namespace WhatsAppArchiver.Application.Services;
 
 /// <summary>
@@ -56,6 +58,6 @@ public interface IGoogleDocsService
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="document"/> is null.</exception>
     Task InsertRichAsync(
         string documentId,
-        WhatsAppArchiver.Domain.Formatting.GoogleDocsDocument document,
+        GoogleDocsDocument document,
         CancellationToken cancellationToken = default);
 }
