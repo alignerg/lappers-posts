@@ -1104,6 +1104,9 @@ public class GoogleDocsServiceAccountAdapterTests
         capturedRequests.Should().NotBeNull();
         var insertRequest = capturedRequests![0].InsertText;
         insertRequest.Should().NotBeNull();
+        // The mock document's last element has EndIndex = 250.
+        // Google Docs API inserts text *before* the given index, so to append at the end,
+        // we use endIndex - 1 (i.e., 249) as the insertion point.
         insertRequest!.Location.Index.Should().Be(249);
     }
 
@@ -1156,6 +1159,8 @@ public class GoogleDocsServiceAccountAdapterTests
         capturedRequests.Should().NotBeNull();
         var insertRequest = capturedRequests![0].InsertText;
         insertRequest.Should().NotBeNull();
+        // The implementation uses DefaultIfEmpty(1) on the content indices, so for an empty sequence, Max() returns 1.
+        // Subtracting 1 gives 0, so the expected index for an empty document is 0.
         insertRequest!.Location.Index.Should().Be(0);
     }
 
