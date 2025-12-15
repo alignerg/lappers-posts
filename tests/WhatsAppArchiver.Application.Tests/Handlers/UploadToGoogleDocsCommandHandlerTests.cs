@@ -361,41 +361,6 @@ public class UploadToGoogleDocsCommandHandlerTests
             Times.Once);
     }
 
-    [Fact(DisplayName = "HandleAsync with document formatter uses FormatDocument method")]
-    public async Task HandleAsync_WithDocumentFormatter_UsesFormatDocumentMethod()
-    {
-        var command = new UploadToGoogleDocsCommand(
-            "/path/to/chat.txt", "Alice", "doc-123", MessageFormatType.GoogleDocs);
-        var now = DateTimeOffset.Now;
-        var messages = new[]
-        {
-            ChatMessage.Create(now, "Alice", "Hello"),
-            ChatMessage.Create(now.AddMinutes(1), "Alice", "How are you?")
-        };
-        var metadata = new ParsingMetadata("chat.txt", now, 2, 2, 0);
-        var chatExport = new ChatExport(Guid.NewGuid(), messages, metadata);
-        var checkpoint = ProcessingCheckpoint.Create(command.DocumentId, SenderFilter.Create(command.Sender));
-
-        SetupMocks(command, chatExport, checkpoint);
-
-        await _handler.HandleAsync(command);
-
-        _googleDocsServiceMock.Verify(
-            x => x.AppendRichAsync(
-                command.DocumentId,
-                It.Is<GoogleDocsDocument>(doc =>
-                    doc.Sections.Any(s => s is HeadingSection) &&
-                    doc.Sections.Any(s => s is MetadataSection)),
-                It.IsAny<CancellationToken>()),
-            Times.Once);
-        _googleDocsServiceMock.Verify(
-            x => x.AppendAsync(
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<CancellationToken>()),
-            Times.Never);
-    }
-
     [Fact(DisplayName = "HandleAsync with message-level formatter uses FormatMessages method")]
     public async Task HandleAsync_WithMessageLevelFormatter_UsesFormatMessagesMethod()
     {

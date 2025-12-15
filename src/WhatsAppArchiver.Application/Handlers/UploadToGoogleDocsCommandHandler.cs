@@ -79,8 +79,8 @@ public sealed class UploadToGoogleDocsCommandHandler
     /// <list type="bullet">
     /// <item>
     /// <description>
-    /// <strong>Document-level formatting</strong>: For formatters implementing <see cref="IDocumentFormatter"/>,
-    /// processes the entire export at once to enable aggregate-level operations like date grouping and document structure.
+    /// <strong>Rich Google Docs formatting</strong>: For formatters implementing <see cref="IGoogleDocsFormatter"/>,
+    /// processes the entire export at once to create structured documents with headings, metadata, and rich text.
     /// </description>
     /// </item>
     /// <item>
@@ -126,13 +126,6 @@ public sealed class UploadToGoogleDocsCommandHandler
             var exportToFormat = ChatExport.Create(unprocessedMessages, chatExport.Metadata);
             var richDocument = googleDocsFormatter.FormatDocument(exportToFormat);
             await _googleDocsService.AppendRichAsync(command.DocumentId, richDocument, cancellationToken);
-        }
-        else if (formatter is IDocumentFormatter documentFormatter)
-        {
-            // Plain text document formatting (e.g., markdown)
-            var exportToFormat = ChatExport.Create(unprocessedMessages, chatExport.Metadata);
-            var content = documentFormatter.FormatDocument(exportToFormat);
-            await _googleDocsService.AppendAsync(command.DocumentId, content, cancellationToken);
         }
         else
         {
