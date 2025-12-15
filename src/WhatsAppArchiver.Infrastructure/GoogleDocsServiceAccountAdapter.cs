@@ -648,8 +648,9 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
     {
         if (request.InsertText != null)
         {
-            var textLength = request.InsertText.Text?.Length ?? 0;
-            var textPreview = request.InsertText.Text?.Substring(0, Math.Min(100, textLength)) ?? string.Empty;
+            var text = request.InsertText.Text ?? string.Empty;
+            var textLength = text.Length;
+            var textPreview = text.Substring(0, Math.Min(100, textLength));
             
             _logger.LogDebug(
                 "First request details - Type: InsertText, Text length: {TextLength}, Text preview: {TextPreview}",
