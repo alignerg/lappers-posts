@@ -23,10 +23,13 @@ namespace WhatsAppArchiver.Domain.Formatting;
 /// <description>Messages grouped by date with H2 headers in MMMM d, yyyy format</description>
 /// </item>
 /// <item>
-/// <description>Individual messages with bold timestamps in 24-hour format (HH:mm)</description>
+/// <description>Page breaks between date sections for improved navigation</description>
 /// </item>
 /// <item>
-/// <description>Horizontal rules separating messages for readability</description>
+/// <description>Individual messages with bold timestamps in 24-hour format (HH:mm) followed by a newline</description>
+/// </item>
+/// <item>
+/// <description>Double empty lines separating messages for readability</description>
 /// </item>
 /// </list>
 /// <para>
@@ -57,10 +60,10 @@ public sealed class GoogleDocsDocumentFormatter : IGoogleDocsFormatter, IMessage
     /// <description>Groups messages by date (using message.Timestamp.Date)</description>
     /// </item>
     /// <item>
-    /// <description>For each date group, adds an H2 header with the date in MMMM d, yyyy format</description>
+    /// <description>For each date group, adds a page break (except first), then an H2 header with the date in MMMM d, yyyy format</description>
     /// </item>
     /// <item>
-    /// <description>For each message, adds a bold timestamp (HH:mm), content, and separator</description>
+    /// <description>For each message, adds a bold timestamp (HH:mm) with newline, content, and double empty line separator</description>
     /// </item>
     /// </list>
     /// <para>
@@ -100,23 +103,33 @@ public sealed class GoogleDocsDocumentFormatter : IGoogleDocsFormatter, IMessage
             .GroupBy(m => m.Timestamp.Date)
             .OrderBy(g => g.Key);
 
+        var isFirstDate = true;
+
         // Process each date group
         foreach (var dateGroup in messagesByDate)
         {
+            // Add page break before each date (except the first one)
+            if (!isFirstDate)
+            {
+                document.Add(new PageBreakSection());
+            }
+            isFirstDate = false;
+
             // Add H2 header for the date
             document.Add(new HeadingSection(2, dateGroup.Key.ToString("MMMM d, yyyy")));
 
             // Process each message in the date group
             foreach (var message in dateGroup.OrderBy(m => m.Timestamp))
             {
-                // Add bold timestamp (24-hour format)
-                document.Add(new BoldTextSection(message.Timestamp.ToString("HH:mm")));
+                // Add bold timestamp (24-hour format) with newline
+                document.Add(new BoldTextSection(message.Timestamp.ToString("HH:mm") + "\n"));
 
                 // Add message content (preserve line breaks)
                 document.Add(new ParagraphSection(message.Content));
 
-                // Add separator
-                document.Add(new HorizontalRuleSection());
+                // Add separator (double empty lines)
+                document.Add(new EmptyLineSection());
+                document.Add(new EmptyLineSection());
             }
         }
 

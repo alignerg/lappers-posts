@@ -45,6 +45,8 @@ public sealed class GoogleDocsDocument
             BoldTextSection bold => bold.Text,
             ParagraphSection paragraph => paragraph.Text,
             HorizontalRuleSection => "---",
+            PageBreakSection => "[PAGE BREAK]",
+            EmptyLineSection => "",
             MetadataSection metadata => $"{metadata.Label}: {metadata.Value}",
             _ => section.Content
         });
@@ -178,6 +180,30 @@ public sealed class ParagraphSection : DocumentSection
 /// This section type has no content and represents a visual separator in the document.
 /// </remarks>
 public sealed class HorizontalRuleSection : DocumentSection
+{
+    /// <inheritdoc />
+    public override string Content => string.Empty;
+}
+
+/// <summary>
+/// Represents a page break section.
+/// </summary>
+/// <remarks>
+/// This section type has no content and represents a page break in the document.
+/// </remarks>
+public sealed class PageBreakSection : DocumentSection
+{
+    /// <inheritdoc />
+    public override string Content => string.Empty;
+}
+
+/// <summary>
+/// Represents an empty line section for spacing.
+/// </summary>
+/// <remarks>
+/// This section type represents an empty line in the document for visual spacing.
+/// </remarks>
+public sealed class EmptyLineSection : DocumentSection
 {
     /// <inheritdoc />
     public override string Content => string.Empty;

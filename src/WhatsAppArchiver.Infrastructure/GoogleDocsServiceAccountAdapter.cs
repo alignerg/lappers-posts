@@ -411,6 +411,38 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
                         break;
                     }
 
+                case PageBreakSection:
+                    {
+                        // Insert page break using Google Docs API
+                        requests.Add(new Request
+                        {
+                            InsertPageBreak = new InsertPageBreakRequest
+                            {
+                                Location = new Location { Index = currentIndex }
+                            }
+                        });
+
+                        // Page break counts as 1 character in the document
+                        currentIndex += 1;
+                        break;
+                    }
+
+                case EmptyLineSection:
+                    {
+                        // Insert newline for empty line
+                        requests.Add(new Request
+                        {
+                            InsertText = new InsertTextRequest
+                            {
+                                Text = "\n",
+                                Location = new Location { Index = currentIndex }
+                            }
+                        });
+
+                        currentIndex += 1;
+                        break;
+                    }
+
                 case MetadataSection metadata:
                     {
                         var labelText = metadata.Label + ": ";

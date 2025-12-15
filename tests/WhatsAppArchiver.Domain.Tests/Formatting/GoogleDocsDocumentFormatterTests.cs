@@ -34,16 +34,20 @@ public class GoogleDocsDocumentFormatterTests
         Assert.Contains(result.Sections, s => s is HeadingSection h && h.Level == 2 && h.Text.Contains("January 15, 2024"));
         
         // Message sections - timestamps and content
-        Assert.Contains(result.Sections, s => s is BoldTextSection b && b.Text == "10:30");
+        Assert.Contains(result.Sections, s => s is BoldTextSection b && b.Text == "10:30\n");
         Assert.Contains(result.Sections, s => s is ParagraphSection p && p.Text == "First message");
-        Assert.Contains(result.Sections, s => s is BoldTextSection b && b.Text == "10:35");
+        Assert.Contains(result.Sections, s => s is BoldTextSection b && b.Text == "10:35\n");
         Assert.Contains(result.Sections, s => s is ParagraphSection p && p.Text == "Second message");
-        Assert.Contains(result.Sections, s => s is BoldTextSection b && b.Text == "10:40");
+        Assert.Contains(result.Sections, s => s is BoldTextSection b && b.Text == "10:40\n");
         Assert.Contains(result.Sections, s => s is ParagraphSection p && p.Text == "Third message");
         
-        // Horizontal rules
-        var horizontalRules = result.Sections.OfType<HorizontalRuleSection>().Count();
-        Assert.True(horizontalRules >= 4, "Should have at least 4 horizontal rules (1 header + 3 messages)");
+        // Empty lines (double empty lines after each message)
+        var emptyLines = result.Sections.OfType<EmptyLineSection>().Count();
+        Assert.True(emptyLines >= 6, "Should have at least 6 empty lines (2 per message for 3 messages)");
+        
+        // No page breaks for single day
+        var pageBreaks = result.Sections.OfType<PageBreakSection>().Count();
+        Assert.Equal(0, pageBreaks);
     }
 
     [Fact(DisplayName = "FormatDocument with multiple days groups by date chronologically")]
@@ -70,6 +74,10 @@ public class GoogleDocsDocumentFormatterTests
         Assert.Contains("January 15, 2024", dateHeaders[0].Text);
         Assert.Contains("January 16, 2024", dateHeaders[1].Text);
         Assert.Contains("January 17, 2024", dateHeaders[2].Text);
+        
+        // Verify page breaks between dates (should have 2 page breaks for 3 dates)
+        var pageBreaks = result.Sections.OfType<PageBreakSection>().Count();
+        Assert.Equal(2, pageBreaks);
     }
 
     [Fact(DisplayName = "FormatDocument with multi-line message preserves paragraph content")]
@@ -150,7 +158,7 @@ public class GoogleDocsDocumentFormatterTests
         Assert.Contains(result.Sections, s => s is HeadingSection h && h.Level == 2);
         Assert.Contains(result.Sections, s => s is BoldTextSection);
         Assert.Contains(result.Sections, s => s is ParagraphSection);
-        Assert.Contains(result.Sections, s => s is HorizontalRuleSection);
+        Assert.Contains(result.Sections, s => s is EmptyLineSection);
     }
 
     [Fact(DisplayName = "FormatDocument timestamp format uses 24-hour")]
@@ -169,10 +177,10 @@ public class GoogleDocsDocumentFormatterTests
 
         var boldSections = result.Sections.OfType<BoldTextSection>().ToList();
         
-        // Verify 24-hour HH:mm format (no AM/PM, leading zeros)
-        Assert.Contains(boldSections, b => b.Text == "14:45");
-        Assert.Contains(boldSections, b => b.Text == "09:05");
-        Assert.Contains(boldSections, b => b.Text == "00:30");
+        // Verify 24-hour HH:mm format (no AM/PM, leading zeros) - now with newline
+        Assert.Contains(boldSections, b => b.Text == "14:45\n");
+        Assert.Contains(boldSections, b => b.Text == "09:05\n");
+        Assert.Contains(boldSections, b => b.Text == "00:30\n");
     }
 
     [Fact(DisplayName = "FormatMessage when called throws NotSupportedException")]
