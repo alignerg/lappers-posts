@@ -365,7 +365,7 @@ public class UploadToGoogleDocsCommandHandlerTests
     public async Task HandleAsync_WithDocumentFormatter_UsesFormatDocumentMethod()
     {
         var command = new UploadToGoogleDocsCommand(
-            "/path/to/chat.txt", "Alice", "doc-123", MessageFormatType.MarkdownDocument);
+            "/path/to/chat.txt", "Alice", "doc-123", MessageFormatType.GoogleDocs);
         var now = DateTimeOffset.Now;
         var messages = new[]
         {
@@ -381,17 +381,17 @@ public class UploadToGoogleDocsCommandHandlerTests
         await _handler.HandleAsync(command);
 
         _googleDocsServiceMock.Verify(
-            x => x.AppendAsync(
+            x => x.AppendRichAsync(
                 command.DocumentId,
-                It.Is<string>(s =>
-                    s.Contains("# WhatsApp Conversation Export - Alice") &&
-                    s.Contains("**Total Messages:** 2")),
+                It.Is<GoogleDocsDocument>(doc =>
+                    doc.Sections.Any(s => s is HeadingSection) &&
+                    doc.Sections.Any(s => s is MetadataSection)),
                 It.IsAny<CancellationToken>()),
             Times.Once);
         _googleDocsServiceMock.Verify(
-            x => x.AppendRichAsync(
+            x => x.AppendAsync(
                 It.IsAny<string>(),
-                It.IsAny<GoogleDocsDocument>(),
+                It.IsAny<string>(),
                 It.IsAny<CancellationToken>()),
             Times.Never);
     }

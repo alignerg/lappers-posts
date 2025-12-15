@@ -20,8 +20,8 @@ namespace WhatsAppArchiver.Domain.Formatting;
 /// </item>
 /// <item>
 /// <description>
-/// <strong>Document-level formatters</strong> (<see cref="IDocumentFormatter"/>): Process entire
-/// <see cref="Aggregates.ChatExport"/> aggregates at once for format types: MarkdownDocument.
+/// <strong>Document-level formatters</strong> (<see cref="IGoogleDocsFormatter"/>): Process entire
+/// <see cref="Aggregates.ChatExport"/> aggregates at once for format type: GoogleDocs.
 /// </description>
 /// </item>
 /// </list>
@@ -36,14 +36,14 @@ namespace WhatsAppArchiver.Domain.Formatting;
 /// string formatted = messageFormatter.FormatMessage(chatMessage);
 /// 
 /// // Creating a document-level formatter
-/// IMessageFormatter formatter = FormatterFactory.Create(MessageFormatType.MarkdownDocument);
-/// if (formatter is IDocumentFormatter documentFormatter)
+/// IMessageFormatter formatter = FormatterFactory.Create(MessageFormatType.GoogleDocs);
+/// if (formatter is IGoogleDocsFormatter documentFormatter)
 /// {
 ///     string document = documentFormatter.FormatDocument(chatExport);
 /// }
 /// 
 /// // Checking if a format type requires document-level processing
-/// bool isDocument = FormatterFactory.IsDocumentFormatter(MessageFormatType.MarkdownDocument);
+/// bool isDocument = FormatterFactory.IsDocumentFormatter(MessageFormatType.GoogleDocs);
 /// </code>
 /// </example>
 public static class FormatterFactory
@@ -54,16 +54,15 @@ public static class FormatterFactory
     /// <param name="formatType">The type of formatting to apply.</param>
     /// <returns>
     /// An <see cref="IMessageFormatter"/> instance for the specified format type.
-    /// For document-level format types (e.g., MarkdownDocument, GoogleDocs), the returned instance
-    /// also implements <see cref="IDocumentFormatter"/> or <see cref="IGoogleDocsFormatter"/> respectively.
+    /// For document-level format types (e.g., GoogleDocs), the returned instance
+    /// also implements <see cref="IGoogleDocsFormatter"/>.
     /// </returns>
     /// <exception cref="ArgumentOutOfRangeException">
     /// Thrown when <paramref name="formatType"/> is not a valid <see cref="MessageFormatType"/> value.
     /// </exception>
     /// <remarks>
     /// Document-level formatters (those where <see cref="IsDocumentFormatter"/> returns true)
-    /// implement both <see cref="IMessageFormatter"/> and either <see cref="IDocumentFormatter"/>
-    /// (for MarkdownDocument) or <see cref="IGoogleDocsFormatter"/> (for GoogleDocs).
+    /// implement both <see cref="IMessageFormatter"/> and <see cref="IGoogleDocsFormatter"/>.
     /// Cast to the appropriate interface to access document-level formatting capabilities.
     /// </remarks>
     public static IMessageFormatter Create(MessageFormatType formatType)
@@ -73,7 +72,9 @@ public static class FormatterFactory
             MessageFormatType.Default => new DefaultMessageFormatter(),
             MessageFormatType.Compact => new CompactMessageFormatter(),
             MessageFormatType.Verbose => new VerboseMessageFormatter(),
-            MessageFormatType.MarkdownDocument => new MarkdownDocumentFormatter(),
+#pragma warning disable CS0618 // Type or member is obsolete
+            MessageFormatType.MarkdownDocument => new GoogleDocsDocumentFormatter(), // Mapped to GoogleDocs for backward compatibility
+#pragma warning restore CS0618 // Type or member is obsolete
             MessageFormatType.GoogleDocs => new GoogleDocsDocumentFormatter(),
             _ => throw new ArgumentOutOfRangeException(nameof(formatType), formatType, "Unknown message format type.")
         };
@@ -84,18 +85,17 @@ public static class FormatterFactory
     /// </summary>
     /// <param name="formatType">The format type to check.</param>
     /// <returns>
-    /// <c>true</c> if the format type requires document-level formatting (<see cref="IDocumentFormatter"/>
-    /// or <see cref="IGoogleDocsFormatter"/>) for processing entire <see cref="Aggregates.ChatExport"/>
-    /// aggregates; otherwise, <c>false</c> for message-level formatters.
+    /// <c>true</c> if the format type requires document-level formatting (<see cref="IGoogleDocsFormatter"/>)
+    /// for processing entire <see cref="Aggregates.ChatExport"/> aggregates; otherwise, <c>false</c>
+    /// for message-level formatters.
     /// </returns>
     /// <remarks>
     /// Use this method to determine the appropriate formatting approach:
     /// <list type="bullet">
     /// <item>
     /// <description>
-    /// If <c>true</c>, cast the formatter to <see cref="IDocumentFormatter"/> or
-    /// <see cref="IGoogleDocsFormatter"/> and use the appropriate FormatDocument method
-    /// to process the entire export.
+    /// If <c>true</c>, cast the formatter to <see cref="IGoogleDocsFormatter"/>
+    /// and use the FormatDocument method to process the entire export.
     /// </description>
     /// </item>
     /// <item>
@@ -112,7 +112,7 @@ public static class FormatterFactory
     /// 
     /// if (FormatterFactory.IsDocumentFormatter(formatType))
     /// {
-    ///     var documentFormatter = (IDocumentFormatter)formatter;
+    ///     var documentFormatter = (IGoogleDocsFormatter)formatter;
     ///     content = documentFormatter.FormatDocument(chatExport);
     /// }
     /// else
@@ -122,5 +122,7 @@ public static class FormatterFactory
     /// </code>
     /// </example>
     public static bool IsDocumentFormatter(MessageFormatType formatType)
+#pragma warning disable CS0618 // Type or member is obsolete
         => formatType is MessageFormatType.MarkdownDocument or MessageFormatType.GoogleDocs;
+#pragma warning restore CS0618 // Type or member is obsolete
 }
