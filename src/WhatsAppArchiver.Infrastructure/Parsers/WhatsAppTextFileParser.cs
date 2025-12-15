@@ -47,6 +47,18 @@ public sealed class WhatsAppTextFileParser : IChatParser
         @"^\[\d{1,2}/\d{1,2}/\d{2,4},\s*\d{1,2}:\d{2}:\d{2}(?:\s*(?:AM|PM))?\]",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    // Media placeholder patterns to filter
+    private static readonly HashSet<string> MediaPlaceholderPatterns = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "<Media omitted>",
+        "[image omitted]",
+        "[video omitted]",
+        "[audio omitted]",
+        "<attached: image>",
+        "<attached: video>",
+        "<attached: audio>"
+    };
+
     private readonly ResiliencePipeline _resiliencePipeline;
     private readonly ILogger<WhatsAppTextFileParser> _logger;
     private readonly Func<string, CancellationToken, Task<string[]>>? _fileReader;
@@ -125,9 +137,13 @@ public sealed class WhatsAppTextFileParser : IChatParser
             if (TimestampStartPattern.IsMatch(line))
             {
                 // Save the previous message if exists
-                if (currentMessage is not null && !TryAddFinalMessage(messages, currentMessage, currentContent, i))
+                if (currentMessage is not null)
                 {
-                    failedLineCount++;
+                    var result = TryAddFinalMessage(messages, currentMessage, currentContent, i);
+                    if (result == MessageAddResult.Failed)
+                    {
+                        failedLineCount++;
+                    }
                 }
 
                 // Try to parse as a new message
@@ -161,9 +177,13 @@ public sealed class WhatsAppTextFileParser : IChatParser
         }
 
         // Don't forget the last message
-        if (currentMessage is not null && !TryAddFinalMessage(messages, currentMessage, currentContent, lines.Length))
+        if (currentMessage is not null)
         {
-            failedLineCount++;
+            var result = TryAddFinalMessage(messages, currentMessage, currentContent, lines.Length);
+            if (result == MessageAddResult.Failed)
+            {
+                failedLineCount++;
+            }
         }
 
         var metadata = ParsingMetadata.Create(
@@ -180,16 +200,31 @@ public sealed class WhatsAppTextFileParser : IChatParser
         return ChatExport.Create(messages, metadata);
     }
 
-    private bool TryAddFinalMessage(List<ChatMessage> messages, ChatMessage currentMessage, StringBuilder currentContent, int lineNumber)
+    private MessageAddResult TryAddFinalMessage(List<ChatMessage> messages, ChatMessage currentMessage, StringBuilder currentContent, int lineNumber)
     {
         var finalContent = currentContent.ToString();
+        
+        // Filter out link-only messages
+        if (IsLinkOnlyMessage(finalContent))
+        {
+            _logger.LogDebug("Filtered out link-only message at line {LineNumber}", lineNumber);
+            return MessageAddResult.Filtered;
+        }
+        
+        // Filter out media messages
+        if (IsMediaMessage(finalContent))
+        {
+            _logger.LogDebug("Filtered out media message at line {LineNumber}", lineNumber);
+            return MessageAddResult.Filtered;
+        }
+        
         try
         {
             messages.Add(ChatMessage.Create(
                 currentMessage.Timestamp,
                 currentMessage.Sender,
                 finalContent));
-            return true;
+            return MessageAddResult.Success;
         }
         catch (ArgumentException ex)
         {
@@ -199,8 +234,79 @@ public sealed class WhatsAppTextFileParser : IChatParser
                 lineNumber,
                 ex.Message,
                 ex.ParamName);
+            return MessageAddResult.Failed;
+        }
+    }
+    
+    /// <summary>
+    /// Determines if a message content represents a link-only message that should be filtered.
+    /// </summary>
+    /// <param name="content">The message content to check.</param>
+    /// <returns>True if the content is a link-only message (starts with http:// or https:// and contains no whitespace); otherwise, false.</returns>
+    /// <remarks>
+    /// This method filters messages that contain only a URL without any accompanying text.
+    /// Multi-line messages or messages with links embedded in text are not filtered.
+    /// </remarks>
+    private static bool IsLinkOnlyMessage(string content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
             return false;
         }
+        
+        var trimmed = content.Trim();
+        
+        // Check if the entire message is a URL (http:// or https://)
+        return (trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) &&
+               trimmed.IndexOf(' ') == -1;
+    }
+    
+    /// <summary>
+    /// Determines if a message content represents a media placeholder that should be filtered.
+    /// </summary>
+    /// <param name="content">The message content to check.</param>
+    /// <returns>True if the content matches a known media placeholder pattern; otherwise, false.</returns>
+    /// <remarks>
+    /// This method filters messages that indicate media attachments without meaningful text content.
+    /// Supported patterns include:
+    /// - <c>&lt;Media omitted&gt;</c>
+    /// - <c>[image omitted]</c>, <c>[video omitted]</c>, <c>[audio omitted]</c>
+    /// - <c>&lt;attached: image&gt;</c>, <c>&lt;attached: video&gt;</c>, <c>&lt;attached: audio&gt;</c>
+    /// All comparisons are case-insensitive.
+    /// </remarks>
+    private static bool IsMediaMessage(string content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return false;
+        }
+        
+        var trimmed = content.Trim();
+        
+        // Check for common media placeholder patterns using HashSet for O(1) lookup
+        return MediaPlaceholderPatterns.Contains(trimmed);
+    }
+    
+    /// <summary>
+    /// Represents the result of attempting to add a message.
+    /// </summary>
+    private enum MessageAddResult
+    {
+        /// <summary>
+        /// The message was successfully added.
+        /// </summary>
+        Success,
+        
+        /// <summary>
+        /// The message was intentionally filtered out (link-only or media placeholder).
+        /// </summary>
+        Filtered,
+        
+        /// <summary>
+        /// The message failed to be added due to a parsing or validation error.
+        /// </summary>
+        Failed
     }
 
     private (ChatMessage? Message, bool IsSuccess) TryParseMessageLine(string line, TimeSpan offset, int lineNumber)

@@ -319,4 +319,352 @@ public class WhatsAppTextFileParserTests
         // Initial attempt + 3 retries = 4 total attempts
         callCount.Should().Be(4, "Should have made initial attempt plus 3 retries");
     }
+
+    [Fact(DisplayName = "ParseAsync filters out link-only messages with HTTP protocol")]
+    public async Task ParseAsync_LinkOnlyMessagesWithHttp_FiltersOut()
+    {
+        var testLines = new[]
+        {
+            "[25/12/2024, 09:15:00] John Smith: Hello everyone!",
+            "[25/12/2024, 09:16:00] John Smith: http://example.com",
+            "[25/12/2024, 09:17:00] John Smith: Thanks for sharing!"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(2);
+        result.Messages.Should().NotContain(m => m.Content.Contains("http://example.com"));
+        result.Messages[0].Content.Should().Be("Hello everyone!");
+        result.Messages[1].Content.Should().Be("Thanks for sharing!");
+    }
+
+    [Fact(DisplayName = "ParseAsync filters out link-only messages with HTTPS protocol")]
+    public async Task ParseAsync_LinkOnlyMessagesWithHttps_FiltersOut()
+    {
+        var testLines = new[]
+        {
+            "[25/12/2024, 09:15:00] John Smith: Check this out",
+            "[25/12/2024, 09:16:00] John Smith: https://www.youtube.com/watch?v=xyz",
+            "[25/12/2024, 09:17:00] John Smith: Cool video!"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(2);
+        result.Messages.Should().NotContain(m => m.Content.Contains("https://www.youtube.com"));
+        result.Messages[0].Content.Should().Be("Check this out");
+        result.Messages[1].Content.Should().Be("Cool video!");
+    }
+
+    [Fact(DisplayName = "ParseAsync does not filter messages with links and text")]
+    public async Task ParseAsync_MessagesWithLinksAndText_DoesNotFilter()
+    {
+        var testLines = new[]
+        {
+            "[25/12/2024, 09:15:00] John Smith: Check out this article: https://example.com/article",
+            "[25/12/2024, 09:16:00] John Smith: I found this link http://test.com which is interesting"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(2);
+        result.Messages[0].Content.Should().Be("Check out this article: https://example.com/article");
+        result.Messages[1].Content.Should().Be("I found this link http://test.com which is interesting");
+    }
+
+    [Fact(DisplayName = "ParseAsync filters link-only messages with URL fragments")]
+    public async Task ParseAsync_LinkOnlyMessagesWithFragments_FiltersOut()
+    {
+        var testLines = new[]
+        {
+            "[25/12/2024, 09:15:00] John Smith: Here's a link",
+            "[25/12/2024, 09:16:00] John Smith: https://example.com/page#section",
+            "[25/12/2024, 09:17:00] John Smith: Did you check it?"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(2);
+        result.Messages[0].Content.Should().Be("Here's a link");
+        result.Messages[1].Content.Should().Be("Did you check it?");
+    }
+
+    [Fact(DisplayName = "ParseAsync filters link-only messages with encoded characters")]
+    public async Task ParseAsync_LinkOnlyMessagesWithEncodedChars_FiltersOut()
+    {
+        var testLines = new[]
+        {
+            "[25/12/2024, 09:15:00] John Smith: Sharing a search",
+            "[25/12/2024, 09:16:00] John Smith: https://example.com?q=hello%20world&sort=date",
+            "[25/12/2024, 09:17:00] John Smith: Useful results!"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(2);
+        result.Messages[0].Content.Should().Be("Sharing a search");
+        result.Messages[1].Content.Should().Be("Useful results!");
+    }
+
+    [Fact(DisplayName = "ParseAsync filters very long link-only URLs")]
+    public async Task ParseAsync_VeryLongLinkOnlyUrls_FiltersOut()
+    {
+        var longUrl = "https://example.com/very/long/path/with/many/segments/and/parameters?param1=value1&param2=value2&param3=value3&param4=value4";
+        var testLines = new[]
+        {
+            "[25/12/2024, 09:15:00] John Smith: Check this",
+            $"[25/12/2024, 09:16:00] John Smith: {longUrl}",
+            "[25/12/2024, 09:17:00] John Smith: Thanks!"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(2);
+        result.Messages[0].Content.Should().Be("Check this");
+        result.Messages[1].Content.Should().Be("Thanks!");
+    }
+
+    [Fact(DisplayName = "ParseAsync filters out media omitted messages")]
+    public async Task ParseAsync_MediaOmittedMessages_FiltersOut()
+    {
+        var testLines = new[]
+        {
+            "[25/12/2024, 09:15:00] John Smith: Hello!",
+            "[25/12/2024, 09:16:00] John Smith: <Media omitted>",
+            "[25/12/2024, 09:17:00] John Smith: Did you see that?"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(2);
+        result.Messages.Should().NotContain(m => m.Content.Contains("<Media omitted>"));
+        result.Messages[0].Content.Should().Be("Hello!");
+        result.Messages[1].Content.Should().Be("Did you see that?");
+    }
+
+    [Fact(DisplayName = "ParseAsync filters out image omitted messages")]
+    public async Task ParseAsync_ImageOmittedMessages_FiltersOut()
+    {
+        var testLines = new[]
+        {
+            "[25/12/2024, 09:15:00] John Smith: Look at this",
+            "[25/12/2024, 09:16:00] John Smith: [image omitted]",
+            "[25/12/2024, 09:17:00] John Smith: Nice picture!"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(2);
+        result.Messages.Should().NotContain(m => m.Content.Contains("[image omitted]"));
+        result.Messages[0].Content.Should().Be("Look at this");
+        result.Messages[1].Content.Should().Be("Nice picture!");
+    }
+
+    [Fact(DisplayName = "ParseAsync filters out video omitted messages")]
+    public async Task ParseAsync_VideoOmittedMessages_FiltersOut()
+    {
+        var testLines = new[]
+        {
+            "[25/12/2024, 09:15:00] John Smith: Watch this",
+            "[25/12/2024, 09:16:00] John Smith: [video omitted]",
+            "[25/12/2024, 09:17:00] John Smith: Great video!"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(2);
+        result.Messages.Should().NotContain(m => m.Content.Contains("[video omitted]"));
+        result.Messages[0].Content.Should().Be("Watch this");
+        result.Messages[1].Content.Should().Be("Great video!");
+    }
+
+    [Fact(DisplayName = "ParseAsync filters out audio omitted messages")]
+    public async Task ParseAsync_AudioOmittedMessages_FiltersOut()
+    {
+        var testLines = new[]
+        {
+            "[25/12/2024, 09:15:00] John Smith: Listen to this",
+            "[25/12/2024, 09:16:00] John Smith: [audio omitted]",
+            "[25/12/2024, 09:17:00] John Smith: Cool song!"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(2);
+        result.Messages.Should().NotContain(m => m.Content.Contains("[audio omitted]"));
+        result.Messages[0].Content.Should().Be("Listen to this");
+        result.Messages[1].Content.Should().Be("Cool song!");
+    }
+
+    [Fact(DisplayName = "ParseAsync filters out multiple media types in same conversation")]
+    public async Task ParseAsync_MultipleMediaTypes_FiltersAllOut()
+    {
+        var testLines = new[]
+        {
+            "[25/12/2024, 09:15:00] John Smith: Hello!",
+            "[25/12/2024, 09:16:00] John Smith: <Media omitted>",
+            "[25/12/2024, 09:17:00] John Smith: [image omitted]",
+            "[25/12/2024, 09:18:00] John Smith: [video omitted]",
+            "[25/12/2024, 09:19:00] John Smith: [audio omitted]",
+            "[25/12/2024, 09:20:00] John Smith: That was a lot of media!"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(2);
+        result.Messages[0].Content.Should().Be("Hello!");
+        result.Messages[1].Content.Should().Be("That was a lot of media!");
+    }
+
+    [Fact(DisplayName = "ParseAsync filters link-only and media messages together")]
+    public async Task ParseAsync_LinkOnlyAndMediaMessages_FiltersBothOut()
+    {
+        var testLines = new[]
+        {
+            "[25/12/2024, 09:15:00] John Smith: Hello!",
+            "[25/12/2024, 09:16:00] John Smith: https://example.com",
+            "[25/12/2024, 09:17:00] John Smith: <Media omitted>",
+            "[25/12/2024, 09:18:00] John Smith: Check this out: https://test.com with context",
+            "[25/12/2024, 09:19:00] John Smith: Goodbye!"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(3);
+        result.Messages[0].Content.Should().Be("Hello!");
+        result.Messages[1].Content.Should().Be("Check this out: https://test.com with context");
+        result.Messages[2].Content.Should().Be("Goodbye!");
+    }
+
+    [Fact(DisplayName = "ParseAsync does not filter multi-line messages with links")]
+    public async Task ParseAsync_MultiLineMessagesWithLinks_DoesNotFilter()
+    {
+        var testLines = new[]
+        {
+            "[25/12/2024, 09:15:00] John Smith: Here's an interesting article",
+            "https://example.com/article",
+            "that I wanted to share with you all"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(1);
+        result.Messages[0].Content.Should().Contain("Here's an interesting article");
+        result.Messages[0].Content.Should().Contain("https://example.com/article");
+        result.Messages[0].Content.Should().Contain("that I wanted to share with you all");
+    }
+
+    [Fact(DisplayName = "ParseAsync handles case insensitive media placeholders")]
+    public async Task ParseAsync_CaseInsensitiveMediaPlaceholders_FiltersOut()
+    {
+        var testLines = new[]
+        {
+            "[25/12/2024, 09:15:00] John Smith: Hello!",
+            "[25/12/2024, 09:16:00] John Smith: <MEDIA OMITTED>",
+            "[25/12/2024, 09:17:00] John Smith: [IMAGE OMITTED]",
+            "[25/12/2024, 09:18:00] John Smith: [Video Omitted]",
+            "[25/12/2024, 09:19:00] John Smith: Goodbye!"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(2);
+        result.Messages[0].Content.Should().Be("Hello!");
+        result.Messages[1].Content.Should().Be("Goodbye!");
+    }
+
+    [Fact(DisplayName = "ParseAsync filtered messages do not count as failed lines")]
+    public async Task ParseAsync_FilteredMessages_DoNotCountAsFailed()
+    {
+        var testLines = new[]
+        {
+            "[25/12/2024, 09:15:00] John Smith: Hello!",
+            "[25/12/2024, 09:16:00] John Smith: https://example.com",
+            "[25/12/2024, 09:17:00] John Smith: <Media omitted>",
+            "[25/12/2024, 09:18:00] John Smith: [image omitted]",
+            "[25/12/2024, 09:19:00] John Smith: Goodbye!"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(2, "only non-filtered messages should be in the result");
+        result.Metadata.ParsedMessageCount.Should().Be(2, "only non-filtered messages count as parsed");
+        result.Metadata.FailedLineCount.Should().Be(0, "filtered messages should not count as failed");
+        result.Metadata.TotalLines.Should().Be(5, "all lines should be counted");
+    }
 }
