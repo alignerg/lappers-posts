@@ -1252,8 +1252,8 @@ public class GoogleDocsServiceAccountAdapterTests
 
     #region Logging Tests
 
-    [Fact(DisplayName = "AppendAsync logs debug messages on success")]
-    public async Task AppendAsync_Success_LogsDebugMessages()
+    [Fact(DisplayName = "AppendAsync successful operation logs debug messages")]
+    public async Task AppendAsync_SuccessfulOperation_LogsDebugMessages()
     {
         var loggerMock = new Mock<Microsoft.Extensions.Logging.ILogger<GoogleDocsServiceAccountAdapter>>();
         var adapter = new GoogleDocsServiceAccountAdapter(
@@ -1289,8 +1289,8 @@ public class GoogleDocsServiceAccountAdapterTests
             Times.Once);
     }
 
-    [Fact(DisplayName = "AppendAsync logs error on Google API exception")]
-    public async Task AppendAsync_GoogleApiException_LogsError()
+    [Fact(DisplayName = "AppendAsync Google API exception logs error with details")]
+    public async Task AppendAsync_GoogleApiExceptionThrown_LogsErrorWithDetails()
     {
         var loggerMock = new Mock<Microsoft.Extensions.Logging.ILogger<GoogleDocsServiceAccountAdapter>>();
         var adapter = new GoogleDocsServiceAccountAdapter(
@@ -1323,8 +1323,8 @@ public class GoogleDocsServiceAccountAdapterTests
             Times.Once);
     }
 
-    [Fact(DisplayName = "UploadAsync logs debug messages on success")]
-    public async Task UploadAsync_Success_LogsDebugMessages()
+    [Fact(DisplayName = "UploadAsync successful operation logs debug messages")]
+    public async Task UploadAsync_SuccessfulOperation_LogsDebugMessages()
     {
         var loggerMock = new Mock<Microsoft.Extensions.Logging.ILogger<GoogleDocsServiceAccountAdapter>>();
         var adapter = new GoogleDocsServiceAccountAdapter(
@@ -1360,8 +1360,8 @@ public class GoogleDocsServiceAccountAdapterTests
             Times.Once);
     }
 
-    [Fact(DisplayName = "AppendRichAsync logs debug messages on success")]
-    public async Task AppendRichAsync_Success_LogsDebugMessages()
+    [Fact(DisplayName = "AppendRichAsync successful operation logs debug messages")]
+    public async Task AppendRichAsync_SuccessfulOperation_LogsDebugMessages()
     {
         var loggerMock = new Mock<Microsoft.Extensions.Logging.ILogger<GoogleDocsServiceAccountAdapter>>();
         var adapter = new GoogleDocsServiceAccountAdapter(
@@ -1413,8 +1413,8 @@ public class GoogleDocsServiceAccountAdapterTests
             Times.Once);
     }
 
-    [Fact(DisplayName = "InsertRichAsync logs debug messages on success")]
-    public async Task InsertRichAsync_Success_LogsDebugMessages()
+    [Fact(DisplayName = "InsertRichAsync successful operation logs debug messages")]
+    public async Task InsertRichAsync_SuccessfulOperation_LogsDebugMessages()
     {
         var loggerMock = new Mock<Microsoft.Extensions.Logging.ILogger<GoogleDocsServiceAccountAdapter>>();
         var adapter = new GoogleDocsServiceAccountAdapter(
