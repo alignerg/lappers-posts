@@ -85,7 +85,7 @@ try
 
     var formatOption = new Option<MessageFormatType>("--format")
     {
-        Description = "Message format type (Default|Compact|Verbose|GoogleDocs)\nGoogleDocs: Rich formatted documents with heading styles and visual separators (parsing is case-insensitive)"
+        Description = "Message format type (default|compact|verbose|googledocs)\ngoogledocs: Rich formatted document with styled headings, bold timestamps, and visual separators"
     };
     formatOption.DefaultValueFactory = _ => MessageFormatType.Default;
 
