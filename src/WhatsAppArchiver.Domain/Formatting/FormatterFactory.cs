@@ -72,9 +72,6 @@ public static class FormatterFactory
             MessageFormatType.Default => new DefaultMessageFormatter(),
             MessageFormatType.Compact => new CompactMessageFormatter(),
             MessageFormatType.Verbose => new VerboseMessageFormatter(),
-#pragma warning disable CS0618 // Type or member is obsolete
-            MessageFormatType.MarkdownDocument => new GoogleDocsDocumentFormatter(), // Mapped to GoogleDocs for backward compatibility
-#pragma warning restore CS0618 // Type or member is obsolete
             MessageFormatType.GoogleDocs => new GoogleDocsDocumentFormatter(),
             _ => throw new ArgumentOutOfRangeException(nameof(formatType), formatType, "Unknown message format type.")
         };
@@ -122,7 +119,5 @@ public static class FormatterFactory
     /// </code>
     /// </example>
     public static bool IsDocumentFormatter(MessageFormatType formatType)
-#pragma warning disable CS0618 // Type or member is obsolete
-        => formatType is MessageFormatType.MarkdownDocument or MessageFormatType.GoogleDocs;
-#pragma warning restore CS0618 // Type or member is obsolete
+        => formatType == MessageFormatType.GoogleDocs;
 }

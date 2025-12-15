@@ -25,13 +25,6 @@ public enum MessageFormatType
     Verbose = 2,
 
     /// <summary>
-    /// Structured markdown document with friendly date headers (MMMM d, yyyy)
-    /// and individual timestamped posts. Requires IGoogleDocsFormatter for batch processing.
-    /// </summary>
-    [Obsolete("Replaced by GoogleDocs formatter. This value is mapped to GoogleDocs for backward compatibility.")]
-    MarkdownDocument = 3,
-
-    /// <summary>
     /// Rich formatted Google Docs with heading styles, bold timestamps, and visual separators.
     /// Requires IGoogleDocsFormatter for batch processing.
     /// </summary>

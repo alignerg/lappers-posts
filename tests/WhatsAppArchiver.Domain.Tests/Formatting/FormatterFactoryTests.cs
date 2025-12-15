@@ -39,18 +39,6 @@ public class FormatterFactoryTests
         Assert.Equal("formatType", exception.ParamName);
     }
 
-    [Fact(DisplayName = "Create with obsolete MarkdownDocument returns GoogleDocsDocumentFormatter for backward compatibility")]
-#pragma warning disable CS0618 // Type or member is obsolete
-    public void Create_MarkdownDocumentType_ReturnsGoogleDocsDocumentFormatter()
-    {
-        var formatter = FormatterFactory.Create(MessageFormatType.MarkdownDocument);
-
-        Assert.IsType<GoogleDocsDocumentFormatter>(formatter);
-        Assert.IsAssignableFrom<IGoogleDocsFormatter>(formatter);
-        Assert.IsAssignableFrom<IMessageFormatter>(formatter);
-    }
-#pragma warning restore CS0618 // Type or member is obsolete
-
     [Theory(DisplayName = "Create returns IMessageFormatter for all valid types")]
     [InlineData(MessageFormatType.Default)]
     [InlineData(MessageFormatType.Compact)]
@@ -71,16 +59,6 @@ public class FormatterFactoryTests
 
         Assert.NotSame(formatter1, formatter2);
     }
-
-    [Fact(DisplayName = "IsDocumentFormatter with obsolete MarkdownDocument returns true for backward compatibility")]
-#pragma warning disable CS0618 // Type or member is obsolete
-    public void IsDocumentFormatter_MarkdownDocumentType_ReturnsTrue()
-    {
-        var result = FormatterFactory.IsDocumentFormatter(MessageFormatType.MarkdownDocument);
-
-        Assert.True(result);
-    }
-#pragma warning restore CS0618 // Type or member is obsolete
 
     [Theory(DisplayName = "IsDocumentFormatter with message-level types returns false")]
     [InlineData(MessageFormatType.Default)]
