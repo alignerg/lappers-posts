@@ -183,6 +183,21 @@ public sealed class WhatsAppTextFileParser : IChatParser
     private bool TryAddFinalMessage(List<ChatMessage> messages, ChatMessage currentMessage, StringBuilder currentContent, int lineNumber)
     {
         var finalContent = currentContent.ToString();
+        
+        // Filter out link-only messages
+        if (IsLinkOnlyMessage(finalContent))
+        {
+            _logger.LogDebug("Filtered out link-only message at line {LineNumber}", lineNumber);
+            return false;
+        }
+        
+        // Filter out media messages
+        if (IsMediaMessage(finalContent))
+        {
+            _logger.LogDebug("Filtered out media message at line {LineNumber}", lineNumber);
+            return false;
+        }
+        
         try
         {
             messages.Add(ChatMessage.Create(
@@ -201,6 +216,40 @@ public sealed class WhatsAppTextFileParser : IChatParser
                 ex.ParamName);
             return false;
         }
+    }
+    
+    private static bool IsLinkOnlyMessage(string content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return false;
+        }
+        
+        var trimmed = content.Trim();
+        
+        // Check if the entire message is a URL (http:// or https://)
+        return (trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) &&
+               !trimmed.Any(char.IsWhiteSpace);
+    }
+    
+    private static bool IsMediaMessage(string content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return false;
+        }
+        
+        var trimmed = content.Trim();
+        
+        // Check for common media placeholder patterns
+        return trimmed.Equals("<Media omitted>", StringComparison.OrdinalIgnoreCase) ||
+               trimmed.Equals("[image omitted]", StringComparison.OrdinalIgnoreCase) ||
+               trimmed.Equals("[video omitted]", StringComparison.OrdinalIgnoreCase) ||
+               trimmed.Equals("[audio omitted]", StringComparison.OrdinalIgnoreCase) ||
+               trimmed.Equals("<attached: image>", StringComparison.OrdinalIgnoreCase) ||
+               trimmed.Equals("<attached: video>", StringComparison.OrdinalIgnoreCase) ||
+               trimmed.Equals("<attached: audio>", StringComparison.OrdinalIgnoreCase);
     }
 
     private (ChatMessage? Message, bool IsSuccess) TryParseMessageLine(string line, TimeSpan offset, int lineNumber)
