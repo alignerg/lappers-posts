@@ -3,6 +3,8 @@ using Google.Apis.Auth.OAuth2;
 using Google.Apis.Docs.v1;
 using Google.Apis.Docs.v1.Data;
 using Google.Apis.Services;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Polly;
 using Polly.Retry;
 using WhatsAppArchiver.Application.Services;
@@ -33,6 +35,7 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
     
     private readonly IGoogleDocsClientWrapper _clientWrapper;
     private readonly ResiliencePipeline _resiliencePipeline;
+    private readonly ILogger<GoogleDocsServiceAccountAdapter> _logger;
     private bool _disposed;
 
     /// <summary>
@@ -40,11 +43,13 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
     /// </summary>
     /// <param name="credentialFilePath">The path to the service account JSON key file.</param>
     /// <param name="clientFactory">The factory for creating Google Docs API clients.</param>
+    /// <param name="logger">Optional logger for diagnostic output.</param>
     /// <exception cref="ArgumentException">Thrown when <paramref name="credentialFilePath"/> is null or empty.</exception>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="clientFactory"/> is null.</exception>
     public GoogleDocsServiceAccountAdapter(
         string credentialFilePath,
-        IGoogleDocsClientFactory clientFactory)
+        IGoogleDocsClientFactory clientFactory,
+        ILogger<GoogleDocsServiceAccountAdapter>? logger = null)
     {
         if (string.IsNullOrWhiteSpace(credentialFilePath))
         {
@@ -57,6 +62,7 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
 
         _clientWrapper = clientFactory.Create(credentialFilePath);
         _resiliencePipeline = CreateResiliencePipeline();
+        _logger = logger ?? NullLogger<GoogleDocsServiceAccountAdapter>.Instance;
     }
 
     /// <summary>
@@ -64,16 +70,19 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
     /// </summary>
     /// <param name="clientWrapper">The pre-configured client wrapper.</param>
     /// <param name="resiliencePipeline">The resilience pipeline for retry logic.</param>
+    /// <param name="logger">Optional logger for diagnostic output.</param>
     /// <exception cref="ArgumentNullException">Thrown when any parameter is null.</exception>
     internal GoogleDocsServiceAccountAdapter(
         IGoogleDocsClientWrapper clientWrapper,
-        ResiliencePipeline resiliencePipeline)
+        ResiliencePipeline resiliencePipeline,
+        ILogger<GoogleDocsServiceAccountAdapter>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(clientWrapper);
         ArgumentNullException.ThrowIfNull(resiliencePipeline);
 
         _clientWrapper = clientWrapper;
         _resiliencePipeline = resiliencePipeline;
+        _logger = logger ?? NullLogger<GoogleDocsServiceAccountAdapter>.Instance;
     }
 
     /// <inheritdoc />
@@ -92,13 +101,43 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
 
         var requests = CreateBatchInsertRequests(content, clearExisting: true);
 
-        await _resiliencePipeline.ExecuteAsync(
-            async token =>
+        _logger.LogDebug(
+            "Uploading content to document {DocumentId}: {RequestCount} requests, {ContentLength} characters (clearing existing content)",
+            documentId,
+            requests.Count,
+            content.Length);
+
+        try
+        {
+            await _resiliencePipeline.ExecuteAsync(
+                async token =>
+                {
+                    token.ThrowIfCancellationRequested();
+                    await _clientWrapper.BatchUpdateAsync(documentId, requests, token).ConfigureAwait(false);
+                },
+                cancellationToken).ConfigureAwait(false);
+
+            _logger.LogDebug(
+                "Successfully uploaded content to document {DocumentId}",
+                documentId);
+        }
+        catch (Google.GoogleApiException ex)
+        {
+            _logger.LogError(
+                ex,
+                "Google Docs API error for document {DocumentId}. Status: {StatusCode}, Requests: {RequestCount}, Content length: {ContentLength}",
+                documentId,
+                ex.HttpStatusCode,
+                requests.Count,
+                content.Length);
+
+            if (requests.Count > 0)
             {
-                token.ThrowIfCancellationRequested();
-                await _clientWrapper.BatchUpdateAsync(documentId, requests, token).ConfigureAwait(false);
-            },
-            cancellationToken).ConfigureAwait(false);
+                LogFirstRequestDetails(requests[0]);
+            }
+
+            throw;
+        }
     }
 
     /// <inheritdoc />
@@ -117,13 +156,43 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
 
         var requests = CreateBatchInsertRequests(content, clearExisting: false);
 
-        await _resiliencePipeline.ExecuteAsync(
-            async token =>
+        _logger.LogDebug(
+            "Appending content to document {DocumentId}: {RequestCount} requests, {ContentLength} characters",
+            documentId,
+            requests.Count,
+            content.Length);
+
+        try
+        {
+            await _resiliencePipeline.ExecuteAsync(
+                async token =>
+                {
+                    token.ThrowIfCancellationRequested();
+                    await _clientWrapper.BatchUpdateAsync(documentId, requests, token).ConfigureAwait(false);
+                },
+                cancellationToken).ConfigureAwait(false);
+
+            _logger.LogDebug(
+                "Successfully appended content to document {DocumentId}",
+                documentId);
+        }
+        catch (Google.GoogleApiException ex)
+        {
+            _logger.LogError(
+                ex,
+                "Google Docs API error for document {DocumentId}. Status: {StatusCode}, Requests: {RequestCount}, Content length: {ContentLength}",
+                documentId,
+                ex.HttpStatusCode,
+                requests.Count,
+                content.Length);
+
+            if (requests.Count > 0)
             {
-                token.ThrowIfCancellationRequested();
-                await _clientWrapper.BatchUpdateAsync(documentId, requests, token).ConfigureAwait(false);
-            },
-            cancellationToken).ConfigureAwait(false);
+                LogFirstRequestDetails(requests[0]);
+            }
+
+            throw;
+        }
     }
 
     /// <summary>
@@ -153,13 +222,43 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
         // Insert at index 1, which is the beginning of the document content in Google Docs API
         var requests = CreateRichContentRequests(document, startIndex: 1);
 
-        await _resiliencePipeline.ExecuteAsync(
-            async token =>
+        _logger.LogDebug(
+            "Inserting rich content to document {DocumentId}: {RequestCount} requests, {SectionCount} sections",
+            documentId,
+            requests.Count,
+            document.Sections.Count);
+
+        try
+        {
+            await _resiliencePipeline.ExecuteAsync(
+                async token =>
+                {
+                    token.ThrowIfCancellationRequested();
+                    await _clientWrapper.BatchUpdateAsync(documentId, requests, token).ConfigureAwait(false);
+                },
+                cancellationToken).ConfigureAwait(false);
+
+            _logger.LogDebug(
+                "Successfully inserted rich content to document {DocumentId}",
+                documentId);
+        }
+        catch (Google.GoogleApiException ex)
+        {
+            _logger.LogError(
+                ex,
+                "Google Docs API error for document {DocumentId}. Status: {StatusCode}, Requests: {RequestCount}, Sections: {SectionCount}",
+                documentId,
+                ex.HttpStatusCode,
+                requests.Count,
+                document.Sections.Count);
+
+            if (requests.Count > 0)
             {
-                token.ThrowIfCancellationRequested();
-                await _clientWrapper.BatchUpdateAsync(documentId, requests, token).ConfigureAwait(false);
-            },
-            cancellationToken).ConfigureAwait(false);
+                LogFirstRequestDetails(requests[0]);
+            }
+
+            throw;
+        }
     }
 
     /// <inheritdoc />
@@ -199,13 +298,43 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
 
         var requests = CreateRichContentRequests(document, startIndex: endIndex - 1);
 
-        await _resiliencePipeline.ExecuteAsync(
-            async token =>
+        _logger.LogDebug(
+            "Appending rich content to document {DocumentId}: {RequestCount} requests, {SectionCount} sections",
+            documentId,
+            requests.Count,
+            document.Sections.Count);
+
+        try
+        {
+            await _resiliencePipeline.ExecuteAsync(
+                async token =>
+                {
+                    token.ThrowIfCancellationRequested();
+                    await _clientWrapper.BatchUpdateAsync(documentId, requests, token).ConfigureAwait(false);
+                },
+                cancellationToken).ConfigureAwait(false);
+
+            _logger.LogDebug(
+                "Successfully appended rich content to document {DocumentId}",
+                documentId);
+        }
+        catch (Google.GoogleApiException ex)
+        {
+            _logger.LogError(
+                ex,
+                "Google Docs API error for document {DocumentId}. Status: {StatusCode}, Requests: {RequestCount}, Sections: {SectionCount}",
+                documentId,
+                ex.HttpStatusCode,
+                requests.Count,
+                document.Sections.Count);
+
+            if (requests.Count > 0)
             {
-                token.ThrowIfCancellationRequested();
-                await _clientWrapper.BatchUpdateAsync(documentId, requests, token).ConfigureAwait(false);
-            },
-            cancellationToken).ConfigureAwait(false);
+                LogFirstRequestDetails(requests[0]);
+            }
+
+            throw;
+        }
     }
 
     /// <summary>
@@ -510,6 +639,50 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
             System.Net.HttpStatusCode.GatewayTimeout => true,
             _ => false
         };
+
+    /// <summary>
+    /// Logs details about the first request for debugging purposes.
+    /// </summary>
+    /// <param name="request">The request to log details about.</param>
+    private void LogFirstRequestDetails(Request request)
+    {
+        if (request.InsertText != null)
+        {
+            var textLength = request.InsertText.Text?.Length ?? 0;
+            var textPreview = request.InsertText.Text?.Substring(0, Math.Min(100, textLength)) ?? string.Empty;
+            
+            _logger.LogDebug(
+                "First request details - Type: InsertText, Text length: {TextLength}, Text preview: {TextPreview}",
+                textLength,
+                textPreview);
+        }
+        else if (request.DeleteContentRange != null)
+        {
+            _logger.LogDebug(
+                "First request details - Type: DeleteContentRange, StartIndex: {StartIndex}, EndIndex: {EndIndex}",
+                request.DeleteContentRange.Range?.StartIndex,
+                request.DeleteContentRange.Range?.EndIndex);
+        }
+        else if (request.UpdateTextStyle != null)
+        {
+            _logger.LogDebug(
+                "First request details - Type: UpdateTextStyle, StartIndex: {StartIndex}, EndIndex: {EndIndex}",
+                request.UpdateTextStyle.Range?.StartIndex,
+                request.UpdateTextStyle.Range?.EndIndex);
+        }
+        else if (request.UpdateParagraphStyle != null)
+        {
+            _logger.LogDebug(
+                "First request details - Type: UpdateParagraphStyle, StartIndex: {StartIndex}, EndIndex: {EndIndex}",
+                request.UpdateParagraphStyle.Range?.StartIndex,
+                request.UpdateParagraphStyle.Range?.EndIndex);
+        }
+        else
+        {
+            _logger.LogDebug(
+                "First request details - Type: Other");
+        }
+    }
 
     /// <summary>
     /// Validates the document ID parameter.

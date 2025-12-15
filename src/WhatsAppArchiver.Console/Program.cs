@@ -213,8 +213,9 @@ try
             services.AddScoped<IGoogleDocsService>(sp =>
             {
                 var clientFactory = sp.GetRequiredService<IGoogleDocsClientFactory>();
+                var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<GoogleDocsServiceAccountAdapter>>();
 
-                return new GoogleDocsServiceAccountAdapter(googleDocsCredentialPath, clientFactory);
+                return new GoogleDocsServiceAccountAdapter(googleDocsCredentialPath, clientFactory, logger);
             });
 
             // Register JsonFileStateRepository as Singleton because it's stateless and thread-safe.
@@ -306,9 +307,24 @@ try
             Console.WriteLine("Operation cancelled");
             return 130; // Standard exit code for Ctrl+C
         }
+        catch (Google.GoogleApiException ex)
+        {
+            Log.Error(
+                ex,
+                "Google Docs API error during upload. Document: {DocumentId}, Chat file: {ChatFile}, Sender filter: {Sender}, Status: {StatusCode}",
+                docId,
+                chatFile,
+                senderFilter,
+                ex.HttpStatusCode);
+            return 1;
+        }
         catch (Exception ex)
         {
-            Log.Error(ex, "Error executing upload command");
+            Log.Error(
+                ex,
+                "Error executing upload command. Document: {DocumentId}, Chat file: {ChatFile}",
+                docId,
+                chatFile);
             return 1;
         }
         finally
