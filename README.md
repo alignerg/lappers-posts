@@ -572,6 +572,128 @@ rm state/doc1__mom.json
 - **No state file**: If a state file doesn't exist, all messages are processed as new
 - **Directory required**: You must always specify `--state-dir` - there is no default location
 
+## Message Formatters
+
+The application supports multiple formatting options to control how messages are displayed in Google Docs. Choose the formatter that best suits your needs using the `--format` argument.
+
+### Available Formatters
+
+#### Default Formatter
+
+The standard formatter that displays messages with timestamps and sender names in a simple format.
+
+**Format:** `[{timestamp}] {sender}: {content}`
+
+**Example:**
+```
+[09:15] John Smith: Good morning!
+[09:16] John Smith: How are you?
+```
+
+**Usage:**
+```bash
+dotnet run -- --chat-file ./chat.txt --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --state-dir ./state --format default
+```
+
+#### Compact Formatter
+
+A minimalist formatter that omits timestamps, showing only sender and content.
+
+**Format:** `{sender}: {content}`
+
+**Example:**
+```
+John Smith: Good morning!
+John Smith: How are you?
+```
+
+**Usage:**
+```bash
+dotnet run -- --chat-file ./chat.txt --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --state-dir ./state --format compact
+```
+
+#### Verbose Formatter
+
+A detailed formatter that includes full date/time information and additional metadata.
+
+**Format:** Detailed format with full date/time and metadata
+
+**Usage:**
+```bash
+dotnet run -- --chat-file ./chat.txt --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --state-dir ./state --format verbose
+```
+
+#### GoogleDocs Formatter
+
+The **GoogleDocs formatter** produces rich text output with proper heading styles, bold timestamps, and visual separators. This formatter is specifically designed to create professional, well-structured documents in Google Docs with advanced formatting features.
+
+**Features:**
+
+- **H1 heading** for document title with sender name
+- **Bold metadata labels** (Export Date, Total Messages) with normal text values
+- **H2 headings** for date sections (formatted as "MMMM d, yyyy", e.g., "December 15, 2024")
+- **Bold timestamps** in 24-hour format (HH:mm, e.g., "09:15")
+- **Unicode horizontal rules** (━━━━━━━━━━━━━━━━━━━━) between messages for visual separation
+- **Preserved multi-line message content** with original line breaks maintained
+- **Automatic date grouping** that organizes messages by day
+
+**Example Output Structure:**
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# WhatsApp Conversation Export - John Smith
+
+Export Date: December 15, 2024
+Total Messages: 127
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## December 14, 2024
+
+09:15
+Good morning! How are you today?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+09:16
+I'm doing well, thanks for asking!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## December 15, 2024
+
+08:30
+Just wanted to follow up on yesterday's conversation.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+**Note:** In Google Docs, the text appears with actual rich formatting:
+- Headings are styled with Google Docs heading styles (H1, H2)
+- Timestamps appear in **bold**
+- Metadata labels appear in **bold** while values are normal text
+- Horizontal rules are rendered as visual separators
+
+**Usage:**
+```bash
+dotnet run -- --chat-file ./chat.txt --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --state-dir ./state --format googledocs
+```
+
+**When to use GoogleDocs formatter:**
+- Creating professional conversation archives
+- Need visual separation between messages
+- Want clear date-based organization
+- Prefer reading experience over compactness
+- Sharing documents with non-technical users
+
+**Technical Details:**
+
+The GoogleDocs formatter operates differently from other formatters:
+- It processes the entire chat export as a batch operation
+- Creates a structured document model with typed sections (HeadingSection, BoldTextSection, ParagraphSection, etc.)
+- Uses Google Docs API batch update requests to apply rich formatting
+- Cannot format individual messages - requires the complete export for proper date grouping
+
+For more technical details about the GoogleDocs formatter implementation, see `docs/formatting-spec.md`.
+
 ## Troubleshooting
 
 ### Common Issues
