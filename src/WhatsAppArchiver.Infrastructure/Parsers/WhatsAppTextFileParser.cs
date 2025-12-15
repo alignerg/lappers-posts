@@ -47,6 +47,18 @@ public sealed class WhatsAppTextFileParser : IChatParser
         @"^\[\d{1,2}/\d{1,2}/\d{2,4},\s*\d{1,2}:\d{2}:\d{2}(?:\s*(?:AM|PM))?\]",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    // Media placeholder patterns to filter
+    private static readonly HashSet<string> MediaPlaceholderPatterns = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "<Media omitted>",
+        "[image omitted]",
+        "[video omitted]",
+        "[audio omitted]",
+        "<attached: image>",
+        "<attached: video>",
+        "<attached: audio>"
+    };
+
     private readonly ResiliencePipeline _resiliencePipeline;
     private readonly ILogger<WhatsAppTextFileParser> _logger;
     private readonly Func<string, CancellationToken, Task<string[]>>? _fileReader;
@@ -247,7 +259,7 @@ public sealed class WhatsAppTextFileParser : IChatParser
         // Check if the entire message is a URL (http:// or https://)
         return (trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
                 trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) &&
-               !trimmed.Any(char.IsWhiteSpace);
+               trimmed.IndexOf(' ') == -1;
     }
     
     /// <summary>
@@ -258,9 +270,9 @@ public sealed class WhatsAppTextFileParser : IChatParser
     /// <remarks>
     /// This method filters messages that indicate media attachments without meaningful text content.
     /// Supported patterns include:
-    /// - &lt;Media omitted&gt;
-    /// - [image omitted], [video omitted], [audio omitted]
-    /// - &lt;attached: image&gt;, &lt;attached: video&gt;, &lt;attached: audio&gt;
+    /// - <c>&lt;Media omitted&gt;</c>
+    /// - <c>[image omitted]</c>, <c>[video omitted]</c>, <c>[audio omitted]</c>
+    /// - <c>&lt;attached: image&gt;</c>, <c>&lt;attached: video&gt;</c>, <c>&lt;attached: audio&gt;</c>
     /// All comparisons are case-insensitive.
     /// </remarks>
     private static bool IsMediaMessage(string content)
@@ -272,14 +284,8 @@ public sealed class WhatsAppTextFileParser : IChatParser
         
         var trimmed = content.Trim();
         
-        // Check for common media placeholder patterns
-        return trimmed.Equals("<Media omitted>", StringComparison.OrdinalIgnoreCase) ||
-               trimmed.Equals("[image omitted]", StringComparison.OrdinalIgnoreCase) ||
-               trimmed.Equals("[video omitted]", StringComparison.OrdinalIgnoreCase) ||
-               trimmed.Equals("[audio omitted]", StringComparison.OrdinalIgnoreCase) ||
-               trimmed.Equals("<attached: image>", StringComparison.OrdinalIgnoreCase) ||
-               trimmed.Equals("<attached: video>", StringComparison.OrdinalIgnoreCase) ||
-               trimmed.Equals("<attached: audio>", StringComparison.OrdinalIgnoreCase);
+        // Check for common media placeholder patterns using HashSet for O(1) lookup
+        return MediaPlaceholderPatterns.Contains(trimmed);
     }
     
     /// <summary>
