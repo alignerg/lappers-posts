@@ -640,37 +640,34 @@ The **GoogleDocs formatter** produces rich text output with proper heading style
 **Example Output Structure:**
 
 ```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━
 
 # WhatsApp Conversation Export - John Smith
 
 Export Date: December 15, 2024
 Total Messages: 127
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━
 
 ## December 14, 2024
 
-09:15
-Good morning! How are you today?
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+09:15Good morning! How are you today?
+━━━━━━━━━━━━━━━━━━━━
 
-09:16
-I'm doing well, thanks for asking!
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+09:16I'm doing well, thanks for asking!
+━━━━━━━━━━━━━━━━━━━━
 
 ## December 15, 2024
 
-08:30
-Just wanted to follow up on yesterday's conversation.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+08:30Just wanted to follow up on yesterday's conversation.
+━━━━━━━━━━━━━━━━━━━━
 ```
 
 **Note:** In Google Docs, the text appears with actual rich formatting:
 - Headings are styled with Google Docs heading styles (H1, H2)
-- Timestamps appear in **bold**
-- Metadata labels appear in **bold** while values are normal text
-- Horizontal rules are rendered as visual separators
+- Timestamps (e.g., "09:15") appear in **bold** immediately before the message content
+- Metadata labels (e.g., "Export Date:") appear in **bold** while values are normal text
+- Horizontal rules are rendered as visual separators (20 "━" characters)
 
 **Usage:**
 ```bash

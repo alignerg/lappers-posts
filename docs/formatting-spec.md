@@ -59,7 +59,7 @@ Represents text that should be displayed in bold styling.
 **Rendering:**
 - Applied using Google Docs API `UpdateTextStyleRequest`
 - Sets `bold: true` in the text style
-- Timestamp is followed by a newline character
+- Text is inserted as-is (no newline is automatically appended)
 
 **Validation:**
 - Text cannot be null or whitespace
@@ -123,10 +123,10 @@ Represents a key-value pair where the label is bold and the value is normal text
   - Example: `new MetadataSection("Total Messages", "127")`
 
 **Rendering:**
-- Label and colon (":") are rendered in bold using `UpdateTextStyleRequest`
+- Label, colon (":"), and the following space are rendered in bold using `UpdateTextStyleRequest`
 - Value is rendered in normal text (no bold)
 - Format: `"{Label}: {Value}\n"`
-- Example rendering: `**Export Date:** December 15, 2024`
+- Example rendering: `**Export Date: **December 15, 2024`
 
 **Validation:**
 - Both label and value cannot be null or whitespace
@@ -259,19 +259,19 @@ EndIndex: 1 + 41 + 1 = 43
 **Calculation:**
 ```
 StartIndex: 43 (assuming previous section ended at 43)
-Label: "Export Date:"
-Label Length: 12 characters
-Value: " December 15, 2024"
-Value Length: 18 characters
-Total Text: "Export Date: December 15, 2024"
-Total Length: 30 characters
-Newline: 1 character (\n)
-EndIndex: 43 + 30 + 1 = 74
+Label: "Export Date"
+Label with colon and space: "Export Date: " (includes colon and space)
+Label Length: 13 characters
+Value: "December 15, 2024"
+Value with newline: "December 15, 2024\n"
+Value Length: 18 characters (17 + newline)
+EndIndex: 43 + 13 + 18 = 74
 ```
 
 **API Requests:**
-1. Insert text at index 43: `"Export Date: December 15, 2024\n"`
-2. Apply bold to label range [43, 55) - "Export Date:"
+1. Insert label text at index 43: `"Export Date: "`
+2. Apply bold to label range [43, 56) - "Export Date: " (13 characters including colon and space)
+3. Insert value text at index 56: `"December 15, 2024\n"`
 
 **Next section starts at:** Index 74
 
@@ -303,15 +303,15 @@ A typical message consists of: Bold timestamp + Paragraph content + Horizontal r
 StartIndex: 95
 
 1. Bold Timestamp:
-   Text: "09:15\n"
-   Length: 5 + 1 = 6
+   Text: "09:15" (no newline appended to bold sections)
+   Length: 5
    Range for bold: [95, 100)
-   Current Index: 95 + 6 = 101
+   Current Index: 95 + 5 = 100
 
 2. Paragraph Content:
-   Text: "Hello!\nHow are you?\n"
-   Length: 19 + 1 = 20
-   Current Index: 101 + 20 = 121
+   Text: "Hello!\nHow are you?\n" (newline IS appended to paragraphs)
+   Length: 6 + 1 + 13 + 1 = 21
+   Current Index: 100 + 21 = 121
 
 3. Horizontal Rule:
    Text: "━━━━━━━━━━━━━━━━━━━━\n"
@@ -320,9 +320,9 @@ StartIndex: 95
 ```
 
 **API Requests:**
-1. Insert "09:15\n" at index 95
+1. Insert "09:15" at index 95
 2. Apply bold to range [95, 100)
-3. Insert "Hello!\nHow are you?\n" at index 101
+3. Insert "Hello!\nHow are you?\n" at index 100
 4. Insert "━━━━━━━━━━━━━━━━━━━━\n" at index 121
 
 **Next section starts at:** Index 142
@@ -418,25 +418,22 @@ Total Messages: 3
 
 ## December 14, 2024
 
-09:15
-Good morning!
+09:15Good morning!
 ━━━━━━━━━━━━━━━━━━━━
 
-09:16
-How are you?
+09:16How are you?
 ━━━━━━━━━━━━━━━━━━━━
 
 ## December 15, 2024
 
-08:30
-Just checking in.
+08:30Just checking in.
 ━━━━━━━━━━━━━━━━━━━━
 ```
 
 **Note:** In actual Google Docs:
 - `#` headings are styled with H1 formatting
 - `##` headings are styled with H2 formatting
-- Timestamps and metadata labels appear in **bold**
+- Timestamps (e.g., "09:15") and metadata labels (e.g., "Export Date:") appear in **bold**
 - Horizontal rules appear as visual separators
 
 ## Implementation Details
@@ -481,10 +478,10 @@ Just checking in.
 
 ### Request Processing Order
 
-The Google Docs API processes batch requests in reverse order, so requests must be added in reverse:
+Requests should be added in the following order to ensure correct formatting:
 
-1. **Text insertion requests** (added last, executed first)
-2. **Styling requests** (added first, executed last)
+1. **Text insertion requests** (added first)
+2. **Styling requests** (added second)
 
 This ensures text exists before styling is applied.
 
