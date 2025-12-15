@@ -28,5 +28,5 @@ public enum MessageFormatType
     /// Rich formatted Google Docs with heading styles, bold timestamps, and visual separators.
     /// Requires IGoogleDocsFormatter for batch processing.
     /// </summary>
-    GoogleDocs = 4
+    GoogleDocs = 3
 }
