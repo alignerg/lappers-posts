@@ -125,9 +125,13 @@ public sealed class WhatsAppTextFileParser : IChatParser
             if (TimestampStartPattern.IsMatch(line))
             {
                 // Save the previous message if exists
-                if (currentMessage is not null && !TryAddFinalMessage(messages, currentMessage, currentContent, i))
+                if (currentMessage is not null)
                 {
-                    failedLineCount++;
+                    var result = TryAddFinalMessage(messages, currentMessage, currentContent, i);
+                    if (result == MessageAddResult.Failed)
+                    {
+                        failedLineCount++;
+                    }
                 }
 
                 // Try to parse as a new message
@@ -161,9 +165,13 @@ public sealed class WhatsAppTextFileParser : IChatParser
         }
 
         // Don't forget the last message
-        if (currentMessage is not null && !TryAddFinalMessage(messages, currentMessage, currentContent, lines.Length))
+        if (currentMessage is not null)
         {
-            failedLineCount++;
+            var result = TryAddFinalMessage(messages, currentMessage, currentContent, lines.Length);
+            if (result == MessageAddResult.Failed)
+            {
+                failedLineCount++;
+            }
         }
 
         var metadata = ParsingMetadata.Create(
@@ -180,7 +188,7 @@ public sealed class WhatsAppTextFileParser : IChatParser
         return ChatExport.Create(messages, metadata);
     }
 
-    private bool TryAddFinalMessage(List<ChatMessage> messages, ChatMessage currentMessage, StringBuilder currentContent, int lineNumber)
+    private MessageAddResult TryAddFinalMessage(List<ChatMessage> messages, ChatMessage currentMessage, StringBuilder currentContent, int lineNumber)
     {
         var finalContent = currentContent.ToString();
         
@@ -188,14 +196,14 @@ public sealed class WhatsAppTextFileParser : IChatParser
         if (IsLinkOnlyMessage(finalContent))
         {
             _logger.LogDebug("Filtered out link-only message at line {LineNumber}", lineNumber);
-            return false;
+            return MessageAddResult.Filtered;
         }
         
         // Filter out media messages
         if (IsMediaMessage(finalContent))
         {
             _logger.LogDebug("Filtered out media message at line {LineNumber}", lineNumber);
-            return false;
+            return MessageAddResult.Filtered;
         }
         
         try
@@ -204,7 +212,7 @@ public sealed class WhatsAppTextFileParser : IChatParser
                 currentMessage.Timestamp,
                 currentMessage.Sender,
                 finalContent));
-            return true;
+            return MessageAddResult.Success;
         }
         catch (ArgumentException ex)
         {
@@ -214,10 +222,19 @@ public sealed class WhatsAppTextFileParser : IChatParser
                 lineNumber,
                 ex.Message,
                 ex.ParamName);
-            return false;
+            return MessageAddResult.Failed;
         }
     }
     
+    /// <summary>
+    /// Determines if a message content represents a link-only message that should be filtered.
+    /// </summary>
+    /// <param name="content">The message content to check.</param>
+    /// <returns>True if the content is a link-only message (starts with http:// or https:// and contains no whitespace); otherwise, false.</returns>
+    /// <remarks>
+    /// This method filters messages that contain only a URL without any accompanying text.
+    /// Multi-line messages or messages with links embedded in text are not filtered.
+    /// </remarks>
     private static bool IsLinkOnlyMessage(string content)
     {
         if (string.IsNullOrWhiteSpace(content))
@@ -233,6 +250,19 @@ public sealed class WhatsAppTextFileParser : IChatParser
                !trimmed.Any(char.IsWhiteSpace);
     }
     
+    /// <summary>
+    /// Determines if a message content represents a media placeholder that should be filtered.
+    /// </summary>
+    /// <param name="content">The message content to check.</param>
+    /// <returns>True if the content matches a known media placeholder pattern; otherwise, false.</returns>
+    /// <remarks>
+    /// This method filters messages that indicate media attachments without meaningful text content.
+    /// Supported patterns include:
+    /// - &lt;Media omitted&gt;
+    /// - [image omitted], [video omitted], [audio omitted]
+    /// - &lt;attached: image&gt;, &lt;attached: video&gt;, &lt;attached: audio&gt;
+    /// All comparisons are case-insensitive.
+    /// </remarks>
     private static bool IsMediaMessage(string content)
     {
         if (string.IsNullOrWhiteSpace(content))
@@ -250,6 +280,27 @@ public sealed class WhatsAppTextFileParser : IChatParser
                trimmed.Equals("<attached: image>", StringComparison.OrdinalIgnoreCase) ||
                trimmed.Equals("<attached: video>", StringComparison.OrdinalIgnoreCase) ||
                trimmed.Equals("<attached: audio>", StringComparison.OrdinalIgnoreCase);
+    }
+    
+    /// <summary>
+    /// Represents the result of attempting to add a message.
+    /// </summary>
+    private enum MessageAddResult
+    {
+        /// <summary>
+        /// The message was successfully added.
+        /// </summary>
+        Success,
+        
+        /// <summary>
+        /// The message was intentionally filtered out (link-only or media placeholder).
+        /// </summary>
+        Filtered,
+        
+        /// <summary>
+        /// The message failed to be added due to a parsing or validation error.
+        /// </summary>
+        Failed
     }
 
     private (ChatMessage? Message, bool IsSuccess) TryParseMessageLine(string line, TimeSpan offset, int lineNumber)

@@ -569,4 +569,29 @@ public class WhatsAppTextFileParserTests
         result.Messages[0].Content.Should().Be("Hello!");
         result.Messages[1].Content.Should().Be("Goodbye!");
     }
+
+    [Fact(DisplayName = "ParseAsync filtered messages do not count as failed lines")]
+    public async Task ParseAsync_FilteredMessages_DoNotCountAsFailed()
+    {
+        var testLines = new[]
+        {
+            "[25/12/2024, 09:15:00] John Smith: Hello!",
+            "[25/12/2024, 09:16:00] John Smith: https://example.com",
+            "[25/12/2024, 09:17:00] John Smith: <Media omitted>",
+            "[25/12/2024, 09:18:00] John Smith: [image omitted]",
+            "[25/12/2024, 09:19:00] John Smith: Goodbye!"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(2, "only non-filtered messages should be in the result");
+        result.Metadata.ParsedMessageCount.Should().Be(2, "only non-filtered messages count as parsed");
+        result.Metadata.FailedLineCount.Should().Be(0, "filtered messages should not count as failed");
+        result.Metadata.TotalLines.Should().Be(5, "all lines should be counted");
+    }
 }
