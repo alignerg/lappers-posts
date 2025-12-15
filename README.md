@@ -419,23 +419,54 @@ dotnet run --configuration Release -- --chat-file "/Users/yourusername/exports/c
 
 ### Upload Messages to Google Docs
 
-The application requires four mandatory arguments and supports several optional arguments:
+The application requires three mandatory arguments (chat file, sender filter, and doc ID) and supports several optional arguments for state management and formatting:
 
 ```bash
-# Basic usage with required arguments
-dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --state-dir ./state
+# Basic usage with state directory
+dotnet run -- --chat-file ./exports/chat.txt \
+              --sender-filter "John Smith" \
+              --doc-id "YOUR_DOCUMENT_ID" \
+              --state-dir ./state
+
+# Use state directory configured in appsettings.json
+dotnet run -- --chat-file ./exports/chat.txt \
+              --sender-filter "John Smith" \
+              --doc-id "YOUR_DOCUMENT_ID"
+
+# Specify explicit state file path (directory will be extracted)
+dotnet run -- --chat-file ./exports/chat.txt \
+              --sender-filter "John Smith" \
+              --doc-id "YOUR_DOCUMENT_ID" \
+              --state-file ~/docs/lappers/state/my-state.json
 
 # Use a specific message format
-dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --state-dir ./state --format compact
+dotnet run -- --chat-file ./exports/chat.txt \
+              --sender-filter "John Smith" \
+              --doc-id "YOUR_DOCUMENT_ID" \
+              --state-dir ./state \
+              --format compact
 
 # Use Google Docs format with styled headings and visual separators
-dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --state-dir ./state --format googledocs
+dotnet run -- --chat-file ./exports/chat.txt \
+              --sender-filter "John Smith" \
+              --doc-id "YOUR_DOCUMENT_ID" \
+              --state-dir ./state \
+              --format googledocs
 
 # Use a custom configuration file
-dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --state-dir ./state --config ./custom-appsettings.json
+dotnet run -- --chat-file ./exports/chat.txt \
+              --sender-filter "John Smith" \
+              --doc-id "YOUR_DOCUMENT_ID" \
+              --state-dir ./state \
+              --config ./custom-appsettings.json
 
 # Combine multiple arguments with different state directory
-dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --state-dir ~/docs/lappers/state --format verbose --config ./custom-appsettings.json
+dotnet run -- --chat-file ./exports/chat.txt \
+              --sender-filter "John Smith" \
+              --doc-id "YOUR_DOCUMENT_ID" \
+              --state-dir ~/docs/lappers/state \
+              --format verbose \
+              --config ./custom-appsettings.json
 ```
 
 ### Command-Line Arguments
@@ -454,10 +485,24 @@ dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-
   - Found in the document URL: `https://docs.google.com/document/d/YOUR_DOCUMENT_ID/edit`
   - Cannot be empty
 
+**State Management Arguments (at least one required):**
+
+State files track which messages have been processed to enable idempotent, resumable operations. You must specify state storage using one of these options:
+
 - `--state-dir`: Directory path where processing state files will be stored
+  - State files are auto-generated based on document ID and sender name
   - The application creates this directory if it doesn't exist
-  - State files track which messages have been processed to enable resumable operations
-  - Supports both absolute and relative paths (including tilde expansion on Unix-like systems)
+  - Example: `--state-dir ~/docs/lappers/state`
+  - Supports both absolute and relative paths (including tilde expansion)
+
+- `--state-file`: Path to a specific JSON state file
+  - The directory portion of the path will be used as the state directory
+  - State filename will still be auto-generated based on document ID and sender
+  - Useful for specifying a custom location or when migrating from older versions
+  - Example: `--state-file ~/docs/lappers/state/custom.json`
+  - **Takes precedence** over `--state-dir` if both are provided
+
+- **Configuration fallback**: If neither option is provided, the application uses `WhatsAppArchiver:StateRepository:BasePath` from `appsettings.json`
 
 **Optional Arguments:**
 
@@ -471,22 +516,54 @@ dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-
   - Overrides the default configuration file
   - File must exist if specified
 
-### State File Behavior
+### State File Management
 
 The application uses **state files** to track processing progress and ensure **idempotent operations** - meaning you can safely run the same command multiple times without uploading duplicate messages.
 
+#### State Storage Options
+
+You have three ways to specify where state files are stored (in order of precedence):
+
+1. **`--state-file` option**: Explicitly specify a state file path
+   ```bash
+   --state-file ~/docs/lappers/state/my-state.json
+   ```
+   - The directory (`~/docs/lappers/state/`) will be used as the state directory
+   - Actual filename will be auto-generated based on document ID and sender
+
+2. **`--state-dir` option**: Specify the state directory
+   ```bash
+   --state-dir ~/docs/lappers/state/
+   ```
+   - Recommended for most use cases
+   - State files are automatically managed
+
+3. **Configuration**: Set `StateRepository.BasePath` in `appsettings.json`
+   ```json
+   {
+     "WhatsAppArchiver": {
+       "StateRepository": {
+         "BasePath": "~/docs/lappers/state"
+       }
+     }
+   }
+   ```
+   - Useful when you want a consistent default across all runs
+   - Can still be overridden by command-line options
+
 #### How State Files Work
 
-1. **Location**: State files are stored in the directory you specify with the `--state-dir` argument:
+1. **Location**: State files are stored in the directory you specify:
    ```
-   /state/                        # State directory (specified via --state-dir)
-   /state/1syiodaz_rzgytu7c-mu__peyyczv0byfjfurf_stvy8__rudi_anderson.json  # Auto-generated state file
+   /state/                        # State directory
+   /state/1syiodaz_rzgytu7c__rudi_anderson.json  # Auto-generated state file
    ```
 
 2. **Filename Generation**: The application automatically generates state filenames based on:
-   - **Document ID**: Sanitized and normalized
+   - **Document ID**: Sanitized and normalized (lowercase, invalid chars replaced with underscores)
    - **Sender filter**: Sanitized and normalized (if provided)
    - Format: `{documentId}__{senderName}.json` or `{documentId}.json` (without sender filter)
+   - Long names are truncated and hashed to ensure uniqueness
 
 3. **Content**: Each state file contains:
    - **Document ID**: The Google Docs document being updated
@@ -495,7 +572,7 @@ The application uses **state files** to track processing progress and ensure **i
    - **Sender filter**: The sender name being filtered (if applicable)
 
 4. **Idempotency**: On subsequent runs:
-   - The application loads the appropriate state file from the specified directory
+   - The application loads the appropriate state file from the directory
    - Skips messages already in the processed list
    - Only uploads new messages not previously sent
    - Updates the state file with newly processed messages

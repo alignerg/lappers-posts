@@ -89,22 +89,33 @@ try
     };
     formatOption.DefaultValueFactory = _ => MessageFormatType.Default;
 
-    var stateDirOption = new Option<string>("--state-dir")
+    var stateDirOption = new Option<string?>("--state-dir")
     {
-        Description = "Directory path where processing state files will be stored",
-        Required = true
+        Description = "Directory path where processing state files will be stored. " +
+                      "State files are auto-generated based on document ID and sender. " +
+                      "If not specified, uses StateRepository.BasePath from appsettings.json"
     };
     stateDirOption.Validators.Add(result =>
     {
         var statePath = result.GetValue(stateDirOption);
-        if (string.IsNullOrWhiteSpace(statePath))
-        {
-            result.AddError("State directory path cannot be empty");
-            return;
-        }
-        if (ContainsInvalidPathChars(statePath))
+        if (!string.IsNullOrWhiteSpace(statePath) && ContainsInvalidPathChars(statePath))
         {
             result.AddError("State directory path contains invalid characters");
+        }
+    });
+
+    var stateFileOption = new Option<string?>("--state-file")
+    {
+        Description = "Path to specific JSON state file for tracking processed messages. " +
+                      "Takes precedence over --state-dir if both are provided. " +
+                      "Example: ~/docs/lappers/state/chat-doc123.json"
+    };
+    stateFileOption.Validators.Add(result =>
+    {
+        var statePath = result.GetValue(stateFileOption);
+        if (!string.IsNullOrWhiteSpace(statePath) && ContainsInvalidPathChars(statePath))
+        {
+            result.AddError("State file path contains invalid characters");
         }
     });
 
@@ -138,6 +149,7 @@ try
     rootCommand.Add(docIdOption);
     rootCommand.Add(formatOption);
     rootCommand.Add(stateDirOption);
+    rootCommand.Add(stateFileOption);
     rootCommand.Add(configOption);
 
     // Set the handler using ParseResult
@@ -147,14 +159,24 @@ try
         var senderFilter = parseResult.GetValue(senderFilterOption)!;
         var docId = parseResult.GetValue(docIdOption)!;
         var format = parseResult.GetValue(formatOption);
-        var stateDir = parseResult.GetValue(stateDirOption)!;
+        var stateDir = parseResult.GetValue(stateDirOption);
+        var stateFile = parseResult.GetValue(stateFileOption);
         var configFile = parseResult.GetValue(configOption);
 
         // Expand tilde (~) in file paths if present
         // chatFile is required and non-null, so expand unconditionally
         chatFile = PathUtilities.ExpandTildePath(chatFile)!;
-        // stateDir is required and non-null, so expand unconditionally
-        stateDir = PathUtilities.ExpandTildePath(stateDir)!;
+        
+        // Expand state-related paths if provided
+        if (!string.IsNullOrWhiteSpace(stateDir))
+        {
+            stateDir = PathUtilities.ExpandTildePath(stateDir);
+        }
+        if (!string.IsNullOrWhiteSpace(stateFile))
+        {
+            stateFile = PathUtilities.ExpandTildePath(stateFile);
+        }
+        
         // configFile is optional, so only expand if provided
         if (!string.IsNullOrWhiteSpace(configFile))
         {
@@ -217,13 +239,49 @@ try
                 return new GoogleDocsServiceAccountAdapter(googleDocsCredentialPath, clientFactory);
             });
 
+            // Determine state directory with precedence: --state-file > --state-dir > config
+            string resolvedStateDir;
+            if (!string.IsNullOrWhiteSpace(stateFile))
+            {
+                // If --state-file is provided, use its directory as the base path
+                // The repository will still auto-generate filenames based on documentId and sender
+                var directory = Path.GetDirectoryName(stateFile);
+                if (string.IsNullOrWhiteSpace(directory))
+                {
+                    throw new InvalidOperationException($"Cannot determine directory from state file path: {stateFile}");
+                }
+                resolvedStateDir = directory;
+                Log.Information("Using state directory from --state-file: {StateDir}", resolvedStateDir);
+            }
+            else if (!string.IsNullOrWhiteSpace(stateDir))
+            {
+                // If --state-dir is provided, use it directly
+                resolvedStateDir = stateDir;
+                Log.Information("Using state directory from --state-dir: {StateDir}", resolvedStateDir);
+            }
+            else
+            {
+                // Fall back to configuration
+                var configStateBasePath = hostContext.Configuration["WhatsAppArchiver:StateRepository:BasePath"];
+                if (!string.IsNullOrWhiteSpace(configStateBasePath))
+                {
+                    resolvedStateDir = PathUtilities.ExpandTildePath(configStateBasePath)!;
+                    Log.Information("Using state directory from configuration: {StateDir}", resolvedStateDir);
+                }
+                else
+                {
+                    throw new InvalidOperationException(
+                        "State directory not specified. Provide --state-dir, --state-file, or configure WhatsAppArchiver:StateRepository:BasePath in appsettings.json");
+                }
+            }
+
             // Register JsonFileStateRepository as Singleton because it's stateless and thread-safe.
             // The repository handles file I/O atomically and doesn't maintain mutable state.
             services.AddSingleton<IProcessingStateService>(sp =>
             {
                 var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<JsonFileStateRepository>>();
 
-                return new JsonFileStateRepository(stateDir, logger);
+                return new JsonFileStateRepository(resolvedStateDir, logger);
             });
 
             // Register handlers as Scoped services to align with Scoped dependencies (IGoogleDocsService).
