@@ -162,6 +162,52 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
             cancellationToken).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
+    /// <exception cref="ArgumentException">Thrown when <paramref name="documentId"/> is null or empty.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="document"/> is null.</exception>
+    public async Task AppendRichAsync(
+        string documentId,
+        GoogleDocsDocument document,
+        CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ValidateDocumentId(documentId);
+        ArgumentNullException.ThrowIfNull(document);
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        // Retrieve the document to determine the correct end index for appending
+        var googleDoc = await _resiliencePipeline.ExecuteAsync(
+            async token =>
+            {
+                token.ThrowIfCancellationRequested();
+                return await _clientWrapper.GetDocumentAsync(documentId, token).ConfigureAwait(false);
+            },
+            cancellationToken).ConfigureAwait(false);
+
+        if (googleDoc?.Body?.Content is null)
+        {
+            throw new InvalidOperationException($"Unable to retrieve document content for documentId '{documentId}'.");
+        }
+
+        // The end index of the document is the last element's endIndex
+        var endIndex = googleDoc.Body.Content
+            .Where(e => e.EndIndex.HasValue)
+            .Select(e => e.EndIndex!.Value)
+            .DefaultIfEmpty(1)
+            .Max();
+
+        var requests = CreateRichContentRequests(document, startIndex: endIndex - 1);
+
+        await _resiliencePipeline.ExecuteAsync(
+            async token =>
+            {
+                token.ThrowIfCancellationRequested();
+                await _clientWrapper.BatchUpdateAsync(documentId, requests, token).ConfigureAwait(false);
+            },
+            cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>
     /// Creates batch insert requests for the content, split into paragraphs.
     /// </summary>
@@ -528,6 +574,16 @@ public interface IGoogleDocsClientWrapper : IDisposable
         string documentId,
         IList<Request> requests,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Retrieves a Google Docs document.
+    /// </summary>
+    /// <param name="documentId">The document ID.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The Google Docs document.</returns>
+    Task<Document> GetDocumentAsync(
+        string documentId,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -629,6 +685,17 @@ internal sealed class GoogleDocsClientWrapper : IGoogleDocsClientWrapper
 
         var request = _docsService.Documents.BatchUpdate(batchUpdateRequest, documentId);
         await request.ExecuteAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<Document> GetDocumentAsync(
+        string documentId,
+        CancellationToken cancellationToken)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        var request = _docsService.Documents.Get(documentId);
+        return await request.ExecuteAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />

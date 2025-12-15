@@ -60,4 +60,18 @@ public interface IGoogleDocsService
         string documentId,
         GoogleDocsDocument document,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Appends a structured document with rich formatting to a Google Docs document.
+    /// </summary>
+    /// <param name="documentId">The unique identifier of the Google Docs document.</param>
+    /// <param name="document">The structured document to append with rich formatting.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>A task representing the asynchronous append operation.</returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="documentId"/> is null or empty.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="document"/> is null.</exception>
+    Task AppendRichAsync(
+        string documentId,
+        GoogleDocsDocument document,
+        CancellationToken cancellationToken = default);
 }

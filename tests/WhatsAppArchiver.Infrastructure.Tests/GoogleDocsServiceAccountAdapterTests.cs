@@ -1032,4 +1032,137 @@ public class GoogleDocsServiceAccountAdapterTests
     }
 
     #endregion
+
+    #region AppendRichAsync Tests
+
+    [Fact(DisplayName = "AppendRichAsync with null document ID throws ArgumentException")]
+    public async Task AppendRichAsync_NullDocumentId_ThrowsArgumentException()
+    {
+        var document = new GoogleDocsDocument();
+
+        var act = () => _adapter.AppendRichAsync(null!, document);
+
+        await act.Should().ThrowAsync<ArgumentException>()
+            .WithParameterName("documentId");
+    }
+
+    [Fact(DisplayName = "AppendRichAsync with empty document ID throws ArgumentException")]
+    public async Task AppendRichAsync_EmptyDocumentId_ThrowsArgumentException()
+    {
+        var document = new GoogleDocsDocument();
+
+        var act = () => _adapter.AppendRichAsync(string.Empty, document);
+
+        await act.Should().ThrowAsync<ArgumentException>()
+            .WithParameterName("documentId");
+    }
+
+    [Fact(DisplayName = "AppendRichAsync with null document throws ArgumentNullException")]
+    public async Task AppendRichAsync_NullDocument_ThrowsArgumentNullException()
+    {
+        var act = () => _adapter.AppendRichAsync("doc-123", null!);
+
+        await act.Should().ThrowAsync<ArgumentNullException>()
+            .WithParameterName("document");
+    }
+
+    [Fact(DisplayName = "AppendRichAsync retrieves document and appends at end index")]
+    public async Task AppendRichAsync_RetrievesDocument_AppendsAtEndIndex()
+    {
+        var documentId = "doc-123";
+        var document = new GoogleDocsDocument();
+        document.Add(new HeadingSection(1, "Test Heading"));
+
+        var mockGoogleDoc = new Document
+        {
+            Body = new Body
+            {
+                Content = new List<StructuralElement>
+                {
+                    new() { StartIndex = 1, EndIndex = 100 },
+                    new() { StartIndex = 100, EndIndex = 250 }
+                }
+            }
+        };
+
+        _clientWrapperMock
+            .Setup(x => x.GetDocumentAsync(documentId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockGoogleDoc);
+
+        IList<Request>? capturedRequests = null;
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(documentId, It.IsAny<IList<Request>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, IList<Request>, CancellationToken>((_, r, _) => capturedRequests = r)
+            .Returns(Task.CompletedTask);
+
+        await _adapter.AppendRichAsync(documentId, document);
+
+        _clientWrapperMock.Verify(
+            x => x.GetDocumentAsync(documentId, It.IsAny<CancellationToken>()),
+            Times.Once);
+
+        capturedRequests.Should().NotBeNull();
+        var insertRequest = capturedRequests![0].InsertText;
+        insertRequest.Should().NotBeNull();
+        // The mock document's last element has EndIndex = 250.
+        // Google Docs API inserts text *before* the given index, so to append at the end,
+        // we use endIndex - 1 (i.e., 249) as the insertion point.
+        insertRequest!.Location.Index.Should().Be(249);
+    }
+
+    [Fact(DisplayName = "AppendRichAsync with null document body throws InvalidOperationException")]
+    public async Task AppendRichAsync_NullDocumentBody_ThrowsInvalidOperationException()
+    {
+        var documentId = "doc-123";
+        var document = new GoogleDocsDocument();
+        document.Add(new HeadingSection(1, "Test Heading"));
+
+        var mockGoogleDoc = new Document { Body = null };
+
+        _clientWrapperMock
+            .Setup(x => x.GetDocumentAsync(documentId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockGoogleDoc);
+
+        var act = () => _adapter.AppendRichAsync(documentId, document);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage($"Unable to retrieve document content for documentId '{documentId}'.");
+    }
+
+    [Fact(DisplayName = "AppendRichAsync with empty document uses default index")]
+    public async Task AppendRichAsync_EmptyDocument_UsesDefaultIndex()
+    {
+        var documentId = "doc-123";
+        var document = new GoogleDocsDocument();
+        document.Add(new ParagraphSection("Test content"));
+
+        var mockGoogleDoc = new Document
+        {
+            Body = new Body
+            {
+                Content = new List<StructuralElement>()
+            }
+        };
+
+        _clientWrapperMock
+            .Setup(x => x.GetDocumentAsync(documentId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockGoogleDoc);
+
+        IList<Request>? capturedRequests = null;
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(documentId, It.IsAny<IList<Request>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, IList<Request>, CancellationToken>((_, r, _) => capturedRequests = r)
+            .Returns(Task.CompletedTask);
+
+        await _adapter.AppendRichAsync(documentId, document);
+
+        capturedRequests.Should().NotBeNull();
+        var insertRequest = capturedRequests![0].InsertText;
+        insertRequest.Should().NotBeNull();
+        // The implementation uses DefaultIfEmpty(1) on the content indices, so for an empty sequence, Max() returns 1.
+        // Subtracting 1 gives 0, so the expected index for an empty document is 0.
+        insertRequest!.Location.Index.Should().Be(0);
+    }
+
+    #endregion
 }
