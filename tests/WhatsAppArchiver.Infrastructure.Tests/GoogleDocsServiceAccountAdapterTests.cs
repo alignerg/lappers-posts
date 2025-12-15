@@ -1249,4 +1249,207 @@ public class GoogleDocsServiceAccountAdapterTests
     }
 
     #endregion
+
+    #region Logging Tests
+
+    [Fact(DisplayName = "AppendAsync logs debug messages on success")]
+    public async Task AppendAsync_Success_LogsDebugMessages()
+    {
+        var loggerMock = new Mock<Microsoft.Extensions.Logging.ILogger<GoogleDocsServiceAccountAdapter>>();
+        var adapter = new GoogleDocsServiceAccountAdapter(
+            _clientWrapperMock.Object,
+            _noRetryPipeline,
+            loggerMock.Object);
+
+        var documentId = "doc-123";
+        var content = "Test content\nLine 2";
+
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(documentId, It.IsAny<IList<Request>>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        await adapter.AppendAsync(documentId, content);
+
+        loggerMock.Verify(
+            x => x.Log(
+                Microsoft.Extensions.Logging.LogLevel.Debug,
+                It.IsAny<Microsoft.Extensions.Logging.EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Appending content to document")),
+                null,
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+
+        loggerMock.Verify(
+            x => x.Log(
+                Microsoft.Extensions.Logging.LogLevel.Debug,
+                It.IsAny<Microsoft.Extensions.Logging.EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Successfully appended content to document")),
+                null,
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact(DisplayName = "AppendAsync logs error on Google API exception")]
+    public async Task AppendAsync_GoogleApiException_LogsError()
+    {
+        var loggerMock = new Mock<Microsoft.Extensions.Logging.ILogger<GoogleDocsServiceAccountAdapter>>();
+        var adapter = new GoogleDocsServiceAccountAdapter(
+            _clientWrapperMock.Object,
+            _noRetryPipeline,
+            loggerMock.Object);
+
+        var documentId = "doc-123";
+        var content = "Test content";
+        var exception = new Google.GoogleApiException("Google Docs", "Bad Request")
+        {
+            HttpStatusCode = System.Net.HttpStatusCode.BadRequest
+        };
+
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(documentId, It.IsAny<IList<Request>>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(exception);
+
+        var act = () => adapter.AppendAsync(documentId, content);
+
+        await act.Should().ThrowAsync<Google.GoogleApiException>();
+
+        loggerMock.Verify(
+            x => x.Log(
+                Microsoft.Extensions.Logging.LogLevel.Error,
+                It.IsAny<Microsoft.Extensions.Logging.EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Google Docs API error for document")),
+                exception,
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact(DisplayName = "UploadAsync logs debug messages on success")]
+    public async Task UploadAsync_Success_LogsDebugMessages()
+    {
+        var loggerMock = new Mock<Microsoft.Extensions.Logging.ILogger<GoogleDocsServiceAccountAdapter>>();
+        var adapter = new GoogleDocsServiceAccountAdapter(
+            _clientWrapperMock.Object,
+            _noRetryPipeline,
+            loggerMock.Object);
+
+        var documentId = "doc-123";
+        var content = "Test content";
+
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(documentId, It.IsAny<IList<Request>>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        await adapter.UploadAsync(documentId, content);
+
+        loggerMock.Verify(
+            x => x.Log(
+                Microsoft.Extensions.Logging.LogLevel.Debug,
+                It.IsAny<Microsoft.Extensions.Logging.EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Uploading content to document")),
+                null,
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+
+        loggerMock.Verify(
+            x => x.Log(
+                Microsoft.Extensions.Logging.LogLevel.Debug,
+                It.IsAny<Microsoft.Extensions.Logging.EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Successfully uploaded content to document")),
+                null,
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact(DisplayName = "AppendRichAsync logs debug messages on success")]
+    public async Task AppendRichAsync_Success_LogsDebugMessages()
+    {
+        var loggerMock = new Mock<Microsoft.Extensions.Logging.ILogger<GoogleDocsServiceAccountAdapter>>();
+        var adapter = new GoogleDocsServiceAccountAdapter(
+            _clientWrapperMock.Object,
+            _noRetryPipeline,
+            loggerMock.Object);
+
+        var documentId = "doc-123";
+        var document = new GoogleDocsDocument();
+        document.Add(new ParagraphSection("Test content"));
+
+        var mockGoogleDoc = new Document
+        {
+            Body = new Body
+            {
+                Content = new List<StructuralElement>
+                {
+                    new() { StartIndex = 1, EndIndex = 100 }
+                }
+            }
+        };
+
+        _clientWrapperMock
+            .Setup(x => x.GetDocumentAsync(documentId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockGoogleDoc);
+
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(documentId, It.IsAny<IList<Request>>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        await adapter.AppendRichAsync(documentId, document);
+
+        loggerMock.Verify(
+            x => x.Log(
+                Microsoft.Extensions.Logging.LogLevel.Debug,
+                It.IsAny<Microsoft.Extensions.Logging.EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Appending rich content to document")),
+                null,
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+
+        loggerMock.Verify(
+            x => x.Log(
+                Microsoft.Extensions.Logging.LogLevel.Debug,
+                It.IsAny<Microsoft.Extensions.Logging.EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Successfully appended rich content to document")),
+                null,
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact(DisplayName = "InsertRichAsync logs debug messages on success")]
+    public async Task InsertRichAsync_Success_LogsDebugMessages()
+    {
+        var loggerMock = new Mock<Microsoft.Extensions.Logging.ILogger<GoogleDocsServiceAccountAdapter>>();
+        var adapter = new GoogleDocsServiceAccountAdapter(
+            _clientWrapperMock.Object,
+            _noRetryPipeline,
+            loggerMock.Object);
+
+        var documentId = "doc-123";
+        var document = new GoogleDocsDocument();
+        document.Add(new HeadingSection(1, "Test heading"));
+
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(documentId, It.IsAny<IList<Request>>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        await adapter.InsertRichAsync(documentId, document);
+
+        loggerMock.Verify(
+            x => x.Log(
+                Microsoft.Extensions.Logging.LogLevel.Debug,
+                It.IsAny<Microsoft.Extensions.Logging.EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Inserting rich content to document")),
+                null,
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+
+        loggerMock.Verify(
+            x => x.Log(
+                Microsoft.Extensions.Logging.LogLevel.Debug,
+                It.IsAny<Microsoft.Extensions.Logging.EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Successfully inserted rich content to document")),
+                null,
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    #endregion
 }
