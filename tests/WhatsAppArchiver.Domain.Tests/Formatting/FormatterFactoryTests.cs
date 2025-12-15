@@ -39,21 +39,10 @@ public class FormatterFactoryTests
         Assert.Equal("formatType", exception.ParamName);
     }
 
-    [Fact(DisplayName = "Create with MarkdownDocument returns MarkdownDocumentFormatter")]
-    public void Create_MarkdownDocumentType_ReturnsMarkdownDocumentFormatter()
-    {
-        var formatter = FormatterFactory.Create(MessageFormatType.MarkdownDocument);
-
-        Assert.IsType<MarkdownDocumentFormatter>(formatter);
-        Assert.IsAssignableFrom<IDocumentFormatter>(formatter);
-        Assert.IsAssignableFrom<IMessageFormatter>(formatter);
-    }
-
     [Theory(DisplayName = "Create returns IMessageFormatter for all valid types")]
     [InlineData(MessageFormatType.Default)]
     [InlineData(MessageFormatType.Compact)]
     [InlineData(MessageFormatType.Verbose)]
-    [InlineData(MessageFormatType.MarkdownDocument)]
     [InlineData(MessageFormatType.GoogleDocs)]
     public void Create_AllValidTypes_ReturnsIMessageFormatter(MessageFormatType formatType)
     {
@@ -69,14 +58,6 @@ public class FormatterFactoryTests
         var formatter2 = FormatterFactory.Create(MessageFormatType.Default);
 
         Assert.NotSame(formatter1, formatter2);
-    }
-
-    [Fact(DisplayName = "IsDocumentFormatter with MarkdownDocument returns true")]
-    public void IsDocumentFormatter_MarkdownDocumentType_ReturnsTrue()
-    {
-        var result = FormatterFactory.IsDocumentFormatter(MessageFormatType.MarkdownDocument);
-
-        Assert.True(result);
     }
 
     [Theory(DisplayName = "IsDocumentFormatter with message-level types returns false")]
