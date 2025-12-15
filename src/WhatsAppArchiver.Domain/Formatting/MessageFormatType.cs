@@ -26,7 +26,7 @@ public enum MessageFormatType
 
     /// <summary>
     /// Structured markdown document with friendly date headers (MMMM d, yyyy)
-    /// and individual timestamped posts. Requires IDocumentFormatter for batch processing.
+    /// and individual timestamped posts. Requires IGoogleDocsFormatter for batch processing.
     /// </summary>
     [Obsolete("Replaced by GoogleDocs formatter. This value is mapped to GoogleDocs for backward compatibility.")]
     MarkdownDocument = 3,
