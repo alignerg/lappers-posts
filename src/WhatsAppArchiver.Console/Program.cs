@@ -106,9 +106,10 @@ try
 
     var stateFileOption = new Option<string?>("--state-file")
     {
-        Description = "Path to specific JSON state file for tracking processed messages. " +
+        Description = "Path to specify state directory for tracking processed messages. " +
+                      "The filename portion is ignored; the actual filename is auto-generated based on document ID and sender. " +
                       "Takes precedence over --state-dir if both are provided. " +
-                      "Example: ~/docs/lappers/state/chat-doc123.json"
+                      "Example: ~/docs/lappers/state/any-name.json"
     };
     stateFileOption.Validators.Add(result =>
     {
@@ -245,10 +246,18 @@ try
             {
                 // If --state-file is provided, use its directory as the base path
                 // The repository will still auto-generate filenames based on documentId and sender
-                var directory = Path.GetDirectoryName(stateFile);
+                // Normalize path and extract directory
+                var normalizedPath = Path.GetFullPath(stateFile);
+                var directory = Path.GetDirectoryName(normalizedPath);
                 if (string.IsNullOrWhiteSpace(directory))
                 {
-                    throw new InvalidOperationException($"Cannot determine directory from state file path: {stateFile}");
+                    throw new InvalidOperationException(
+                        $"Cannot determine directory from state file path: {stateFile}{Environment.NewLine}" +
+                        "Please provide a valid file path. Examples of valid state file paths:" + Environment.NewLine +
+                        "  - /var/data/whatsapp/state.json" + Environment.NewLine +
+                        "  - C:\\Users\\alice\\whatsapp\\state.json" + Environment.NewLine +
+                        "  - ./state.json" + Environment.NewLine +
+                        "Ensure the path includes a directory and a filename.");
                 }
                 resolvedStateDir = directory;
                 Log.Information("Using state directory from --state-file: {StateDir}", resolvedStateDir);

@@ -433,7 +433,7 @@ dotnet run -- --chat-file ./exports/chat.txt \
               --sender-filter "John Smith" \
               --doc-id "YOUR_DOCUMENT_ID"
 
-# Specify explicit state file path (directory will be extracted)
+# Specify state file path (only directory portion is used; filename is auto-generated)
 dotnet run -- --chat-file ./exports/chat.txt \
               --sender-filter "John Smith" \
               --doc-id "YOUR_DOCUMENT_ID" \
@@ -485,9 +485,9 @@ dotnet run -- --chat-file ./exports/chat.txt \
   - Found in the document URL: `https://docs.google.com/document/d/YOUR_DOCUMENT_ID/edit`
   - Cannot be empty
 
-**State Management Arguments (at least one required):**
+**State Management Arguments (optional, with fallback to configuration):**
 
-State files track which messages have been processed to enable idempotent, resumable operations. You must specify state storage using one of these options:
+State files track which messages have been processed to enable idempotent, resumable operations. State storage must be specified using either a command-line argument or configuration. If neither `--state-dir` nor `--state-file` is provided, the application will use the value from `WhatsAppArchiver:StateRepository:BasePath` in `appsettings.json`.
 
 - `--state-dir`: Directory path where processing state files will be stored
   - State files are auto-generated based on document ID and sender name
@@ -496,10 +496,10 @@ State files track which messages have been processed to enable idempotent, resum
   - Supports both absolute and relative paths (including tilde expansion)
 
 - `--state-file`: Path to a specific JSON state file
-  - The directory portion of the path will be used as the state directory
-  - State filename will still be auto-generated based on document ID and sender
+  - **Only the directory portion of the path is used; the filename is auto-generated based on document ID and sender**
+  - The filename portion of the provided path (e.g., `custom.json` in the example) is ignored
   - Useful for specifying a custom location or when migrating from older versions
-  - Example: `--state-file ~/docs/lappers/state/custom.json`
+  - Example: `--state-file ~/docs/lappers/state/custom.json` (the file will be created in `~/docs/lappers/state/` with an auto-generated name)
   - **Takes precedence** over `--state-dir` if both are provided
 
 - **Configuration fallback**: If neither option is provided, the application uses `WhatsAppArchiver:StateRepository:BasePath` from `appsettings.json`
@@ -528,8 +528,8 @@ You have three ways to specify where state files are stored (in order of precede
    ```bash
    --state-file ~/docs/lappers/state/my-state.json
    ```
-   - The directory (`~/docs/lappers/state/`) will be used as the state directory
-   - Actual filename will be auto-generated based on document ID and sender
+   - Only the directory portion of the path you provide (e.g., `~/docs/lappers/state/`) will be used as the state directory; the filename portion is ignored
+   - The actual state filename will always be auto-generated based on document ID and sender
 
 2. **`--state-dir` option**: Specify the state directory
    ```bash
