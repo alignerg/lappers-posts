@@ -486,6 +486,90 @@ public class GoogleDocsServiceAccountAdapterTests
             Times.Once);
     }
 
+    [Fact(DisplayName = "AppendAsync with content ending with newline does not create empty insert requests")]
+    public async Task AppendAsync_ContentEndingWithNewline_DoesNotCreateEmptyInsertRequests()
+    {
+        var content = "[16/07/2025, 04:23:28] Rudi Anderson: Message\n";
+        var insertTextRequests = await CaptureInsertTextRequestsAsync(content);
+
+        // Verify no empty or null text is inserted
+        insertTextRequests.Should().NotContain(text => string.IsNullOrEmpty(text));
+        
+        // Should have exactly one insert request for the message
+        insertTextRequests.Should().HaveCount(1);
+        insertTextRequests[0].Should().Be("[16/07/2025, 04:23:28] Rudi Anderson: Message\n");
+    }
+
+    [Fact(DisplayName = "AppendAsync with multiple messages ending with newlines does not create empty insert requests")]
+    public async Task AppendAsync_MultipleMessagesEndingWithNewlines_DoesNotCreateEmptyInsertRequests()
+    {
+        var content = "[16/07/2025, 04:23:28] Rudi Anderson: Message 1\n[16/07/2025, 04:24:00] Rudi Anderson: Message 2\n";
+        var insertTextRequests = await CaptureInsertTextRequestsAsync(content);
+
+        // Verify no empty or null text is inserted
+        insertTextRequests.Should().NotContain(text => string.IsNullOrEmpty(text));
+        
+        // Requests are inserted in reverse order for correct document assembly
+        // When reversed and concatenated, they should produce the original content exactly
+        var combinedText = string.Concat(insertTextRequests.AsEnumerable().Reverse());
+        combinedText.Should().Be(content);
+    }
+
+    [Fact(DisplayName = "AppendAsync with consecutive newlines does not create empty insert requests")]
+    public async Task AppendAsync_ConsecutiveNewlines_DoesNotCreateEmptyInsertRequests()
+    {
+        var content = "Line 1\n\n\nLine 2";
+        var insertTextRequests = await CaptureInsertTextRequestsAsync(content);
+
+        // Verify no empty or null text is inserted
+        insertTextRequests.Should().NotContain(text => string.IsNullOrEmpty(text));
+        
+        // Requests are inserted in reverse order for correct document assembly
+        // When reversed and concatenated, they should produce the original content exactly
+        var combinedText = string.Concat(insertTextRequests.AsEnumerable().Reverse());
+        combinedText.Should().Be(content);
+    }
+
+    [Fact(DisplayName = "AppendAsync with single message preserves content")]
+    public async Task AppendAsync_SingleMessage_PreservesContent()
+    {
+        var content = "Single message";
+        var insertTextRequests = await CaptureInsertTextRequestsAsync(content);
+
+        // Verify no empty or null text is inserted
+        insertTextRequests.Should().NotContain(text => string.IsNullOrEmpty(text));
+        
+        // Should have exactly one insert request
+        insertTextRequests.Should().HaveCount(1);
+        insertTextRequests[0].Should().Be("Single message");
+    }
+
+    private async Task<List<string>> CaptureInsertTextRequestsAsync(string content)
+    {
+        var documentId = "test-doc-123";
+        IList<Request>? capturedRequests = null;
+
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(
+                documentId,
+                It.IsAny<IList<Request>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<string, IList<Request>, CancellationToken>((_, requests, _) =>
+            {
+                capturedRequests = requests;
+            })
+            .Returns(Task.CompletedTask);
+
+        await _adapter.AppendAsync(documentId, content);
+
+        capturedRequests.Should().NotBeNull();
+        
+        return capturedRequests!
+            .Where(r => r.InsertText != null)
+            .Select(r => r.InsertText!.Text)
+            .ToList();
+    }
+
     [Fact(DisplayName = "UploadAsync with whitespace-only content handles correctly")]
     public async Task UploadAsync_WhitespaceOnlyContent_HandlesCorrectly()
     {
