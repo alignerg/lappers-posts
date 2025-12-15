@@ -486,6 +486,148 @@ public class GoogleDocsServiceAccountAdapterTests
             Times.Once);
     }
 
+    [Fact(DisplayName = "AppendAsync with content ending with newline does not create empty insert requests")]
+    public async Task AppendAsync_ContentEndingWithNewline_DoesNotCreateEmptyInsertRequests()
+    {
+        var documentId = "test-doc-123";
+        var content = "[16/07/2025, 04:23:28] Rudi Anderson: Message\n";
+        IList<Request>? capturedRequests = null;
+
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(
+                documentId,
+                It.IsAny<IList<Request>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<string, IList<Request>, CancellationToken>((_, requests, _) =>
+            {
+                capturedRequests = requests;
+            })
+            .Returns(Task.CompletedTask);
+
+        await _adapter.AppendAsync(documentId, content);
+
+        capturedRequests.Should().NotBeNull();
+        
+        var insertTextRequests = capturedRequests!
+            .Where(r => r.InsertText != null)
+            .Select(r => r.InsertText!.Text)
+            .ToList();
+
+        // Verify no empty or null text is inserted
+        insertTextRequests.Should().NotContain(text => string.IsNullOrEmpty(text));
+        
+        // Should have exactly one insert request for the message
+        insertTextRequests.Should().HaveCount(1);
+        insertTextRequests[0].Should().Be("[16/07/2025, 04:23:28] Rudi Anderson: Message\n");
+    }
+
+    [Fact(DisplayName = "AppendAsync with multiple messages ending with newlines does not create empty insert requests")]
+    public async Task AppendAsync_MultipleMessagesEndingWithNewlines_DoesNotCreateEmptyInsertRequests()
+    {
+        var documentId = "test-doc-123";
+        var content = "[16/07/2025, 04:23:28] Rudi Anderson: Message 1\n[16/07/2025, 04:24:00] Rudi Anderson: Message 2\n";
+        IList<Request>? capturedRequests = null;
+
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(
+                documentId,
+                It.IsAny<IList<Request>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<string, IList<Request>, CancellationToken>((_, requests, _) =>
+            {
+                capturedRequests = requests;
+            })
+            .Returns(Task.CompletedTask);
+
+        await _adapter.AppendAsync(documentId, content);
+
+        capturedRequests.Should().NotBeNull();
+        
+        var insertTextRequests = capturedRequests!
+            .Where(r => r.InsertText != null)
+            .Select(r => r.InsertText!.Text)
+            .ToList();
+
+        // Verify no empty or null text is inserted
+        insertTextRequests.Should().NotContain(text => string.IsNullOrEmpty(text));
+        
+        // Requests are inserted in reverse order for correct document assembly
+        // When reversed and concatenated, they should produce the original content exactly
+        var combinedText = string.Concat(insertTextRequests.AsEnumerable().Reverse());
+        combinedText.Should().Be(content);
+    }
+
+    [Fact(DisplayName = "AppendAsync with consecutive newlines does not create empty insert requests")]
+    public async Task AppendAsync_ConsecutiveNewlines_DoesNotCreateEmptyInsertRequests()
+    {
+        var documentId = "test-doc-123";
+        var content = "Line 1\n\n\nLine 2";
+        IList<Request>? capturedRequests = null;
+
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(
+                documentId,
+                It.IsAny<IList<Request>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<string, IList<Request>, CancellationToken>((_, requests, _) =>
+            {
+                capturedRequests = requests;
+            })
+            .Returns(Task.CompletedTask);
+
+        await _adapter.AppendAsync(documentId, content);
+
+        capturedRequests.Should().NotBeNull();
+        
+        var insertTextRequests = capturedRequests!
+            .Where(r => r.InsertText != null)
+            .Select(r => r.InsertText!.Text)
+            .ToList();
+
+        // Verify no empty or null text is inserted
+        insertTextRequests.Should().NotContain(text => string.IsNullOrEmpty(text));
+        
+        // Requests are inserted in reverse order for correct document assembly
+        // When reversed and concatenated, they should produce the original content exactly
+        var combinedText = string.Concat(insertTextRequests.AsEnumerable().Reverse());
+        combinedText.Should().Be(content);
+    }
+
+    [Fact(DisplayName = "AppendAsync with single message preserves content")]
+    public async Task AppendAsync_SingleMessage_PreservesContent()
+    {
+        var documentId = "test-doc-123";
+        var content = "Single message";
+        IList<Request>? capturedRequests = null;
+
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(
+                documentId,
+                It.IsAny<IList<Request>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<string, IList<Request>, CancellationToken>((_, requests, _) =>
+            {
+                capturedRequests = requests;
+            })
+            .Returns(Task.CompletedTask);
+
+        await _adapter.AppendAsync(documentId, content);
+
+        capturedRequests.Should().NotBeNull();
+        
+        var insertTextRequests = capturedRequests!
+            .Where(r => r.InsertText != null)
+            .Select(r => r.InsertText!.Text)
+            .ToList();
+
+        // Verify no empty or null text is inserted
+        insertTextRequests.Should().NotContain(text => string.IsNullOrEmpty(text));
+        
+        // Should have exactly one insert request
+        insertTextRequests.Should().HaveCount(1);
+        insertTextRequests[0].Should().Be("Single message");
+    }
+
     [Fact(DisplayName = "UploadAsync with whitespace-only content handles correctly")]
     public async Task UploadAsync_WhitespaceOnlyContent_HandlesCorrectly()
     {
