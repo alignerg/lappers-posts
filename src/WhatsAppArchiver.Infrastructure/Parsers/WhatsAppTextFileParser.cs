@@ -56,7 +56,8 @@ public sealed class WhatsAppTextFileParser : IChatParser
         "[audio omitted]",
         "<attached: image>",
         "<attached: video>",
-        "<attached: audio>"
+        "<attached: audio>",
+        "This message was deleted."
     };
 
     private readonly ResiliencePipeline _resiliencePipeline;
@@ -263,16 +264,17 @@ public sealed class WhatsAppTextFileParser : IChatParser
     }
     
     /// <summary>
-    /// Determines if a message content represents a media placeholder that should be filtered.
+    /// Determines if a message content represents a media placeholder or deleted message that should be filtered.
     /// </summary>
     /// <param name="content">The message content to check.</param>
-    /// <returns>True if the content matches a known media placeholder pattern; otherwise, false.</returns>
+    /// <returns>True if the content matches a known media placeholder or deleted message pattern; otherwise, false.</returns>
     /// <remarks>
-    /// This method filters messages that indicate media attachments without meaningful text content.
+    /// This method filters messages that indicate media attachments or deleted messages without meaningful text content.
     /// Supported patterns include:
     /// - <c>&lt;Media omitted&gt;</c>
     /// - <c>[image omitted]</c>, <c>[video omitted]</c>, <c>[audio omitted]</c>
     /// - <c>&lt;attached: image&gt;</c>, <c>&lt;attached: video&gt;</c>, <c>&lt;attached: audio&gt;</c>
+    /// - <c>This message was deleted.</c>
     /// All comparisons are case-insensitive.
     /// </remarks>
     private static bool IsMediaMessage(string content)

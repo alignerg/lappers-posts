@@ -477,6 +477,32 @@ public class WhatsAppTextFileParserTests
         result.Messages[1].Content.Should().Be("Did you see that?");
     }
 
+    [Fact(DisplayName = "ParseAsync filters out deleted messages")]
+    public async Task ParseAsync_DeletedMessages_FiltersOut()
+    {
+        var testLines = new[]
+        {
+            "[25/12/2024, 09:15:00] John Smith: Hello!",
+            "[25/12/2024, 09:16:00] Maria Garcia: This message was deleted.",
+            "[25/12/2024, 09:17:00] John Smith: Did you get my previous message?",
+            "[25/12/2024, 09:18:00] Alex Johnson: This message was deleted.",
+            "[25/12/2024, 09:19:00] John Smith: Goodbye!"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(3);
+        result.Messages.Should().NotContain(m => m.Content.Contains("This message was deleted."));
+        result.Messages[0].Content.Should().Be("Hello!");
+        result.Messages[1].Content.Should().Be("Did you get my previous message?");
+        result.Messages[2].Content.Should().Be("Goodbye!");
+    }
+
     [Fact(DisplayName = "ParseAsync filters out image omitted messages")]
     public async Task ParseAsync_ImageOmittedMessages_FiltersOut()
     {
