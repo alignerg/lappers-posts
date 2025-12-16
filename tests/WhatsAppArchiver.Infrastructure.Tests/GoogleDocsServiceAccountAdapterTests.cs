@@ -1040,6 +1040,49 @@ public class GoogleDocsServiceAccountAdapterTests
         insertTextRequests[0].Should().EndWith("\n");
     }
 
+    [Fact(DisplayName = "InsertRichAsync with bold text followed by plain text prevents style bleeding")]
+    public async Task InsertRichAsync_WithBoldTextFollowedByPlainText_PreventsStyleBleeding()
+    {
+        var documentId = "test-doc-123";
+        var document = new GoogleDocsDocument();
+        document.Add(new BoldTextSection("12:30"));
+        document.Add(new PlainTextSection("\n"));
+        document.Add(new ParagraphSection("Message content"));
+
+        IList<Request>? capturedRequests = null;
+
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(
+                documentId,
+                It.IsAny<IList<Request>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<string, IList<Request>, CancellationToken>((_, requests, _) =>
+            {
+                capturedRequests = requests;
+            })
+            .Returns(Task.CompletedTask);
+
+        await _adapter.InsertRichAsync(documentId, document);
+
+        capturedRequests.Should().NotBeNull();
+        
+        var insertTextRequests = capturedRequests!
+            .Where(r => r.InsertText != null)
+            .Select(r => r.InsertText)
+            .ToList();
+
+        insertTextRequests.Should().HaveCount(3);
+        insertTextRequests[0]!.Text.Should().Be("12:30");
+        insertTextRequests[1]!.Text.Should().Be("\n");
+        insertTextRequests[2]!.Text.Should().Be("Message content\n");
+        
+        var textStyleRequests = capturedRequests!
+            .Where(r => r.UpdateTextStyle != null)
+            .ToList();
+
+        textStyleRequests.Should().HaveCount(1);
+    }
+
     [Fact(DisplayName = "InsertRichAsync with metadata applies bold to labels")]
     public async Task InsertRichAsync_WithMetadata_AppliesBoldToLabels()
     {
