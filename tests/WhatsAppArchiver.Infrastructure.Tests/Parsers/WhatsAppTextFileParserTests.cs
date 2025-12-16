@@ -667,4 +667,97 @@ public class WhatsAppTextFileParserTests
         result.Metadata.FailedLineCount.Should().Be(0, "filtered messages should not count as failed");
         result.Metadata.TotalLines.Should().Be(5, "all lines should be counted");
     }
+
+    [Fact(DisplayName = "ParseAsync removes edited message tag from single-line messages")]
+    public async Task ParseAsync_EditedMessageTag_RemovesFromSingleLineMessages()
+    {
+        var testLines = new[]
+        {
+            "[25/12/2024, 09:15:00] John Smith: This is an edited message <This message was edited>",
+            "[25/12/2024, 09:16:00] Maria Garcia: Normal message",
+            "[25/12/2024, 09:17:00] John Smith: Another edited message <This message was edited>"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(3);
+        result.Messages[0].Content.Should().Be("This is an edited message");
+        result.Messages[0].Content.Should().NotContain("<This message was edited>");
+        result.Messages[1].Content.Should().Be("Normal message");
+        result.Messages[2].Content.Should().Be("Another edited message");
+        result.Messages[2].Content.Should().NotContain("<This message was edited>");
+    }
+
+    [Fact(DisplayName = "ParseAsync removes edited message tag from multi-line messages")]
+    public async Task ParseAsync_EditedMessageTag_RemovesFromMultiLineMessages()
+    {
+        var testLines = new[]
+        {
+            "[25/12/2024, 09:15:00] John Smith: This is a multi-line",
+            "edited message that spans",
+            "multiple lines <This message was edited>",
+            "[25/12/2024, 09:16:00] Maria Garcia: Normal message"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(2);
+        result.Messages[0].Content.Should().Be("This is a multi-line\nedited message that spans\nmultiple lines");
+        result.Messages[0].Content.Should().NotContain("<This message was edited>");
+        result.Messages[1].Content.Should().Be("Normal message");
+    }
+
+    [Fact(DisplayName = "ParseAsync does not modify messages without edited tag")]
+    public async Task ParseAsync_NoEditedTag_LeavesMessageUnchanged()
+    {
+        var testLines = new[]
+        {
+            "[25/12/2024, 09:15:00] John Smith: This message mentions <This message was edited> in the middle",
+            "[25/12/2024, 09:16:00] Maria Garcia: Another message with <something> tags"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(2);
+        result.Messages[0].Content.Should().Be("This message mentions <This message was edited> in the middle");
+        result.Messages[1].Content.Should().Be("Another message with <something> tags");
+    }
+
+    [Fact(DisplayName = "ParseAsync handles message with only edited tag")]
+    public async Task ParseAsync_EditedTagOnly_HandlesGracefully()
+    {
+        var testLines = new[]
+        {
+            "[25/12/2024, 09:15:00] John Smith: Hello",
+            "[25/12/2024, 09:16:00] Maria Garcia: Some text <This message was edited>",
+            "[25/12/2024, 09:17:00] John Smith: Goodbye"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(3);
+        result.Messages[0].Content.Should().Be("Hello");
+        result.Messages[1].Content.Should().Be("Some text");
+        result.Messages[2].Content.Should().Be("Goodbye");
+    }
 }
