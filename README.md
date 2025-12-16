@@ -375,7 +375,7 @@ cd src\WhatsAppArchiver.Console
 # Run with dotnet and required arguments (state directory optional if configured)
 dotnet run --configuration Release -- --chat-file "path\to\chat.txt" --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID"
 
-# Or specify state directory explicitly
+# Or, specify state directory explicitly if not configured
 dotnet run --configuration Release -- --chat-file "path\to\chat.txt" --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --state-dir ".\state"
 ```
 
@@ -490,11 +490,8 @@ dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-
 The application supports three ways to specify where state files are stored, with the following priority order:
 
 1. **`--state-file`** (Highest Priority): Path to extract the state directory from
-   - Only the directory portion is used; the filename is ignored and auto-generated based on document ID and sender filter
-   - Provides explicit control over the directory where the state file will be stored
-   - The directory portion is extracted and used as the base path; the filename portion of the path is ignored
-   - The actual state filename is always auto-generated based on document ID and sender filter
-   - Example: `--state-file ~/mystate/ignored.json` extracts and uses only `~/mystate/` as the base directory; the filename 'ignored.json' is discarded.
+   - Specifies the directory where the state file will be stored; the filename portion of the path is ignored, and the actual state filename is auto-generated based on document ID and sender filter
+   - Example: `--state-file ~/mystate/ignored.json` uses only `~/mystate/` as the base directory; the filename 'ignored.json' is ignored
    - Overrides both `--state-dir` and configuration defaults
 
 2. **`--state-dir`**: Directory path where state files will be stored
