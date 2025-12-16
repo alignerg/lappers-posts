@@ -967,6 +967,45 @@ public class GoogleDocsServiceAccountAdapterTests
         textStyleRequests[0]!.Fields.Should().Be("bold");
     }
 
+    [Fact(DisplayName = "InsertRichAsync with plain text sections creates insert text requests without styling")]
+    public async Task InsertRichAsync_WithPlainTextSections_CreatesInsertTextRequestsWithoutStyling()
+    {
+        var documentId = "test-doc-123";
+        var document = new GoogleDocsDocument();
+        document.Add(new PlainTextSection("Plain text content"));
+
+        IList<Request>? capturedRequests = null;
+
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(
+                documentId,
+                It.IsAny<IList<Request>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<string, IList<Request>, CancellationToken>((_, requests, _) =>
+            {
+                capturedRequests = requests;
+            })
+            .Returns(Task.CompletedTask);
+
+        await _adapter.InsertRichAsync(documentId, document);
+
+        capturedRequests.Should().NotBeNull();
+        
+        var insertTextRequests = capturedRequests!
+            .Where(r => r.InsertText != null)
+            .Select(r => r.InsertText)
+            .ToList();
+
+        insertTextRequests.Should().HaveCount(1);
+        insertTextRequests[0]!.Text.Should().Be("Plain text content");
+        
+        var textStyleRequests = capturedRequests!
+            .Where(r => r.UpdateTextStyle != null)
+            .ToList();
+
+        textStyleRequests.Should().BeEmpty();
+    }
+
     [Fact(DisplayName = "InsertRichAsync with horizontal rule inserts unicode line")]
     public async Task InsertRichAsync_WithHorizontalRule_InsertsUnicodeLine()
     {
