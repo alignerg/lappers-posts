@@ -1006,6 +1006,40 @@ public class GoogleDocsServiceAccountAdapterTests
         textStyleRequests.Should().BeEmpty();
     }
 
+    [Fact(DisplayName = "InsertRichAsync with empty plain text sections skips insert requests")]
+    public async Task InsertRichAsync_WithEmptyPlainTextSections_SkipsInsertRequests()
+    {
+        var documentId = "test-doc-123";
+        var document = new GoogleDocsDocument();
+        document.Add(new PlainTextSection(""));
+        document.Add(new PlainTextSection("Valid content"));
+
+        IList<Request>? capturedRequests = null;
+
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(
+                documentId,
+                It.IsAny<IList<Request>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<string, IList<Request>, CancellationToken>((_, requests, _) =>
+            {
+                capturedRequests = requests;
+            })
+            .Returns(Task.CompletedTask);
+
+        await _adapter.InsertRichAsync(documentId, document);
+
+        capturedRequests.Should().NotBeNull();
+        
+        var insertTextRequests = capturedRequests!
+            .Where(r => r.InsertText != null)
+            .Select(r => r.InsertText)
+            .ToList();
+
+        insertTextRequests.Should().HaveCount(1);
+        insertTextRequests[0]!.Text.Should().Be("Valid content");
+    }
+
     [Fact(DisplayName = "InsertRichAsync with horizontal rule inserts unicode line")]
     public async Task InsertRichAsync_WithHorizontalRule_InsertsUnicodeLine()
     {

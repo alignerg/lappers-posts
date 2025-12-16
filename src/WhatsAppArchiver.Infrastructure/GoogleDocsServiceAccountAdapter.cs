@@ -505,6 +505,12 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
 
                 case PlainTextSection plainText:
                     {
+                        // Skip empty text as Google Docs API requires non-empty text
+                        if (string.IsNullOrEmpty(plainText.Text))
+                        {
+                            break;
+                        }
+
                         var textLength = plainText.Text.Length;
 
                         // Insert text without any styling
