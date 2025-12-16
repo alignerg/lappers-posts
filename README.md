@@ -489,11 +489,12 @@ dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-
 
 The application supports three ways to specify where state files are stored, with the following priority order:
 
-1. **`--state-file`** (Highest Priority): Path to a specific JSON state file
-   - Provides explicit control over the exact state file location
-   - The directory portion is extracted and used as the base path
-   - State filename is still auto-generated based on document ID and sender
-   - Example: `--state-file ~/mystate/custom.json` uses directory `~/mystate/`
+1. **`--state-file`** (Highest Priority): Path to extract the state directory from
+   - Only the directory portion is used; the filename is ignored and auto-generated based on document ID and sender filter
+   - Provides explicit control over the directory where the state file will be stored
+   - The directory portion is extracted and used as the base path; the filename portion of the path is ignored
+   - The actual state filename is always auto-generated based on document ID and sender filter
+   - Example: `--state-file ~/mystate/ignored.json` extracts and uses only `~/mystate/` as the base directory; the filename 'ignored.json' is discarded.
    - Overrides both `--state-dir` and configuration defaults
 
 2. **`--state-dir`**: Directory path where state files will be stored
@@ -526,7 +527,7 @@ dotnet run -- --chat-file chat.txt --sender-filter "John" --doc-id "ABC123"
 # Priority: --state-file wins over --state-dir
 dotnet run -- --chat-file chat.txt --sender-filter "John" --doc-id "ABC123" \
               --state-file /tmp/priority/file.json --state-dir /tmp/ignored
-# Uses: /tmp/priority/ (from --state-file)
+# Uses: /tmp/priority/ (directory extracted from --state-file; 'file.json' portion ignored)
 ```
 
 ### State File Behavior

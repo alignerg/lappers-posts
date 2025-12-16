@@ -91,7 +91,7 @@ try
 
     var stateFileOption = new Option<string?>("--state-file")
     {
-        Description = "Path to specific JSON state file (overrides --state-dir and config defaults)"
+        Description = "Path to extract state directory from (only directory portion is used; filename is auto-generated based on document ID and sender). Overrides --state-dir and config defaults."
     };
     stateFileOption.Validators.Add(result =>
     {
