@@ -171,6 +171,14 @@ public sealed class PathUtilitiesTests
     [Fact(DisplayName = "ResolveApplicationPath with absolute Unix path returns unchanged")]
     public void ResolveApplicationPath_AbsoluteUnixPath_ReturnsUnchanged()
     {
+        if (OperatingSystem.IsWindows())
+        {
+            // On Windows, Unix-style paths without drive letters are not considered rooted
+            // and will be resolved relative to the app base directory.
+            // This test only validates behavior on Unix-like platforms.
+            return;
+        }
+
         var path = "/absolute/path/to/file.txt";
 
         var result = PathUtilities.ResolveApplicationPath(path);
