@@ -16,6 +16,9 @@ Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
     .CreateBootstrapLogger();
 
+// Configuration keys
+const string StateRepositoryBasePathKey = "WhatsAppArchiver:StateRepository:BasePath";
+
 try
 {
     Log.Information("Starting WhatsApp Archiver application");
@@ -89,20 +92,27 @@ try
     };
     formatOption.DefaultValueFactory = _ => MessageFormatType.Default;
 
-    var stateDirOption = new Option<string>("--state-dir")
+    var stateFileOption = new Option<string?>("--state-file")
     {
-        Description = "Directory path where processing state files will be stored",
-        Required = true
+        Description = "Path to state file (only directory portion is used; filename auto-generated). Overrides --state-dir and config defaults."
+    };
+    stateFileOption.Validators.Add(result =>
+    {
+        var stateFile = result.GetValue(stateFileOption);
+        if (!string.IsNullOrWhiteSpace(stateFile) && ContainsInvalidPathChars(stateFile))
+        {
+            result.AddError("State file path contains invalid characters");
+        }
+    });
+
+    var stateDirOption = new Option<string?>("--state-dir")
+    {
+        Description = "Directory path where processing state files will be stored (auto-generates filename)"
     };
     stateDirOption.Validators.Add(result =>
     {
         var statePath = result.GetValue(stateDirOption);
-        if (string.IsNullOrWhiteSpace(statePath))
-        {
-            result.AddError("State directory path cannot be empty");
-            return;
-        }
-        if (ContainsInvalidPathChars(statePath))
+        if (!string.IsNullOrWhiteSpace(statePath) && ContainsInvalidPathChars(statePath))
         {
             result.AddError("State directory path contains invalid characters");
         }
@@ -137,6 +147,7 @@ try
     rootCommand.Add(senderFilterOption);
     rootCommand.Add(docIdOption);
     rootCommand.Add(formatOption);
+    rootCommand.Add(stateFileOption);
     rootCommand.Add(stateDirOption);
     rootCommand.Add(configOption);
 
@@ -147,14 +158,23 @@ try
         var senderFilter = parseResult.GetValue(senderFilterOption)!;
         var docId = parseResult.GetValue(docIdOption)!;
         var format = parseResult.GetValue(formatOption);
-        var stateDir = parseResult.GetValue(stateDirOption)!;
+        var stateFile = parseResult.GetValue(stateFileOption);
+        var stateDir = parseResult.GetValue(stateDirOption);
         var configFile = parseResult.GetValue(configOption);
 
         // Expand tilde (~) in file paths if present
         // chatFile is required and non-null, so expand unconditionally
         chatFile = PathUtilities.ExpandTildePath(chatFile)!;
-        // stateDir is required and non-null, so expand unconditionally
-        stateDir = PathUtilities.ExpandTildePath(stateDir)!;
+        // stateFile is optional, so only expand if provided
+        if (!string.IsNullOrWhiteSpace(stateFile))
+        {
+            stateFile = PathUtilities.ExpandTildePath(stateFile);
+        }
+        // stateDir is optional, so only expand if provided
+        if (!string.IsNullOrWhiteSpace(stateDir))
+        {
+            stateDir = PathUtilities.ExpandTildePath(stateDir);
+        }
         // configFile is optional, so only expand if provided
         if (!string.IsNullOrWhiteSpace(configFile))
         {
@@ -180,6 +200,39 @@ try
         })
         .ConfigureServices((hostContext, services) =>
         {
+            // Determine state directory with priority: --state-file > --state-dir > config default
+            string resolvedStateDir;
+            if (!string.IsNullOrWhiteSpace(stateFile))
+            {
+                // Use the directory portion of the explicit state file path
+                var directoryName = Path.GetDirectoryName(stateFile);
+                if (string.IsNullOrWhiteSpace(directoryName))
+                {
+                    throw new InvalidOperationException($"Cannot extract directory from state file path: {stateFile}. The path must include a directory component (e.g., './state/file.json' or '/path/to/state/file.json'). Alternatively, use --state-dir to specify the directory directly.");
+                }
+                resolvedStateDir = directoryName;
+                Log.Information("Using state directory from --state-file: {StateDir}", resolvedStateDir);
+            }
+            else if (!string.IsNullOrWhiteSpace(stateDir))
+            {
+                // Use the explicitly provided state directory
+                resolvedStateDir = stateDir;
+                Log.Information("Using state directory from --state-dir: {StateDir}", resolvedStateDir);
+            }
+            else
+            {
+                // Fall back to configuration
+                var configStateDir = hostContext.Configuration[StateRepositoryBasePathKey];
+                if (string.IsNullOrWhiteSpace(configStateDir))
+                {
+                    throw new InvalidOperationException(
+                        $"State directory must be specified via --state-file (directory will be extracted), --state-dir, or configuration key '{StateRepositoryBasePathKey}'.");
+                }
+                // Expand tilde in config path
+                resolvedStateDir = PathUtilities.ExpandTildePath(configStateDir)!;
+                Log.Information("Using state directory from configuration: {StateDir}", resolvedStateDir);
+            }
+
             // Retrieve configuration values
             var googleDocsCredentialPath = hostContext.Configuration["WhatsAppArchiver:GoogleServiceAccount:CredentialsPath"];
             if (string.IsNullOrWhiteSpace(googleDocsCredentialPath))
@@ -224,7 +277,7 @@ try
             {
                 var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<JsonFileStateRepository>>();
 
-                return new JsonFileStateRepository(stateDir, logger);
+                return new JsonFileStateRepository(resolvedStateDir, logger);
             });
 
             // Register handlers as Scoped services to align with Scoped dependencies (IGoogleDocsService).

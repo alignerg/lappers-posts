@@ -314,6 +314,9 @@ The compiled application will be in:
     "GoogleServiceAccount": {
       "CredentialsPath": "PATH_TO_YOUR_CREDENTIALS_FILE"
     },
+    "StateRepository": {
+      "BasePath": "./state"
+    },
     "DefaultFormatter": "default",
     "Logging": {
       "MinimumLevel": "Information",
@@ -330,6 +333,13 @@ The compiled application will be in:
   - Windows example: `C:\\Users\\YourUsername\\.credentials\\google-service-account.json`
   - macOS example: `~/.credentials/google-service-account.json` or `/Users/YourUsername/.credentials/google-service-account.json`
   - Relative path example: `./credentials/google-service-account.json`
+
+- **StateRepository.BasePath**: Default directory for state files (optional)
+  - Used when neither `--state-file` nor `--state-dir` is provided
+  - Windows example: `C:\\Users\\YourUsername\\Documents\\state`
+  - macOS example: `~/docs/lappers/state` or `./state`
+  - Relative path example: `./state`
+  - **Note**: If not configured and no command-line state options are provided, the application will fail with a helpful error message
 
 - **DefaultFormatter**: Message formatting style
   - `default`: `[{timestamp}] {sender}: {content}`
@@ -362,7 +372,10 @@ cd src\WhatsAppArchiver.Console\bin\Release\net10.0
 # From the repository root
 cd src\WhatsAppArchiver.Console
 
-# Run with dotnet and required arguments
+# Run with dotnet and required arguments (state directory optional if configured)
+dotnet run --configuration Release -- --chat-file "path\to\chat.txt" --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID"
+
+# Or, specify state directory explicitly if not configured
 dotnet run --configuration Release -- --chat-file "path\to\chat.txt" --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --state-dir ".\state"
 ```
 
@@ -419,11 +432,17 @@ dotnet run --configuration Release -- --chat-file "/Users/yourusername/exports/c
 
 ### Upload Messages to Google Docs
 
-The application requires four mandatory arguments and supports several optional arguments:
+The application requires three mandatory arguments (chat file, sender filter, and document ID) and supports several optional arguments:
 
 ```bash
-# Basic usage with required arguments
+# Basic usage with configuration defaults (uses StateRepository.BasePath from appsettings.json)
+dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID"
+
+# Specify state directory explicitly
 dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --state-dir ./state
+
+# Use a specific state file path (directory portion is extracted)
+dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --state-file ~/mystate/custom.json
 
 # Use a specific message format
 dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-id "YOUR_DOCUMENT_ID" --state-dir ./state --format compact
@@ -454,11 +473,6 @@ dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-
   - Found in the document URL: `https://docs.google.com/document/d/YOUR_DOCUMENT_ID/edit`
   - Cannot be empty
 
-- `--state-dir`: Directory path where processing state files will be stored
-  - The application creates this directory if it doesn't exist
-  - State files track which messages have been processed to enable resumable operations
-  - Supports both absolute and relative paths (including tilde expansion on Unix-like systems)
-
 **Optional Arguments:**
 
 - `--format`: Message format type (default: `default`)
@@ -471,22 +485,69 @@ dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-
   - Overrides the default configuration file
   - File must exist if specified
 
+**State Management Options:**
+
+The application supports three ways to specify where state files are stored, with the following priority order:
+
+1. **`--state-file`** (Highest Priority): Path to extract the state directory from
+   - Specifies the directory where the state file will be stored; the filename portion of the path is ignored, and the actual state filename is auto-generated based on document ID and sender filter
+   - Example: `--state-file ~/mystate/ignored.json` uses only `~/mystate/` as the base directory; the filename 'ignored.json' is ignored
+   - Overrides both `--state-dir` and configuration defaults
+
+2. **`--state-dir`**: Directory path where state files will be stored
+   - The application creates this directory if it doesn't exist
+   - State filenames are automatically generated based on document ID and sender filter
+   - Supports both absolute and relative paths (including tilde expansion on Unix-like systems)
+   - Example: `--state-dir ./state` or `--state-dir ~/docs/lappers/state`
+   - Overrides configuration defaults
+
+3. **Configuration Default** (Lowest Priority): Uses `StateRepository.BasePath` from `appsettings.json`
+   - Fallback when neither `--state-file` nor `--state-dir` is provided
+   - Set in configuration: `"WhatsAppArchiver": { "StateRepository": { "BasePath": "./state" } }`
+   - Must be configured if no command-line options are provided
+
+**Examples:**
+
+```bash
+# Option 1: Explicit state file path (extracts directory)
+dotnet run -- --chat-file chat.txt --sender-filter "John" --doc-id "ABC123" \
+              --state-file ~/state/myfile.json
+
+# Option 2: State directory with auto-generated filename
+dotnet run -- --chat-file chat.txt --sender-filter "John" --doc-id "ABC123" \
+              --state-dir ~/state/
+
+# Option 3: Use configuration default (no state options)
+dotnet run -- --chat-file chat.txt --sender-filter "John" --doc-id "ABC123"
+# (uses StateRepository.BasePath from appsettings.json)
+
+# Priority: --state-file wins over --state-dir
+dotnet run -- --chat-file chat.txt --sender-filter "John" --doc-id "ABC123" \
+              --state-file /tmp/priority/file.json --state-dir /tmp/ignored
+# Uses: /tmp/priority/ (directory extracted from --state-file; 'file.json' portion is discarded)
+```
+
 ### State File Behavior
 
 The application uses **state files** to track processing progress and ensure **idempotent operations** - meaning you can safely run the same command multiple times without uploading duplicate messages.
 
 #### How State Files Work
 
-1. **Location**: State files are stored in the directory you specify with the `--state-dir` argument:
+1. **Location**: State files are stored in a directory determined by (in priority order):
+   - `--state-file` option: Directory is extracted from the file path
+   - `--state-dir` option: Specified directory is used directly
+   - Configuration: `StateRepository.BasePath` from appsettings.json
+   
    ```
-   /state/                        # State directory (specified via --state-dir)
+   /state/                        # State directory (from any of the above sources)
    /state/1syiodaz_rzgytu7c-mu__peyyczv0byfjfurf_stvy8__rudi_anderson.json  # Auto-generated state file
    ```
 
-2. **Filename Generation**: The application automatically generates state filenames based on:
+2. **Filename Generation**: The application **always** auto-generates state filenames based on:
    - **Document ID**: Sanitized and normalized
    - **Sender filter**: Sanitized and normalized (if provided)
    - Format: `{documentId}__{senderName}.json` or `{documentId}.json` (without sender filter)
+   - **Note**: Even when using `--state-file`, only the directory portion is used; the filename is still auto-generated
 
 3. **Content**: Each state file contains:
    - **Document ID**: The Google Docs document being updated
@@ -566,11 +627,16 @@ rm state/doc1__mom.json
 
 #### Important Notes
 
-- **Automatic filenames**: State filenames are automatically generated from document ID and sender filter
+- **Automatic filenames**: State filenames are **always** auto-generated from document ID and sender filter, even when using `--state-file`
 - **Different filters**: Using a different `--sender-filter` or `--doc-id` creates a separate state file
 - **Manual state management**: State files are plain JSON and can be manually edited if needed
 - **No state file**: If a state file doesn't exist, all messages are processed as new
-- **Directory required**: You must always specify `--state-dir` - there is no default location
+- **Configuration flexibility**: You can specify state location via:
+  - `--state-file /path/to/file.json` (highest priority, directory is extracted)
+  - `--state-dir /path/to/directory` (medium priority)
+  - `StateRepository.BasePath` in appsettings.json (lowest priority)
+  - If none are provided, the application will fail with a clear error message
+- **Tilde expansion**: Paths with `~` (home directory) are supported on Unix-like systems
 
 ## Message Formatters
 
