@@ -34,11 +34,11 @@ public class GoogleDocsDocumentFormatterTests
         Assert.Contains(result.Sections, s => s is HeadingSection h && h.Level == 2 && h.Text.Contains("January 15, 2024"));
         
         // Message sections - timestamps and content
-        Assert.Contains(result.Sections, s => s is BoldTextSection b && b.Text == "10:30\n");
+        Assert.Contains(result.Sections, s => s is BoldTextSection b && b.Text == "10:30");
         Assert.Contains(result.Sections, s => s is ParagraphSection p && p.Text == "First message");
-        Assert.Contains(result.Sections, s => s is BoldTextSection b && b.Text == "10:35\n");
+        Assert.Contains(result.Sections, s => s is BoldTextSection b && b.Text == "10:35");
         Assert.Contains(result.Sections, s => s is ParagraphSection p && p.Text == "Second message");
-        Assert.Contains(result.Sections, s => s is BoldTextSection b && b.Text == "10:40\n");
+        Assert.Contains(result.Sections, s => s is BoldTextSection b && b.Text == "10:40");
         Assert.Contains(result.Sections, s => s is ParagraphSection p && p.Text == "Third message");
         
         // Empty lines (double empty lines after each message)
@@ -177,10 +177,10 @@ public class GoogleDocsDocumentFormatterTests
 
         var boldSections = result.Sections.OfType<BoldTextSection>().ToList();
         
-        // Verify 24-hour HH:mm format (no AM/PM, leading zeros) - now with newline
-        Assert.Contains(boldSections, b => b.Text == "14:45\n");
-        Assert.Contains(boldSections, b => b.Text == "09:05\n");
-        Assert.Contains(boldSections, b => b.Text == "00:30\n");
+        // Verify 24-hour HH:mm format (no AM/PM, leading zeros)
+        Assert.Contains(boldSections, b => b.Text == "14:45");
+        Assert.Contains(boldSections, b => b.Text == "09:05");
+        Assert.Contains(boldSections, b => b.Text == "00:30");
     }
 
     [Fact(DisplayName = "FormatMessage when called throws NotSupportedException")]
@@ -191,5 +191,37 @@ public class GoogleDocsDocumentFormatterTests
         var exception = Assert.Throws<NotSupportedException>(() => _formatter.FormatMessage(message));
 
         Assert.Contains("GoogleDocsDocumentFormatter requires FormatDocument for batch processing", exception.Message);
+    }
+
+    [Fact(DisplayName = "FormatDocument timestamp newline separated from bold to prevent bleeding")]
+    public void FormatDocument_TimestampNewline_SeparatedFromBold()
+    {
+        var messages = new[]
+        {
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 30, 0, TimeSpan.Zero), "John", "Test message")
+        };
+        var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 1, 15, 12, 0, 0, TimeSpan.Zero), 1, 1, 0);
+        var chatExport = ChatExport.Create(messages, metadata);
+
+        var result = _formatter.FormatDocument(chatExport);
+
+        // Verify timestamp is in BoldTextSection WITHOUT newline
+        var boldTimestamp = result.Sections
+            .OfType<BoldTextSection>()
+            .FirstOrDefault(b => b.Text.Contains("10:30"));
+        Assert.NotNull(boldTimestamp);
+        Assert.Equal("10:30", boldTimestamp.Text);
+        Assert.DoesNotContain("\n", boldTimestamp.Text);
+
+        // Verify there is a PlainTextSection containing newline after the timestamp
+        var sections = result.Sections.ToList();
+        var timestampIndex = sections.IndexOf(boldTimestamp);
+        Assert.True(timestampIndex >= 0);
+        Assert.True(timestampIndex + 1 < sections.Count);
+        
+        var nextSection = sections[timestampIndex + 1];
+        Assert.IsType<PlainTextSection>(nextSection);
+        var plainTextSection = (PlainTextSection)nextSection;
+        Assert.Equal("\n", plainTextSection.Text);
     }
 }

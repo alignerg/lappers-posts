@@ -26,7 +26,7 @@ namespace WhatsAppArchiver.Domain.Formatting;
 /// <description>Page breaks between date sections for improved navigation</description>
 /// </item>
 /// <item>
-/// <description>Individual messages with bold timestamps in 24-hour format (HH:mm) followed by a newline</description>
+/// <description>Individual messages with bold timestamps in 24-hour format (HH:mm) followed by a plain text newline</description>
 /// </item>
 /// <item>
 /// <description>Double empty lines separating messages for readability</description>
@@ -121,8 +121,11 @@ public sealed class GoogleDocsDocumentFormatter : IGoogleDocsFormatter, IMessage
             // Process each message in the date group
             foreach (var message in dateGroup.OrderBy(m => m.Timestamp))
             {
-                // Add bold timestamp (24-hour format) with newline
-                document.Add(new BoldTextSection(message.Timestamp.ToString("HH:mm") + "\n"));
+                // Add bold timestamp (24-hour format)
+                document.Add(new BoldTextSection(message.Timestamp.ToString("HH:mm")));
+                
+                // Add newline as plain text to prevent bold bleeding
+                document.Add(new PlainTextSection("\n"));
 
                 // Add message content (preserve line breaks)
                 document.Add(new ParagraphSection(message.Content));
