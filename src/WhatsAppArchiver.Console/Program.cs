@@ -240,10 +240,11 @@ try
                 throw new InvalidOperationException("Configuration key 'WhatsAppArchiver:GoogleServiceAccount:CredentialsPath' is not configured.");
             }
 
-            // Expand tilde (~) in credential path if present
+            // Expand tilde (~) in credential path if present, then resolve relative paths
             // Safe to use ! because IsNullOrWhiteSpace ensures non-null input,
-            // and ExpandTildePath only returns null when the input is null
+            // and these methods only return null when the input is null
             googleDocsCredentialPath = PathUtilities.ExpandTildePath(googleDocsCredentialPath)!;
+            googleDocsCredentialPath = PathUtilities.ResolveApplicationPath(googleDocsCredentialPath)!;
 
             // Register WhatsAppTextFileParser as Singleton because it's stateless and thread-safe.
             // The parser only reads files and doesn't maintain any mutable state between operations.
