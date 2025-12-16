@@ -202,7 +202,12 @@ try
             if (!string.IsNullOrWhiteSpace(stateFile))
             {
                 // Use the directory portion of the explicit state file path
-                resolvedStateDir = Path.GetDirectoryName(stateFile) ?? throw new InvalidOperationException($"Cannot extract directory from state file path: {stateFile}");
+                var directoryName = Path.GetDirectoryName(stateFile);
+                if (string.IsNullOrWhiteSpace(directoryName))
+                {
+                    throw new InvalidOperationException($"Cannot extract directory from state file path: {stateFile}. Please provide a full path with directory.");
+                }
+                resolvedStateDir = directoryName;
                 Log.Information("Using state directory from --state-file: {StateDir}", resolvedStateDir);
             }
             else if (!string.IsNullOrWhiteSpace(stateDir))
@@ -214,11 +219,12 @@ try
             else
             {
                 // Fall back to configuration
-                var configStateDir = hostContext.Configuration["WhatsAppArchiver:StateRepository:BasePath"];
+                const string configKey = "WhatsAppArchiver:StateRepository:BasePath";
+                var configStateDir = hostContext.Configuration[configKey];
                 if (string.IsNullOrWhiteSpace(configStateDir))
                 {
                     throw new InvalidOperationException(
-                        "State directory must be specified via --state-file, --state-dir, or configuration key 'WhatsAppArchiver:StateRepository:BasePath'.");
+                        $"State directory must be specified via --state-file, --state-dir, or configuration key '{configKey}'.");
                 }
                 // Expand tilde in config path
                 resolvedStateDir = PathUtilities.ExpandTildePath(configStateDir)!;
