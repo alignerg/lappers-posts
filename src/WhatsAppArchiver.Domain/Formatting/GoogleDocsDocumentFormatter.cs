@@ -14,12 +14,6 @@ namespace WhatsAppArchiver.Domain.Formatting;
 /// </para>
 /// <list type="bullet">
 /// <item>
-/// <description>H1 title with sender name extracted from the first message</description>
-/// </item>
-/// <item>
-/// <description>Metadata section showing export date and total message count</description>
-/// </item>
-/// <item>
 /// <description>Messages grouped by date with H2 headers in MMMM d, yyyy format</description>
 /// </item>
 /// <item>
@@ -51,12 +45,6 @@ public sealed class GoogleDocsDocumentFormatter : IGoogleDocsFormatter, IMessage
     /// </para>
     /// <list type="number">
     /// <item>
-    /// <description>Extracts the sender name from the first message (if available)</description>
-    /// </item>
-    /// <item>
-    /// <description>Creates a title section with H1 header and metadata</description>
-    /// </item>
-    /// <item>
     /// <description>Groups messages by date (using message.Timestamp.Date)</description>
     /// </item>
     /// <item>
@@ -68,7 +56,7 @@ public sealed class GoogleDocsDocumentFormatter : IGoogleDocsFormatter, IMessage
     /// </list>
     /// <para>
     /// Multi-line message content is preserved as-is, maintaining original line breaks.
-    /// Empty exports (no messages) return a document with only the header and "Total Messages: 0".
+    /// Empty exports (no messages) return an empty document.
     /// </para>
     /// </remarks>
     public GoogleDocsDocument FormatDocument(ChatExport chatExport)
@@ -76,21 +64,6 @@ public sealed class GoogleDocsDocumentFormatter : IGoogleDocsFormatter, IMessage
         ArgumentNullException.ThrowIfNull(chatExport);
 
         var document = new GoogleDocsDocument();
-
-        // Extract sender name from first message
-        var senderName = chatExport.MessageCount > 0
-            ? chatExport.Messages[0].Sender
-            : "Unknown";
-
-        // Build H1 title
-        document.Add(new HeadingSection(1, $"WhatsApp Conversation Export - {senderName}"));
-
-        // Add metadata sections
-        document.Add(new MetadataSection("Export Date", chatExport.Metadata.ParsedAt.ToString("MMMM d, yyyy")));
-        document.Add(new MetadataSection("Total Messages", chatExport.MessageCount.ToString()));
-
-        // Add horizontal rule separator
-        document.Add(new HorizontalRuleSection());
 
         // Handle empty exports
         if (chatExport.MessageCount == 0)

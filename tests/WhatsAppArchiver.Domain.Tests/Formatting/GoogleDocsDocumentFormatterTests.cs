@@ -23,13 +23,6 @@ public class GoogleDocsDocumentFormatterTests
 
         var result = _formatter.FormatDocument(chatExport);
 
-        // Header section (H1)
-        Assert.Contains(result.Sections, s => s is HeadingSection h && h.Level == 1 && h.Text.Contains("John Doe"));
-        
-        // Metadata sections
-        Assert.Contains(result.Sections, s => s is MetadataSection m && m.Label == "Export Date");
-        Assert.Contains(result.Sections, s => s is MetadataSection m && m.Label == "Total Messages" && m.Value == "3");
-        
         // Date header (H2)
         Assert.Contains(result.Sections, s => s is HeadingSection h && h.Level == 2 && h.Text.Contains("January 15, 2024"));
         
@@ -110,13 +103,8 @@ public class GoogleDocsDocumentFormatterTests
 
         var result = _formatter.FormatDocument(chatExport);
 
-        // Should have H1, 2 metadata sections, and 1 horizontal rule
-        Assert.Contains(result.Sections, s => s is HeadingSection h && h.Level == 1 && h.Text.Contains("Unknown"));
-        Assert.Contains(result.Sections, s => s is MetadataSection m && m.Label == "Total Messages" && m.Value == "0");
-        Assert.Single(result.Sections.OfType<HorizontalRuleSection>());
-        
-        // Should NOT have any H2 sections (date headers)
-        Assert.DoesNotContain(result.Sections, s => s is HeadingSection h && h.Level == 2);
+        // Should be empty - no sections at all
+        Assert.Empty(result.Sections);
     }
 
     [Fact(DisplayName = "FormatDocument with special characters preserves content")]
@@ -152,9 +140,7 @@ public class GoogleDocsDocumentFormatterTests
 
         var result = _formatter.FormatDocument(chatExport);
 
-        // Verify presence of all expected section types
-        Assert.Contains(result.Sections, s => s is HeadingSection h && h.Level == 1);
-        Assert.Contains(result.Sections, s => s is MetadataSection);
+        // Verify presence of all expected section types (no H1 or MetadataSection)
         Assert.Contains(result.Sections, s => s is HeadingSection h && h.Level == 2);
         Assert.Contains(result.Sections, s => s is BoldTextSection);
         Assert.Contains(result.Sections, s => s is ParagraphSection);
