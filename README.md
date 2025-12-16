@@ -527,7 +527,7 @@ dotnet run -- --chat-file chat.txt --sender-filter "John" --doc-id "ABC123"
 # Priority: --state-file wins over --state-dir
 dotnet run -- --chat-file chat.txt --sender-filter "John" --doc-id "ABC123" \
               --state-file /tmp/priority/file.json --state-dir /tmp/ignored
-# Uses: /tmp/priority/ (directory extracted from --state-file; 'file.json' portion ignored)
+# Uses: /tmp/priority/ (directory extracted from --state-file; 'file.json' portion is discarded)
 ```
 
 ### State File Behavior

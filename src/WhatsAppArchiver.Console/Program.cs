@@ -16,6 +16,9 @@ Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
     .CreateBootstrapLogger();
 
+// Configuration keys
+const string StateRepositoryBasePathKey = "WhatsAppArchiver:StateRepository:BasePath";
+
 try
 {
     Log.Information("Starting WhatsApp Archiver application");
@@ -205,7 +208,7 @@ try
                 var directoryName = Path.GetDirectoryName(stateFile);
                 if (string.IsNullOrWhiteSpace(directoryName))
                 {
-                    throw new InvalidOperationException($"Cannot extract directory from state file path: {stateFile}. Please provide a full path with directory.");
+                    throw new InvalidOperationException($"Cannot extract directory from state file path: {stateFile}. The path must include a directory component (e.g., './state/file.json' or '/path/to/state/file.json'). Alternatively, use --state-dir to specify the directory directly.");
                 }
                 resolvedStateDir = directoryName;
                 Log.Information("Using state directory from --state-file: {StateDir}", resolvedStateDir);
@@ -219,12 +222,11 @@ try
             else
             {
                 // Fall back to configuration
-                const string configKey = "WhatsAppArchiver:StateRepository:BasePath";
-                var configStateDir = hostContext.Configuration[configKey];
+                var configStateDir = hostContext.Configuration[StateRepositoryBasePathKey];
                 if (string.IsNullOrWhiteSpace(configStateDir))
                 {
                     throw new InvalidOperationException(
-                        $"State directory must be specified via --state-file, --state-dir, or configuration key '{configKey}'.");
+                        $"State directory must be specified via --state-file (directory will be extracted), --state-dir, or configuration key '{StateRepositoryBasePathKey}'.");
                 }
                 // Expand tilde in config path
                 resolvedStateDir = PathUtilities.ExpandTildePath(configStateDir)!;
