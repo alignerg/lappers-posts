@@ -228,8 +228,9 @@ try
                     throw new InvalidOperationException(
                         $"State directory must be specified via --state-file (directory will be extracted), --state-dir, or configuration key '{StateRepositoryBasePathKey}'.");
                 }
-                // Expand tilde in config path
+                // Expand tilde in config path, then resolve relative paths
                 resolvedStateDir = PathUtilities.ExpandTildePath(configStateDir)!;
+                resolvedStateDir = PathUtilities.ResolveApplicationPath(resolvedStateDir)!;
                 Log.Information("Using state directory from configuration: {StateDir}", resolvedStateDir);
             }
 
