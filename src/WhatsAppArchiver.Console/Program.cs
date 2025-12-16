@@ -228,8 +228,9 @@ try
                     throw new InvalidOperationException(
                         $"State directory must be specified via --state-file (directory will be extracted), --state-dir, or configuration key '{StateRepositoryBasePathKey}'.");
                 }
-                // Expand tilde in config path
+                // Expand tilde in config path, then resolve relative paths
                 resolvedStateDir = PathUtilities.ExpandTildePath(configStateDir)!;
+                resolvedStateDir = PathUtilities.ResolveApplicationPath(resolvedStateDir)!;
                 Log.Information("Using state directory from configuration: {StateDir}", resolvedStateDir);
             }
 
@@ -240,10 +241,11 @@ try
                 throw new InvalidOperationException("Configuration key 'WhatsAppArchiver:GoogleServiceAccount:CredentialsPath' is not configured.");
             }
 
-            // Expand tilde (~) in credential path if present
+            // Expand tilde (~) in credential path if present, then resolve relative paths
             // Safe to use ! because IsNullOrWhiteSpace ensures non-null input,
-            // and ExpandTildePath only returns null when the input is null
+            // and these methods only return null when the input is null
             googleDocsCredentialPath = PathUtilities.ExpandTildePath(googleDocsCredentialPath)!;
+            googleDocsCredentialPath = PathUtilities.ResolveApplicationPath(googleDocsCredentialPath)!;
 
             // Register WhatsAppTextFileParser as Singleton because it's stateless and thread-safe.
             // The parser only reads files and doesn't maintain any mutable state between operations.

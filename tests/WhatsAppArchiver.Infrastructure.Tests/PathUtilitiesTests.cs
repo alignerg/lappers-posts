@@ -117,4 +117,100 @@ public sealed class PathUtilitiesTests
 
         result.Should().Be(expected);
     }
+
+    [Fact(DisplayName = "ResolveApplicationPath with null returns null")]
+    public void ResolveApplicationPath_Null_ReturnsNull()
+    {
+#pragma warning disable CS8625 // Cannot convert null literal to non-nullable reference type - intentionally testing null handling
+        var result = PathUtilities.ResolveApplicationPath(null);
+#pragma warning restore CS8625
+
+        result.Should().BeNull();
+    }
+
+    [Fact(DisplayName = "ResolveApplicationPath with empty string returns empty string")]
+    public void ResolveApplicationPath_EmptyString_ReturnsEmptyString()
+    {
+        var result = PathUtilities.ResolveApplicationPath("");
+
+        result.Should().Be("");
+    }
+
+    [Fact(DisplayName = "ResolveApplicationPath with whitespace returns whitespace")]
+    public void ResolveApplicationPath_Whitespace_ReturnsWhitespace()
+    {
+        var input = "   ";
+
+        var result = PathUtilities.ResolveApplicationPath(input);
+
+        result.Should().Be(input);
+    }
+
+    [Fact(DisplayName = "ResolveApplicationPath with relative path returns path relative to app base directory")]
+    public void ResolveApplicationPath_RelativePath_ReturnsPathRelativeToAppBaseDirectory()
+    {
+        var relativePath = "./credentials/google-service-account.json";
+        var expected = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, relativePath));
+
+        var result = PathUtilities.ResolveApplicationPath(relativePath);
+
+        result.Should().Be(expected);
+    }
+
+    [Fact(DisplayName = "ResolveApplicationPath with relative path without dot-slash returns path relative to app base directory")]
+    public void ResolveApplicationPath_RelativePathWithoutDotSlash_ReturnsPathRelativeToAppBaseDirectory()
+    {
+        var relativePath = "credentials/google-service-account.json";
+        var expected = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, relativePath));
+
+        var result = PathUtilities.ResolveApplicationPath(relativePath);
+
+        result.Should().Be(expected);
+    }
+
+    [Fact(DisplayName = "ResolveApplicationPath with absolute Unix path returns unchanged")]
+    public void ResolveApplicationPath_AbsoluteUnixPath_ReturnsUnchanged()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            // On Windows, Unix-style paths without drive letters are not considered rooted
+            // and will be resolved relative to the app base directory.
+            // This test only validates behavior on Unix-like platforms.
+            return;
+        }
+
+        var path = "/absolute/path/to/file.txt";
+
+        var result = PathUtilities.ResolveApplicationPath(path);
+
+        result.Should().Be(path);
+    }
+
+    [Fact(DisplayName = "ResolveApplicationPath with absolute Windows path returns unchanged")]
+    public void ResolveApplicationPath_AbsoluteWindowsPath_ReturnsUnchanged()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            // On non-Windows platforms, Windows paths are not considered absolute
+            // and will be resolved relative to the app base directory.
+            // This test only validates behavior on Windows.
+            return;
+        }
+
+        var path = "C:\\absolute\\path\\to\\file.txt";
+
+        var result = PathUtilities.ResolveApplicationPath(path);
+
+        result.Should().Be(path);
+    }
+
+    [Fact(DisplayName = "ResolveApplicationPath with rooted path returns unchanged")]
+    public void ResolveApplicationPath_RootedPath_ReturnsUnchanged()
+    {
+        var path = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "test", "path", "file.txt"));
+
+        var result = PathUtilities.ResolveApplicationPath(path);
+
+        result.Should().Be(path);
+    }
 }
