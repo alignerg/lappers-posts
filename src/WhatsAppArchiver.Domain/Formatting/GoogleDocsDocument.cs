@@ -43,6 +43,7 @@ public sealed class GoogleDocsDocument
         {
             HeadingSection heading => heading.Text,
             BoldTextSection bold => bold.Text,
+            PlainTextSection plain => plain.Text,
             ParagraphSection paragraph => paragraph.Text,
             HorizontalRuleSection => "---",
             PageBreakSection => "[PAGE BREAK]",
@@ -139,6 +140,36 @@ public sealed class BoldTextSection : DocumentSection
         {
             throw new ArgumentException("Bold text cannot be null or whitespace.", nameof(text));
         }
+
+        Text = text;
+    }
+}
+
+/// <summary>
+/// Represents a section of plain text without any styling.
+/// </summary>
+/// <remarks>
+/// This section type allows for plain text content, including whitespace-only text like newlines,
+/// which is useful for formatting control without inheriting styles from adjacent sections.
+/// </remarks>
+public sealed class PlainTextSection : DocumentSection
+{
+    /// <summary>
+    /// Gets the plain text content.
+    /// </summary>
+    public string Text { get; }
+
+    /// <inheritdoc />
+    public override string Content => Text;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="PlainTextSection"/> class.
+    /// </summary>
+    /// <param name="text">The plain text content.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="text"/> is null.</exception>
+    public PlainTextSection(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
 
         Text = text;
     }

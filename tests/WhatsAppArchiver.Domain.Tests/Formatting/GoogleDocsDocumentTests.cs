@@ -101,6 +101,17 @@ public class GoogleDocsDocumentTests
         Assert.Equal("Paragraph text", result);
     }
 
+    [Fact(DisplayName = "ToPlainText with plain text section returns plain text")]
+    public void ToPlainText_WithPlainTextSection_ReturnsPlainText()
+    {
+        var document = new GoogleDocsDocument();
+        document.Add(new PlainTextSection("Plain text"));
+
+        var result = document.ToPlainText();
+
+        Assert.Equal("Plain text", result);
+    }
+
     [Fact(DisplayName = "ToPlainText with horizontal rule returns separator")]
     public void ToPlainText_WithHorizontalRule_ReturnsSeparator()
     {
@@ -235,6 +246,80 @@ public class BoldTextSectionTests
         var section = new BoldTextSection(text);
 
         Assert.Equal(text, section.Text);
+    }
+}
+
+public class PlainTextSectionTests
+{
+    [Fact(DisplayName = "Constructor with valid text creates PlainTextSection")]
+    public void Constructor_ValidText_CreatesPlainTextSection()
+    {
+        var section = new PlainTextSection("Plain text");
+
+        Assert.Equal("Plain text", section.Text);
+        Assert.Equal("Plain text", section.Content);
+    }
+
+    [Fact(DisplayName = "Constructor with null text throws ArgumentNullException")]
+    public void Constructor_NullText_ThrowsArgumentNullException()
+    {
+        var exception = Assert.Throws<ArgumentNullException>(() => new PlainTextSection(null!));
+
+        Assert.Equal("text", exception.ParamName);
+    }
+
+    [Fact(DisplayName = "Constructor with whitespace-only text creates PlainTextSection")]
+    public void Constructor_WhitespaceOnlyText_CreatesPlainTextSection()
+    {
+        var section = new PlainTextSection("   ");
+
+        Assert.Equal("   ", section.Text);
+        Assert.Equal("   ", section.Content);
+    }
+
+    [Fact(DisplayName = "Constructor with newline creates PlainTextSection")]
+    public void Constructor_NewlineText_CreatesPlainTextSection()
+    {
+        var section = new PlainTextSection("\n");
+
+        Assert.Equal("\n", section.Text);
+        Assert.Equal("\n", section.Content);
+    }
+
+    [Fact(DisplayName = "Constructor with empty string creates PlainTextSection")]
+    public void Constructor_EmptyString_CreatesPlainTextSection()
+    {
+        var section = new PlainTextSection("");
+
+        Assert.Equal("", section.Text);
+        Assert.Equal("", section.Content);
+    }
+
+    [Fact(DisplayName = "Content property returns same value as Text")]
+    public void Content_ReturnsSameValueAsText()
+    {
+        var section = new PlainTextSection("Plain content");
+
+        Assert.Equal(section.Text, section.Content);
+    }
+
+    [Fact(DisplayName = "Constructor preserves text with special characters")]
+    public void Constructor_TextWithSpecialCharacters_PreservesText()
+    {
+        var text = "Text with special chars: @#$%^&*()";
+        var section = new PlainTextSection(text);
+
+        Assert.Equal(text, section.Text);
+    }
+
+    [Fact(DisplayName = "Constructor supports multi-line text")]
+    public void Constructor_MultiLineText_PreservesMultiLineText()
+    {
+        var text = "Line 1\nLine 2\nLine 3";
+        var section = new PlainTextSection(text);
+
+        Assert.Equal(text, section.Text);
+        Assert.Contains("\n", section.Text);
     }
 }
 
@@ -375,6 +460,7 @@ public class DocumentSectionTests
     {
         Assert.IsAssignableFrom<DocumentSection>(new HeadingSection(1, "Text"));
         Assert.IsAssignableFrom<DocumentSection>(new BoldTextSection("Text"));
+        Assert.IsAssignableFrom<DocumentSection>(new PlainTextSection("Text"));
         Assert.IsAssignableFrom<DocumentSection>(new ParagraphSection("Text"));
         Assert.IsAssignableFrom<DocumentSection>(new HorizontalRuleSection());
         Assert.IsAssignableFrom<DocumentSection>(new MetadataSection("Label", "Value"));
