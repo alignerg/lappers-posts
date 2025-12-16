@@ -273,6 +273,7 @@ public sealed class WhatsAppTextFileParser : IChatParser
     /// - <c>&lt;Media omitted&gt;</c>
     /// - <c>[image omitted]</c>, <c>[video omitted]</c>, <c>[audio omitted]</c>
     /// - <c>&lt;attached: image&gt;</c>, <c>&lt;attached: video&gt;</c>, <c>&lt;attached: audio&gt;</c>
+    /// - <c>&lt;attached: FILENAME&gt;</c> (e.g., <c>&lt;attached: 00000387-PHOTO-2025-07-19-08-43-56.jpg&gt;</c>)
     /// All comparisons are case-insensitive.
     /// </remarks>
     private static bool IsMediaMessage(string content)
@@ -285,7 +286,19 @@ public sealed class WhatsAppTextFileParser : IChatParser
         var trimmed = content.Trim();
         
         // Check for common media placeholder patterns using HashSet for O(1) lookup
-        return MediaPlaceholderPatterns.Contains(trimmed);
+        if (MediaPlaceholderPatterns.Contains(trimmed))
+        {
+            return true;
+        }
+        
+        // Check for attachment patterns with filenames: <attached: FILENAME>
+        if (trimmed.StartsWith("<attached:", StringComparison.OrdinalIgnoreCase) && 
+            trimmed.EndsWith(">", StringComparison.Ordinal))
+        {
+            return true;
+        }
+        
+        return false;
     }
     
     /// <summary>
