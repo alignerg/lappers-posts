@@ -199,7 +199,7 @@ public sealed class PathUtilitiesTests
     [Fact(DisplayName = "ResolveApplicationPath with rooted path returns unchanged")]
     public void ResolveApplicationPath_RootedPath_ReturnsUnchanged()
     {
-        var path = Path.IsPathRooted("/test") ? "/test/path/file.txt" : "C:\\test\\path\\file.txt";
+        var path = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "test", "path", "file.txt"));
 
         var result = PathUtilities.ResolveApplicationPath(path);
 
