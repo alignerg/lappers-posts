@@ -967,6 +967,80 @@ public class GoogleDocsServiceAccountAdapterTests
         textStyleRequests[0]!.Fields.Should().Be("bold");
     }
 
+    [Fact(DisplayName = "InsertRichAsync with plain text sections creates insert text requests without styling")]
+    public async Task InsertRichAsync_WithPlainTextSections_CreatesInsertTextRequestsWithoutStyling()
+    {
+        var documentId = "test-doc-123";
+        var document = new GoogleDocsDocument();
+        document.Add(new PlainTextSection("Plain text content"));
+
+        IList<Request>? capturedRequests = null;
+
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(
+                documentId,
+                It.IsAny<IList<Request>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<string, IList<Request>, CancellationToken>((_, requests, _) =>
+            {
+                capturedRequests = requests;
+            })
+            .Returns(Task.CompletedTask);
+
+        await _adapter.InsertRichAsync(documentId, document);
+
+        capturedRequests.Should().NotBeNull();
+        
+        var insertTextRequests = capturedRequests!
+            .Where(r => r.InsertText != null)
+            .Select(r => r.InsertText)
+            .ToList();
+
+        insertTextRequests.Should().HaveCount(1);
+        insertTextRequests[0]!.Text.Should().Be("Plain text content");
+        
+        var textStyleRequests = capturedRequests!
+            .Where(r => r.UpdateTextStyle != null)
+            .ToList();
+
+        textStyleRequests.Should().BeEmpty();
+    }
+
+    [Fact(DisplayName = "InsertRichAsync with empty plain text sections creates insert requests")]
+    public async Task InsertRichAsync_WithEmptyPlainTextSections_CreatesInsertRequests()
+    {
+        var documentId = "test-doc-123";
+        var document = new GoogleDocsDocument();
+        document.Add(new PlainTextSection(""));
+        document.Add(new PlainTextSection("Valid content"));
+
+        IList<Request>? capturedRequests = null;
+
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(
+                documentId,
+                It.IsAny<IList<Request>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<string, IList<Request>, CancellationToken>((_, requests, _) =>
+            {
+                capturedRequests = requests;
+            })
+            .Returns(Task.CompletedTask);
+
+        await _adapter.InsertRichAsync(documentId, document);
+
+        capturedRequests.Should().NotBeNull();
+        
+        var insertTextRequests = capturedRequests!
+            .Where(r => r.InsertText != null)
+            .Select(r => r.InsertText)
+            .ToList();
+
+        insertTextRequests.Should().HaveCount(2);
+        insertTextRequests[0]!.Text.Should().Be("");
+        insertTextRequests[1]!.Text.Should().Be("Valid content");
+    }
+
     [Fact(DisplayName = "InsertRichAsync with horizontal rule inserts unicode line")]
     public async Task InsertRichAsync_WithHorizontalRule_InsertsUnicodeLine()
     {
@@ -999,6 +1073,49 @@ public class GoogleDocsServiceAccountAdapterTests
         insertTextRequests.Should().HaveCount(1);
         insertTextRequests[0].Should().StartWith("━");
         insertTextRequests[0].Should().EndWith("\n");
+    }
+
+    [Fact(DisplayName = "InsertRichAsync with bold text followed by plain text prevents style bleeding")]
+    public async Task InsertRichAsync_WithBoldTextFollowedByPlainText_PreventsStyleBleeding()
+    {
+        var documentId = "test-doc-123";
+        var document = new GoogleDocsDocument();
+        document.Add(new BoldTextSection("12:30"));
+        document.Add(new PlainTextSection("\n"));
+        document.Add(new ParagraphSection("Message content"));
+
+        IList<Request>? capturedRequests = null;
+
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(
+                documentId,
+                It.IsAny<IList<Request>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<string, IList<Request>, CancellationToken>((_, requests, _) =>
+            {
+                capturedRequests = requests;
+            })
+            .Returns(Task.CompletedTask);
+
+        await _adapter.InsertRichAsync(documentId, document);
+
+        capturedRequests.Should().NotBeNull();
+        
+        var insertTextRequests = capturedRequests!
+            .Where(r => r.InsertText != null)
+            .Select(r => r.InsertText)
+            .ToList();
+
+        insertTextRequests.Should().HaveCount(3);
+        insertTextRequests[0]!.Text.Should().Be("12:30");
+        insertTextRequests[1]!.Text.Should().Be("\n");
+        insertTextRequests[2]!.Text.Should().Be("Message content\n");
+        
+        var textStyleRequests = capturedRequests!
+            .Where(r => r.UpdateTextStyle != null)
+            .ToList();
+
+        textStyleRequests.Should().HaveCount(1);
     }
 
     [Fact(DisplayName = "InsertRichAsync with metadata applies bold to labels")]

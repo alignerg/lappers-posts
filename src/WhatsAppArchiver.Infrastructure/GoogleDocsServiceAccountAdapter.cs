@@ -503,6 +503,24 @@ public sealed class GoogleDocsServiceAccountAdapter : IGoogleDocsService, IDispo
                         break;
                     }
 
+                case PlainTextSection plainText:
+                    {
+                        var textLength = plainText.Text.Length;
+
+                        // Insert text without any styling
+                        requests.Add(new Request
+                        {
+                            InsertText = new InsertTextRequest
+                            {
+                                Text = plainText.Text,
+                                Location = new Location { Index = currentIndex }
+                            }
+                        });
+
+                        currentIndex += textLength;
+                        break;
+                    }
+
                 case ParagraphSection paragraph:
                     {
                         var textWithNewline = paragraph.Text + "\n";
