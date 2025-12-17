@@ -207,24 +207,24 @@ public sealed class WhatsAppTextFileParser : IChatParser
     private MessageAddResult TryAddFinalMessage(List<ChatMessage> messages, ChatMessage currentMessage, StringBuilder currentContent, int lineNumber)
     {
         var finalContent = currentContent.ToString();
-        
+
         // Remove edited message tag if present
         finalContent = RemoveEditedMessageTag(finalContent);
-        
+
         // Filter out link-only messages
         if (IsLinkOnlyMessage(finalContent))
         {
             _logger.LogDebug("Filtered out link-only message at line {LineNumber}", lineNumber);
             return MessageAddResult.Filtered;
         }
-        
+
         // Filter out media and deleted messages
         if (ShouldFilterMessage(finalContent))
         {
             _logger.LogDebug("Filtered out placeholder message at line {LineNumber}", lineNumber);
             return MessageAddResult.Filtered;
         }
-        
+
         try
         {
             messages.Add(ChatMessage.Create(
@@ -244,7 +244,7 @@ public sealed class WhatsAppTextFileParser : IChatParser
             return MessageAddResult.Failed;
         }
     }
-    
+
     /// <summary>
     /// Strips invisible Left-to-Right Mark (LRM) and Zero-Width Space (ZWSP) characters from text.
     /// </summary>
@@ -282,19 +282,19 @@ public sealed class WhatsAppTextFileParser : IChatParser
         {
             return content;
         }
-        
+
         const string editedTag = "<This message was edited>";
-        
+
         // Check if the content ends with the edited tag
         if (content.EndsWith(editedTag, StringComparison.Ordinal))
         {
             // Remove the tag and trim any trailing whitespace
             return content[..^editedTag.Length].TrimEnd();
         }
-        
+
         return content;
     }
-    
+
     /// <summary>
     /// Determines if a message content represents a link-only message that should be filtered.
     /// </summary>
@@ -310,15 +310,15 @@ public sealed class WhatsAppTextFileParser : IChatParser
         {
             return false;
         }
-        
+
         var trimmed = content.Trim();
-        
+
         // Check if the entire message is a URL (http:// or https://)
         return (trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
                 trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) &&
                trimmed.IndexOf(' ') == -1;
     }
-    
+
     /// <summary>
     /// Determines if a message content represents a placeholder that should be filtered out.
     /// </summary>
@@ -342,18 +342,18 @@ public sealed class WhatsAppTextFileParser : IChatParser
         {
             return false;
         }
-        
+
         var trimmed = content.Trim();
-        
+
         // Check for common media placeholder patterns using HashSet for O(1) lookup
         if (MediaPlaceholderPatterns.Contains(trimmed))
         {
             return true;
         }
-        
+
         // Check for attachment patterns with filenames: <attached: FILENAME>
         // Requires a space after the colon and non-empty content before the closing bracket
-        if (trimmed.StartsWith(AttachedPrefix, StringComparison.OrdinalIgnoreCase) && 
+        if (trimmed.StartsWith(AttachedPrefix, StringComparison.OrdinalIgnoreCase) &&
             trimmed.EndsWith(">", StringComparison.Ordinal) &&
             trimmed.Length > AttachedPrefix.Length + 1)
         {
@@ -364,10 +364,10 @@ public sealed class WhatsAppTextFileParser : IChatParser
                 return true;
             }
         }
-        
+
         return false;
     }
-    
+
     /// <summary>
     /// Represents the result of attempting to add a message.
     /// </summary>
@@ -377,12 +377,12 @@ public sealed class WhatsAppTextFileParser : IChatParser
         /// The message was successfully added.
         /// </summary>
         Success,
-        
+
         /// <summary>
         /// The message was intentionally filtered out (link-only or media placeholder).
         /// </summary>
         Filtered,
-        
+
         /// <summary>
         /// The message failed to be added due to a parsing or validation error.
         /// </summary>
