@@ -60,6 +60,9 @@ public sealed class WhatsAppTextFileParser : IChatParser
         "This message was deleted."
     };
 
+    // Attachment pattern prefix for dynamic filename matching
+    private const string AttachedPrefix = "<attached: ";
+
     private readonly ResiliencePipeline _resiliencePipeline;
     private readonly ILogger<WhatsAppTextFileParser> _logger;
     private readonly Func<string, CancellationToken, Task<string[]>>? _fileReader;
@@ -325,7 +328,10 @@ public sealed class WhatsAppTextFileParser : IChatParser
     /// - <c>&lt;Media omitted&gt;</c>
     /// - <c>[image omitted]</c>, <c>[video omitted]</c>, <c>[audio omitted]</c>
     /// - <c>&lt;attached: image&gt;</c>, <c>&lt;attached: video&gt;</c>, <c>&lt;attached: audio&gt;</c>
+    /// - <c>&lt;attached: FILENAME&gt;</c> (e.g., <c>&lt;attached: 00000387-PHOTO-2025-07-19-08-43-56.jpg&gt;</c>)
     /// - <c>This message was deleted.</c>
+    /// 
+    /// For attachment patterns with filenames, a space after the colon is required and the filename must be non-empty.
     /// All comparisons are case-insensitive.
     /// </remarks>
     private static bool ShouldFilterMessage(string content)
@@ -338,7 +344,26 @@ public sealed class WhatsAppTextFileParser : IChatParser
         var trimmed = content.Trim();
         
         // Check for common media placeholder patterns using HashSet for O(1) lookup
-        return MediaPlaceholderPatterns.Contains(trimmed);
+        if (MediaPlaceholderPatterns.Contains(trimmed))
+        {
+            return true;
+        }
+        
+        // Check for attachment patterns with filenames: <attached: FILENAME>
+        // Requires a space after the colon and non-empty content before the closing bracket
+        if (trimmed.StartsWith(AttachedPrefix, StringComparison.OrdinalIgnoreCase) && 
+            trimmed.EndsWith(">", StringComparison.Ordinal) &&
+            trimmed.Length > AttachedPrefix.Length + 1)
+        {
+            // Verify there's actual content between the space and closing bracket
+            var filename = trimmed[AttachedPrefix.Length..^1];
+            if (!string.IsNullOrWhiteSpace(filename))
+            {
+                return true;
+            }
+        }
+        
+        return false;
     }
     
     /// <summary>

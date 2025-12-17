@@ -787,6 +787,105 @@ public class WhatsAppTextFileParserTests
         result.Messages[2].Content.Should().Be("Goodbye");
     }
 
+    [Fact(DisplayName = "ParseAsync filters out attached messages with filenames")]
+    public async Task ParseAsync_AttachedMessagesWithFilenames_FiltersOut()
+    {
+        var testLines = new[]
+        {
+            "[19/07/2025, 08:43:57] Rudi Anderson: Good morning!",
+            "[19/07/2025, 08:43:57] Rudi Anderson: <attached: 00000387-PHOTO-2025-07-19-08-43-56.jpg>",
+            "[20/07/2025, 05:51:42] Rudi Anderson: <attached: 00000394-PHOTO-2025-07-20-05-51-42.jpg>",
+            "[23/07/2025, 04:53:29] Rudi Anderson: <attached: 00000411-PHOTO-2025-07-23-04-53-29.jpg>",
+            "[23/07/2025, 20:10:43] Rudi Anderson: <attached: 00000412-PHOTO-2025-07-23-20-10-43.jpg>",
+            "[23/07/2025, 20:11:00] Rudi Anderson: That's all for now!"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(2);
+        result.Messages[0].Content.Should().Be("Good morning!");
+        result.Messages[1].Content.Should().Be("That's all for now!");
+        result.Messages.Should().NotContain(m => m.Content.Contains("<attached:"));
+    }
+
+    [Fact(DisplayName = "ParseAsync filters out various attachment file types")]
+    public async Task ParseAsync_VariousAttachmentFileTypes_FiltersOut()
+    {
+        var testLines = new[]
+        {
+            "[25/12/2024, 09:15:00] John Smith: Check this out!",
+            "[25/12/2024, 09:16:00] John Smith: <attached: document.pdf>",
+            "[25/12/2024, 09:17:00] John Smith: <attached: video-2024.mp4>",
+            "[25/12/2024, 09:18:00] John Smith: <attached: audio-note.opus>",
+            "[25/12/2024, 09:19:00] John Smith: <attached: IMG_1234.jpg>",
+            "[25/12/2024, 09:20:00] John Smith: All sent!"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(2);
+        result.Messages[0].Content.Should().Be("Check this out!");
+        result.Messages[1].Content.Should().Be("All sent!");
+    }
+
+    [Fact(DisplayName = "ParseAsync handles case insensitive attached pattern")]
+    public async Task ParseAsync_CaseInsensitiveAttachedPattern_FiltersOut()
+    {
+        var testLines = new[]
+        {
+            "[25/12/2024, 09:15:00] John Smith: Hello!",
+            "[25/12/2024, 09:16:00] John Smith: <ATTACHED: FILE.JPG>",
+            "[25/12/2024, 09:17:00] John Smith: <Attached: MyPhoto.png>",
+            "[25/12/2024, 09:18:00] John Smith: Goodbye!"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(2);
+        result.Messages[0].Content.Should().Be("Hello!");
+        result.Messages[1].Content.Should().Be("Goodbye!");
+    }
+
+    [Fact(DisplayName = "ParseAsync does not filter malformed attached patterns")]
+    public async Task ParseAsync_MalformedAttachedPatterns_DoesNotFilter()
+    {
+        var testLines = new[]
+        {
+            "[25/12/2024, 09:15:00] John Smith: <attached:>",
+            "[25/12/2024, 09:16:00] John Smith: <attached: >",
+            "[25/12/2024, 09:17:00] John Smith: <attached:file.txt>",
+            "[25/12/2024, 09:18:00] John Smith: Valid message"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(4, "malformed patterns should not be filtered");
+        result.Messages[0].Content.Should().Be("<attached:>");
+        result.Messages[1].Content.Should().Be("<attached: >");
+        result.Messages[2].Content.Should().Be("<attached:file.txt>");
+        result.Messages[3].Content.Should().Be("Valid message");
+    }
+
     [Fact(DisplayName = "ParseAsync handles whitespace-only content with edited tag")]
     public async Task ParseAsync_WhitespaceAndEditedTag_FiltersAsEmptyMessage()
     {
@@ -804,7 +903,7 @@ public class WhatsAppTextFileParserTests
         var result = await parser.ParseAsync("test.txt");
 
         result.Should().NotBeNull();
-        // After removing the edited tag from "   <This message was edited>", 
+        // After removing the edited tag from "   <This message was edited>",
         // we get empty string which will fail ChatMessage.Create validation
         // so the message should be counted as failed
         result.Messages.Should().HaveCount(2);
