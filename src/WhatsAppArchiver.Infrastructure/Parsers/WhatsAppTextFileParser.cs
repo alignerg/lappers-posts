@@ -168,7 +168,7 @@ public sealed class WhatsAppTextFileParser : IChatParser
             {
                 // This is a continuation line
                 currentContent.AppendLine();
-                currentContent.Append(line);
+                currentContent.Append(StripLRMCharacters(line));
             }
             else
             {
@@ -242,6 +242,26 @@ public sealed class WhatsAppTextFileParser : IChatParser
         }
     }
     
+    /// <summary>
+    /// Strips invisible Left-to-Right Mark (LRM) characters from text.
+    /// </summary>
+    /// <param name="text">The text to clean.</param>
+    /// <returns>The text with all LRM characters removed.</returns>
+    /// <remarks>
+    /// WhatsApp chat exports contain invisible LRM characters (Unicode U+200E) throughout the text,
+    /// appearing in sender names, message content, system messages, and media placeholders.
+    /// This method removes these characters to ensure clean text processing.
+    /// </remarks>
+    private static string StripLRMCharacters(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return text;
+        }
+
+        return text.Replace("\u200E", "");
+    }
+
     /// <summary>
     /// Removes the WhatsApp edited message tag from message content.
     /// </summary>
@@ -365,8 +385,8 @@ public sealed class WhatsAppTextFileParser : IChatParser
     {
         var dateStr = match.Groups[1].Value;
         var timeStr = match.Groups[2].Value;
-        var sender = match.Groups[3].Value.Trim();
-        var content = match.Groups[4].Value;
+        var sender = StripLRMCharacters(match.Groups[3].Value.Trim());
+        var content = StripLRMCharacters(match.Groups[4].Value);
 
         if (!TryParseDateTime(dateStr, timeStr, is24HourFormat, offset, out var timestamp))
         {
