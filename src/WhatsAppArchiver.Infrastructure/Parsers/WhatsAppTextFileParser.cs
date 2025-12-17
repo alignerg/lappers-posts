@@ -204,6 +204,9 @@ public sealed class WhatsAppTextFileParser : IChatParser
     {
         var finalContent = currentContent.ToString();
         
+        // Remove edited message tag if present
+        finalContent = RemoveEditedMessageTag(finalContent);
+        
         // Filter out link-only messages
         if (IsLinkOnlyMessage(finalContent))
         {
@@ -236,6 +239,34 @@ public sealed class WhatsAppTextFileParser : IChatParser
                 ex.ParamName);
             return MessageAddResult.Failed;
         }
+    }
+    
+    /// <summary>
+    /// Removes the WhatsApp edited message tag from message content.
+    /// </summary>
+    /// <param name="content">The message content to clean.</param>
+    /// <returns>The message content with the edited tag removed, or the original content if no tag is present.</returns>
+    /// <remarks>
+    /// WhatsApp appends "&lt;This message was edited&gt;" to messages that have been edited.
+    /// This method removes that tag to keep only the actual message content.
+    /// </remarks>
+    private static string RemoveEditedMessageTag(string content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return content;
+        }
+        
+        const string editedTag = "<This message was edited>";
+        
+        // Check if the content ends with the edited tag
+        if (content.EndsWith(editedTag, StringComparison.Ordinal))
+        {
+            // Remove the tag and trim any trailing whitespace
+            return content[..^editedTag.Length].TrimEnd();
+        }
+        
+        return content;
     }
     
     /// <summary>
