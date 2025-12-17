@@ -246,14 +246,24 @@ public sealed class WhatsAppTextFileParser : IChatParser
     }
     
     /// <summary>
-    /// Strips invisible Left-to-Right Mark (LRM) characters from text.
+    /// Strips invisible Unicode bidirectional control characters from text.
     /// </summary>
     /// <param name="text">The text to clean.</param>
-    /// <returns>The text with all LRM characters removed.</returns>
+    /// <returns>The text with all Unicode bidirectional control characters removed.</returns>
     /// <remarks>
-    /// WhatsApp chat exports contain invisible LRM characters (Unicode U+200E) throughout the text,
+    /// WhatsApp chat exports contain invisible Unicode control characters throughout the text,
     /// appearing in sender names, message content, system messages, and media placeholders.
     /// This method removes these characters to ensure clean text processing.
+    /// Common control characters removed:
+    /// <list type="bullet">
+    /// <item><description>U+200E - Left-to-Right Mark (LRM)</description></item>
+    /// <item><description>U+200F - Right-to-Left Mark (RLM)</description></item>
+    /// <item><description>U+202A - Left-to-Right Embedding (LRE)</description></item>
+    /// <item><description>U+202B - Right-to-Left Embedding (RLE)</description></item>
+    /// <item><description>U+202C - Pop Directional Formatting (PDF)</description></item>
+    /// <item><description>U+202D - Left-to-Right Override (LRO)</description></item>
+    /// <item><description>U+202E - Right-to-Left Override (RLO)</description></item>
+    /// </list>
     /// </remarks>
     private static string StripLRMCharacters(string text)
     {
@@ -262,7 +272,13 @@ public sealed class WhatsAppTextFileParser : IChatParser
             return text;
         }
 
-        return text.Replace("\u200E", "");
+        return text.Replace("\u200E", "")
+                   .Replace("\u200F", "")
+                   .Replace("\u202A", "")
+                   .Replace("\u202B", "")
+                   .Replace("\u202C", "")
+                   .Replace("\u202D", "")
+                   .Replace("\u202E", "");
     }
 
     /// <summary>
@@ -341,7 +357,9 @@ public sealed class WhatsAppTextFileParser : IChatParser
             return false;
         }
         
-        var trimmed = content.Trim();
+        // Trim both standard whitespace AND Unicode bidirectional control characters
+        // This is a defensive measure in case any control characters weren't stripped earlier
+        var trimmed = content.Trim().Trim('\u200E', '\u200F', '\u202A', '\u202B', '\u202C', '\u202D', '\u202E');
         
         // Check for common media placeholder patterns using HashSet for O(1) lookup
         if (MediaPlaceholderPatterns.Contains(trimmed))
