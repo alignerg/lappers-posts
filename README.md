@@ -345,7 +345,7 @@ The compiled application will be in:
   - `default`: `[{timestamp}] {sender}: {content}`
   - `compact`: `{sender}: {content}`
   - `verbose`: Detailed format with full date/time and metadata
-  - `googledocs`: Rich formatted document with styled headings, bold timestamps, and visual separators
+  - `googledocs`: Structured document with semantic headings (H1, H2, H3) and visual separators
 
 - **Logging**: Configure application logging
   - `MinimumLevel`: Trace, Debug, Information, Warning, Error, or Critical
@@ -479,7 +479,7 @@ dotnet run -- --chat-file ./exports/chat.txt --sender-filter "John Smith" --doc-
   - `default`: `[{timestamp}] {sender}: {content}`
   - `compact`: `{sender}: {content}`
   - `verbose`: Detailed format with full date/time and metadata
-  - `googledocs`: Rich formatted document with styled headings, bold timestamps, and visual separators
+  - `googledocs`: Structured document with semantic headings (H1, H2, H3) and visual separators
 
 - `--config`: Path to a custom configuration file (appsettings.json)
   - Overrides the default configuration file
@@ -691,15 +691,15 @@ dotnet run -- --chat-file ./chat.txt --sender-filter "John Smith" --doc-id "YOUR
 
 #### GoogleDocs Formatter
 
-The **GoogleDocs formatter** produces rich text output with proper heading styles, bold timestamps, and visual separators. This formatter is specifically designed to create professional, well-structured documents in Google Docs with advanced formatting features.
+The **GoogleDocs formatter** produces structured output with semantic heading styles and visual separators. This formatter is specifically designed to create professional, well-structured documents in Google Docs with clear organization.
 
 **Features:**
 
 - **H1 heading** for document title with sender name
-- **Bold metadata labels** (Export Date, Total Messages) with normal text values
+- **Plain text metadata** (Export Date, Total Messages) without any styling
 - **H2 headings** for date sections (formatted as "MMMM d, yyyy", e.g., "December 15, 2024")
-- **Bold timestamps** in 24-hour format (HH:mm, e.g., "09:15")
-- **Unicode horizontal rules** (━━━━━━━━━━━━━━━━━━━━) between messages for visual separation
+- **H3 headings** for timestamps in 24-hour format (HH:mm, e.g., "09:15")
+- **Unicode horizontal rules** (━━━━━━━━━━━━━━━━━━━━) as section separators
 - **Preserved multi-line message content** with original line breaks maintained
 - **Automatic date grouping** that organizes messages by day
 
@@ -717,22 +717,29 @@ Total Messages: 127
 
 ## December 14, 2024
 
-09:15Good morning! How are you today?
-━━━━━━━━━━━━━━━━━━━━
+### 09:15
 
-09:16I'm doing well, thanks for asking!
-━━━━━━━━━━━━━━━━━━━━
+Good morning! How are you today?
+
+
+### 09:16
+
+I'm doing well, thanks for asking!
+
 
 ## December 15, 2024
 
-08:30Just wanted to follow up on yesterday's conversation.
-━━━━━━━━━━━━━━━━━━━━
+### 08:30
+
+Just wanted to follow up on yesterday's conversation.
+
+
 ```
 
-**Note:** In Google Docs, the text appears with actual rich formatting:
-- Headings are styled with Google Docs heading styles (H1, H2)
-- Timestamps (e.g., "09:15") appear in **bold** immediately before the message content
-- Metadata labels (e.g., "Export Date:") appear in **bold** while values are normal text
+**Note:** In Google Docs, the text appears with semantic heading formatting:
+- Headings are styled with Google Docs heading styles (H1, H2, H3)
+- Timestamps (e.g., "09:15") appear as H3 headings
+- All text content is plain without bold or italic styling
 - Horizontal rules are rendered as visual separators (20 "━" characters)
 
 **Usage:**

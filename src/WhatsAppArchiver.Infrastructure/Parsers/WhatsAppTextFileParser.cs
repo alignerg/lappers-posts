@@ -56,7 +56,8 @@ public sealed class WhatsAppTextFileParser : IChatParser
         "[audio omitted]",
         "<attached: image>",
         "<attached: video>",
-        "<attached: audio>"
+        "<attached: audio>",
+        "This message was deleted."
     };
 
     private readonly ResiliencePipeline _resiliencePipeline;
@@ -204,6 +205,9 @@ public sealed class WhatsAppTextFileParser : IChatParser
     {
         var finalContent = currentContent.ToString();
         
+        // Remove edited message tag if present
+        finalContent = RemoveEditedMessageTag(finalContent);
+        
         // Filter out link-only messages
         if (IsLinkOnlyMessage(finalContent))
         {
@@ -211,10 +215,10 @@ public sealed class WhatsAppTextFileParser : IChatParser
             return MessageAddResult.Filtered;
         }
         
-        // Filter out media messages
-        if (IsMediaMessage(finalContent))
+        // Filter out media and deleted messages
+        if (ShouldFilterMessage(finalContent))
         {
-            _logger.LogDebug("Filtered out media message at line {LineNumber}", lineNumber);
+            _logger.LogDebug("Filtered out placeholder message at line {LineNumber}", lineNumber);
             return MessageAddResult.Filtered;
         }
         
@@ -236,6 +240,34 @@ public sealed class WhatsAppTextFileParser : IChatParser
                 ex.ParamName);
             return MessageAddResult.Failed;
         }
+    }
+    
+    /// <summary>
+    /// Removes the WhatsApp edited message tag from message content.
+    /// </summary>
+    /// <param name="content">The message content to clean.</param>
+    /// <returns>The message content with the edited tag removed, or the original content if no tag is present.</returns>
+    /// <remarks>
+    /// WhatsApp appends "&lt;This message was edited&gt;" to messages that have been edited.
+    /// This method removes that tag to keep only the actual message content.
+    /// </remarks>
+    private static string RemoveEditedMessageTag(string content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return content;
+        }
+        
+        const string editedTag = "<This message was edited>";
+        
+        // Check if the content ends with the edited tag
+        if (content.EndsWith(editedTag, StringComparison.Ordinal))
+        {
+            // Remove the tag and trim any trailing whitespace
+            return content[..^editedTag.Length].TrimEnd();
+        }
+        
+        return content;
     }
     
     /// <summary>
@@ -263,22 +295,23 @@ public sealed class WhatsAppTextFileParser : IChatParser
     }
     
     /// <summary>
-    /// Determines if a message content represents a media placeholder that should be filtered.
+    /// Determines if a message content represents a placeholder that should be filtered out.
     /// </summary>
     /// <param name="content">The message content to check.</param>
-    /// <returns>True if the content matches a known media placeholder pattern; otherwise, false.</returns>
+    /// <returns>True if the content matches a known placeholder pattern that should be filtered; otherwise, false.</returns>
     /// <remarks>
-    /// This method filters messages that indicate media attachments without meaningful text content.
+    /// This method filters placeholder messages that don't contain meaningful text content.
     /// Supported patterns include:
     /// - <c>&lt;Media omitted&gt;</c>
     /// - <c>[image omitted]</c>, <c>[video omitted]</c>, <c>[audio omitted]</c>
     /// - <c>&lt;attached: image&gt;</c>, <c>&lt;attached: video&gt;</c>, <c>&lt;attached: audio&gt;</c>
     /// - <c>&lt;attached: FILENAME&gt;</c> (e.g., <c>&lt;attached: 00000387-PHOTO-2025-07-19-08-43-56.jpg&gt;</c>)
+    /// - <c>This message was deleted.</c>
     /// 
     /// For attachment patterns with filenames, a space after the colon is required and the filename must be non-empty.
     /// All comparisons are case-insensitive.
     /// </remarks>
-    private static bool IsMediaMessage(string content)
+    private static bool ShouldFilterMessage(string content)
     {
         if (string.IsNullOrWhiteSpace(content))
         {

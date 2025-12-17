@@ -23,22 +23,15 @@ public class GoogleDocsDocumentFormatterTests
 
         var result = _formatter.FormatDocument(chatExport);
 
-        // Header section (H1)
-        Assert.Contains(result.Sections, s => s is HeadingSection h && h.Level == 1 && h.Text.Contains("John Doe"));
-        
-        // Metadata sections
-        Assert.Contains(result.Sections, s => s is MetadataSection m && m.Label == "Export Date");
-        Assert.Contains(result.Sections, s => s is MetadataSection m && m.Label == "Total Messages" && m.Value == "3");
-        
         // Date header (H2)
         Assert.Contains(result.Sections, s => s is HeadingSection h && h.Level == 2 && h.Text.Contains("January 15, 2024"));
         
-        // Message sections - timestamps and content
-        Assert.Contains(result.Sections, s => s is BoldTextSection b && b.Text == "10:30");
+        // Message sections - timestamps as H3 headings and content
+        Assert.Contains(result.Sections, s => s is HeadingSection h && h.Level == 3 && h.Text == "10:30");
         Assert.Contains(result.Sections, s => s is ParagraphSection p && p.Text == "First message");
-        Assert.Contains(result.Sections, s => s is BoldTextSection b && b.Text == "10:35");
+        Assert.Contains(result.Sections, s => s is HeadingSection h && h.Level == 3 && h.Text == "10:35");
         Assert.Contains(result.Sections, s => s is ParagraphSection p && p.Text == "Second message");
-        Assert.Contains(result.Sections, s => s is BoldTextSection b && b.Text == "10:40");
+        Assert.Contains(result.Sections, s => s is HeadingSection h && h.Level == 3 && h.Text == "10:40");
         Assert.Contains(result.Sections, s => s is ParagraphSection p && p.Text == "Third message");
         
         // Empty lines (double empty lines after each message)
@@ -101,8 +94,8 @@ public class GoogleDocsDocumentFormatterTests
         Assert.Equal(multiLineContent, paragraphSection.Text);
     }
 
-    [Fact(DisplayName = "FormatDocument with empty export returns header only")]
-    public void FormatDocument_EmptyExport_ReturnsHeaderOnly()
+    [Fact(DisplayName = "FormatDocument with empty export returns empty document")]
+    public void FormatDocument_EmptyExport_ReturnsEmptyDocument()
     {
         var messages = Array.Empty<ChatMessage>();
         var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 1, 15, 12, 0, 0, TimeSpan.Zero), 0, 0, 0);
@@ -110,13 +103,8 @@ public class GoogleDocsDocumentFormatterTests
 
         var result = _formatter.FormatDocument(chatExport);
 
-        // Should have H1, 2 metadata sections, and 1 horizontal rule
-        Assert.Contains(result.Sections, s => s is HeadingSection h && h.Level == 1 && h.Text.Contains("Unknown"));
-        Assert.Contains(result.Sections, s => s is MetadataSection m && m.Label == "Total Messages" && m.Value == "0");
-        Assert.Single(result.Sections.OfType<HorizontalRuleSection>());
-        
-        // Should NOT have any H2 sections (date headers)
-        Assert.DoesNotContain(result.Sections, s => s is HeadingSection h && h.Level == 2);
+        // Should be empty - no sections at all
+        Assert.Empty(result.Sections);
     }
 
     [Fact(DisplayName = "FormatDocument with special characters preserves content")]
@@ -134,7 +122,7 @@ public class GoogleDocsDocumentFormatterTests
 
         var paragraphSection = result.Sections
             .OfType<ParagraphSection>()
-            .FirstOrDefault();
+            .FirstOrDefault(p => p.Text.Contains(specialContent));
 
         Assert.NotNull(paragraphSection);
         Assert.Equal(specialContent, paragraphSection.Text);
@@ -152,12 +140,10 @@ public class GoogleDocsDocumentFormatterTests
 
         var result = _formatter.FormatDocument(chatExport);
 
-        // Verify presence of all expected section types
-        Assert.Contains(result.Sections, s => s is HeadingSection h && h.Level == 1);
-        Assert.Contains(result.Sections, s => s is MetadataSection);
+        // Verify presence of all expected section types (no H1 or metadata sections)
         Assert.Contains(result.Sections, s => s is HeadingSection h && h.Level == 2);
-        Assert.Contains(result.Sections, s => s is BoldTextSection);
-        Assert.Contains(result.Sections, s => s is ParagraphSection);
+        Assert.Contains(result.Sections, s => s is HeadingSection h && h.Level == 3);
+        Assert.Contains(result.Sections, s => s is ParagraphSection p && p.Text == "Test message");
         Assert.Contains(result.Sections, s => s is EmptyLineSection);
     }
 
@@ -175,12 +161,12 @@ public class GoogleDocsDocumentFormatterTests
 
         var result = _formatter.FormatDocument(chatExport);
 
-        var boldSections = result.Sections.OfType<BoldTextSection>().ToList();
+        var timestampHeadings = result.Sections.OfType<HeadingSection>().Where(h => h.Level == 3).ToList();
         
         // Verify 24-hour HH:mm format (no AM/PM, leading zeros)
-        Assert.Contains(boldSections, b => b.Text == "14:45");
-        Assert.Contains(boldSections, b => b.Text == "09:05");
-        Assert.Contains(boldSections, b => b.Text == "00:30");
+        Assert.Contains(timestampHeadings, h => h.Text == "14:45");
+        Assert.Contains(timestampHeadings, h => h.Text == "09:05");
+        Assert.Contains(timestampHeadings, h => h.Text == "00:30");
     }
 
     [Fact(DisplayName = "FormatMessage when called throws NotSupportedException")]
@@ -193,8 +179,8 @@ public class GoogleDocsDocumentFormatterTests
         Assert.Contains("GoogleDocsDocumentFormatter requires FormatDocument for batch processing", exception.Message);
     }
 
-    [Fact(DisplayName = "FormatDocument timestamp newline separated from bold to prevent bleeding")]
-    public void FormatDocument_TimestampNewline_SeparatedFromBold()
+    [Fact(DisplayName = "FormatDocument timestamp as H3 heading without newline")]
+    public void FormatDocument_Timestamp_AsH3Heading()
     {
         var messages = new[]
         {
@@ -205,23 +191,21 @@ public class GoogleDocsDocumentFormatterTests
 
         var result = _formatter.FormatDocument(chatExport);
 
-        // Verify timestamp is in BoldTextSection WITHOUT newline
-        var boldTimestamp = result.Sections
-            .OfType<BoldTextSection>()
-            .FirstOrDefault(b => b.Text.Contains("10:30"));
-        Assert.NotNull(boldTimestamp);
-        Assert.Equal("10:30", boldTimestamp.Text);
-        Assert.DoesNotContain("\n", boldTimestamp.Text);
+        // Verify timestamp is in HeadingSection level 3
+        var timestampHeading = result.Sections
+            .OfType<HeadingSection>()
+            .FirstOrDefault(h => h.Level == 3 && h.Text == "10:30");
+        Assert.NotNull(timestampHeading);
+        Assert.Equal(3, timestampHeading.Level);
+        Assert.Equal("10:30", timestampHeading.Text);
 
-        // Verify there is a PlainTextSection containing newline after the timestamp
+        // Verify there is NO PlainTextSection after the timestamp (it's a heading now)
         var sections = result.Sections.ToList();
-        var timestampIndex = sections.IndexOf(boldTimestamp);
+        var timestampIndex = sections.IndexOf(timestampHeading);
         Assert.True(timestampIndex >= 0);
         Assert.True(timestampIndex + 1 < sections.Count);
         
         var nextSection = sections[timestampIndex + 1];
-        Assert.IsType<PlainTextSection>(nextSection);
-        var plainTextSection = (PlainTextSection)nextSection;
-        Assert.Equal("\n", plainTextSection.Text);
+        Assert.IsType<ParagraphSection>(nextSection);
     }
 }

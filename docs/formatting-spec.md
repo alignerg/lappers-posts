@@ -34,9 +34,13 @@ Represents a heading with a specific level (H1-H6).
   - Format: `"MMMM d, yyyy"` (e.g., "December 15, 2024")
   - Example: `new HeadingSection(2, "December 15, 2024")`
 
+- **H3 (Level 3)**: Message timestamps
+  - Format: `"HH:mm"` (e.g., "09:15", "14:30")
+  - Example: `new HeadingSection(3, "09:15")`
+
 **Rendering:**
 - Applied using Google Docs API `UpdateParagraphStyleRequest`
-- Uses `NamedStyleType.HEADING_1` or `NamedStyleType.HEADING_2`
+- Uses `NamedStyleType.HEADING_1`, `NamedStyleType.HEADING_2`, or `NamedStyleType.HEADING_3`
 - Automatically formatted with Google Docs default heading styles
 
 **Validation:**
@@ -52,9 +56,8 @@ Represents text that should be displayed in bold styling.
 - `Content` (string): Returns the text content
 
 **Usage in GoogleDocs Formatter:**
-- Message timestamps in 24-hour format
-  - Format: `"HH:mm"` (e.g., "09:15", "14:30")
-  - Example: `new BoldTextSection("09:15")`
+- **Note:** This section type is currently not used by the GoogleDocs formatter. All styling has been removed to use semantic headings instead.
+- Previously used for timestamps, which are now represented as H3 headings.
 
 **Rendering:**
 - Applied using Google Docs API `UpdateTextStyleRequest`
@@ -116,11 +119,8 @@ Represents a key-value pair where the label is bold and the value is normal text
 - `Content` (string): Returns `"{Label}: {Value}"`
 
 **Usage in GoogleDocs Formatter:**
-- Export date metadata
-  - Example: `new MetadataSection("Export Date", "December 15, 2024")`
-  
-- Total messages count
-  - Example: `new MetadataSection("Total Messages", "127")`
+- **Note:** This section type is currently not used by the GoogleDocs formatter. Metadata is now represented as plain ParagraphSections.
+- Previously used for export date and total messages metadata.
 
 **Rendering:**
 - Label, colon (":"), and the following space are rendered in bold using `UpdateTextStyleRequest`
@@ -252,28 +252,25 @@ EndIndex: 1 + 41 + 1 = 43
 
 **Next section starts at:** Index 43
 
-#### Example 2: Metadata Section
+#### Example 2: Paragraph Section (Metadata)
 
 **Content:** `"Export Date: December 15, 2024\n"`
 
 **Calculation:**
 ```
 StartIndex: 43 (assuming previous section ended at 43)
-Label: "Export Date"
-Label with colon and space: "Export Date: " (includes colon and space)
-Label Length: 13 characters
-Value: "December 15, 2024"
-Value with newline: "December 15, 2024\n"
-Value Length: 18 characters (17 + newline)
-EndIndex: 43 + 13 + 18 = 74
+Text: "Export Date: December 15, 2024"
+Text with newline: "Export Date: December 15, 2024\n"
+Length: 31 + 1 = 32 characters
+EndIndex: 43 + 32 = 75
 ```
 
 **API Requests:**
-1. Insert label text at index 43: `"Export Date: "`
-2. Apply bold to label range [43, 56) - "Export Date: " (13 characters including colon and space)
-3. Insert value text at index 56: `"December 15, 2024\n"`
+1. Insert text at index 43: `"Export Date: December 15, 2024\n"`
 
-**Next section starts at:** Index 74
+**Next section starts at:** Index 75
+
+**Note:** Previously this was a MetadataSection with bold labels. Now it's a plain ParagraphSection without any styling.
 
 #### Example 3: Horizontal Rule
 
@@ -294,7 +291,7 @@ EndIndex: 74 + 20 + 1 = 95
 
 #### Example 4: Complete Message Sequence
 
-A typical message consists of: Bold timestamp + Paragraph content + Horizontal rule
+A typical message consists of: H3 timestamp heading + Paragraph content + Empty lines
 
 **Message:** Time "09:15", Content "Hello!\nHow are you?"
 
@@ -302,30 +299,31 @@ A typical message consists of: Bold timestamp + Paragraph content + Horizontal r
 ```
 StartIndex: 95
 
-1. Bold Timestamp:
-   Text: "09:15" (no newline appended to bold sections)
-   Length: 5
-   Range for bold: [95, 100)
-   Current Index: 95 + 5 = 100
+1. H3 Timestamp Heading:
+   Text: "09:15\n" (newline is appended to headings)
+   Length: 5 + 1 = 6
+   Range for H3 style: [95, 101)
+   Current Index: 95 + 6 = 101
 
 2. Paragraph Content:
    Text: "Hello!\nHow are you?\n" (newline IS appended to paragraphs)
    Length: 6 + 1 + 13 + 1 = 21
-   Current Index: 100 + 21 = 121
+   Current Index: 101 + 21 = 122
 
-3. Horizontal Rule:
-   Text: "━━━━━━━━━━━━━━━━━━━━\n"
-   Length: 20 + 1 = 21
-   Current Index: 121 + 21 = 142
+3. Empty Lines (2x):
+   Text: "\n" (each empty line is a single newline)
+   Length: 1 + 1 = 2
+   Current Index: 122 + 2 = 124
 ```
 
 **API Requests:**
-1. Insert "09:15" at index 95
-2. Apply bold to range [95, 100)
-3. Insert "Hello!\nHow are you?\n" at index 100
-4. Insert "━━━━━━━━━━━━━━━━━━━━\n" at index 121
+1. Insert "09:15\n" at index 95
+2. Apply H3 heading style to range [95, 101)
+3. Insert "Hello!\nHow are you?\n" at index 101
+4. Insert "\n" at index 122 (first empty line)
+5. Insert "\n" at index 123 (second empty line)
 
-**Next section starts at:** Index 142
+**Next section starts at:** Index 124
 
 ### Multi-line Content Handling
 
@@ -387,22 +385,25 @@ var chatExport = new ChatExport
 ```csharp
 [
     HeadingSection(1, "WhatsApp Conversation Export - John Smith"),
-    MetadataSection("Export Date", "December 15, 2024"),
-    MetadataSection("Total Messages", "3"),
+    ParagraphSection("Export Date: December 15, 2024"),
+    ParagraphSection("Total Messages: 3"),
     HorizontalRuleSection(),
     
     HeadingSection(2, "December 14, 2024"),
-    BoldTextSection("09:15"),
+    HeadingSection(3, "09:15"),
     ParagraphSection("Good morning!"),
-    HorizontalRuleSection(),
-    BoldTextSection("09:16"),
+    EmptyLineSection(),
+    EmptyLineSection(),
+    HeadingSection(3, "09:16"),
     ParagraphSection("How are you?"),
-    HorizontalRuleSection(),
+    EmptyLineSection(),
+    EmptyLineSection(),
     
     HeadingSection(2, "December 15, 2024"),
-    BoldTextSection("08:30"),
+    HeadingSection(3, "08:30"),
     ParagraphSection("Just checking in."),
-    HorizontalRuleSection()
+    EmptyLineSection(),
+    EmptyLineSection()
 ]
 ```
 
@@ -418,23 +419,31 @@ Total Messages: 3
 
 ## December 14, 2024
 
-09:15Good morning!
-━━━━━━━━━━━━━━━━━━━━
+### 09:15
 
-09:16How are you?
-━━━━━━━━━━━━━━━━━━━━
+Good morning!
+
+
+### 09:16
+
+How are you?
+
 
 ## December 15, 2024
 
-08:30Just checking in.
-━━━━━━━━━━━━━━━━━━━━
+### 08:30
+
+Just checking in.
+
+
 ```
 
 **Note:** In actual Google Docs:
 - `#` headings are styled with H1 formatting
 - `##` headings are styled with H2 formatting
-- Timestamps (e.g., "09:15") and metadata labels (e.g., "Export Date:") appear in **bold**
+- `###` headings are styled with H3 formatting (used for timestamps)
 - Horizontal rules appear as visual separators
+- All text content is plain (no bold styling)
 
 ## Implementation Details
 
