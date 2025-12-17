@@ -1495,7 +1495,7 @@ public class GoogleDocsServiceAccountAdapterTests
         insertRequest!.Location.Index.Should().Be(0);
     }
 
-    [Fact(DisplayName = "AppendRichAsync with plain text section appends text without formatting")]
+    [Fact(DisplayName = "AppendRichAsync with plain text section inserts text without formatting")]
     public async Task AppendRichAsync_WithPlainTextSection_AppendsTextWithoutFormatting()
     {
         var documentId = "doc-123";
@@ -1534,6 +1534,7 @@ public class GoogleDocsServiceAccountAdapterTests
 
         insertTextRequests.Should().HaveCount(1);
         insertTextRequests[0]!.Text.Should().Be("Plain text content");
+        insertTextRequests[0]!.Location.Index.Should().Be(99);
 
         var textStyleRequests = capturedRequests!
             .Where(r => r.UpdateTextStyle != null)
@@ -1542,7 +1543,7 @@ public class GoogleDocsServiceAccountAdapterTests
         textStyleRequests.Should().BeEmpty();
     }
 
-    [Fact(DisplayName = "AppendRichAsync with page break section appends page break")]
+    [Fact(DisplayName = "AppendRichAsync with page break section inserts page break")]
     public async Task AppendRichAsync_WithPageBreakSection_AppendsPageBreak()
     {
         var documentId = "doc-123";
@@ -1583,7 +1584,7 @@ public class GoogleDocsServiceAccountAdapterTests
         pageBreakRequests[0]!.Location.Index.Should().Be(99);
     }
 
-    [Fact(DisplayName = "AppendRichAsync with empty line section appends newline")]
+    [Fact(DisplayName = "AppendRichAsync with empty line section inserts newline")]
     public async Task AppendRichAsync_WithEmptyLineSection_AppendsNewline()
     {
         var documentId = "doc-123";
@@ -1670,22 +1671,28 @@ public class GoogleDocsServiceAccountAdapterTests
             .Select(r => r.InsertPageBreak)
             .ToList();
 
+        // Verify request count
         insertTextRequests.Should().HaveCount(3);
         pageBreakRequests.Should().HaveCount(1);
 
+        // Verify index progression
         var currentIndex = 99;
         
+        // PlainTextSection "Start" (5 characters)
         insertTextRequests[0]!.Location.Index.Should().Be(currentIndex);
         insertTextRequests[0]!.Text.Should().Be("Start");
         currentIndex += 5;
         
+        // PageBreakSection (1 character)
         pageBreakRequests[0]!.Location.Index.Should().Be(currentIndex);
         currentIndex += 1;
         
+        // EmptyLineSection "\n" (1 character)
         insertTextRequests[1]!.Location.Index.Should().Be(currentIndex);
         insertTextRequests[1]!.Text.Should().Be("\n");
         currentIndex += 1;
         
+        // ParagraphSection "End\n" (4 characters)
         insertTextRequests[2]!.Location.Index.Should().Be(currentIndex);
         insertTextRequests[2]!.Text.Should().Be("End\n");
     }
