@@ -812,4 +812,108 @@ public class WhatsAppTextFileParserTests
         result.Messages[1].Content.Should().Be("Goodbye");
         result.Metadata.FailedLineCount.Should().Be(1, "message with only whitespace and edited tag should fail validation");
     }
+
+    [Fact(DisplayName = "ParseAsync strips LRM characters from sender names")]
+    public async Task ParseAsync_LRMInSenderName_StripsCharacters()
+    {
+        // LRM character is U+200E
+        var lrm = "\u200E";
+        var testLines = new[]
+        {
+            $"[25/12/2024, 09:15:00] {lrm}Rudi Anderson{lrm}: Hello everyone",
+            $"[25/12/2024, 09:16:00] {lrm}Maria Garcia{lrm}: Good morning",
+            "[25/12/2024, 09:17:00] John Smith: No LRM here"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(3);
+        result.Messages[0].Sender.Should().Be("Rudi Anderson");
+        result.Messages[0].Content.Should().Be("Hello everyone");
+        result.Messages[1].Sender.Should().Be("Maria Garcia");
+        result.Messages[1].Content.Should().Be("Good morning");
+        result.Messages[2].Sender.Should().Be("John Smith");
+    }
+
+    [Fact(DisplayName = "ParseAsync strips LRM characters from message content")]
+    public async Task ParseAsync_LRMInMessageContent_StripsCharacters()
+    {
+        var lrm = "\u200E";
+        var testLines = new[]
+        {
+            $"[25/12/2024, 09:15:00] John Smith: {lrm}[image omitted]{lrm}",
+            $"[25/12/2024, 09:16:00] Maria Garcia: This is a {lrm}normal{lrm} message",
+            $"[25/12/2024, 09:17:00] Alex Johnson: Some text {lrm}<This message was edited>{lrm}"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        // First message should be filtered (media placeholder after stripping LRM)
+        result.Messages.Should().HaveCount(2);
+        result.Messages[0].Content.Should().Be("This is a normal message");
+        result.Messages[0].Content.Should().NotContain(lrm);
+        result.Messages[1].Content.Should().Be("Some text");
+        result.Messages[1].Content.Should().NotContain(lrm);
+        result.Messages[1].Content.Should().NotContain("<This message was edited>");
+    }
+
+    [Fact(DisplayName = "ParseAsync strips LRM characters from multi-line messages")]
+    public async Task ParseAsync_LRMInMultiLineMessage_StripsCharacters()
+    {
+        var lrm = "\u200E";
+        var testLines = new[]
+        {
+            $"[25/12/2024, 09:15:00] {lrm}John Smith{lrm}: First line with {lrm}LRM{lrm}",
+            $"{lrm}Second line also with LRM{lrm}",
+            $"Third line {lrm}has{lrm} LRM too",
+            "[25/12/2024, 09:16:00] Maria Garcia: Normal message"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(2);
+        result.Messages[0].Sender.Should().Be("John Smith");
+        result.Messages[0].Sender.Should().NotContain(lrm);
+        result.Messages[0].Content.Should().Be("First line with LRM\nSecond line also with LRM\nThird line has LRM too");
+        result.Messages[0].Content.Should().NotContain(lrm);
+        result.Messages[1].Content.Should().Be("Normal message");
+    }
+
+    [Fact(DisplayName = "ParseAsync strips LRM from system messages")]
+    public async Task ParseAsync_LRMInSystemMessage_StripsCharacters()
+    {
+        var lrm = "\u200E";
+        var testLines = new[]
+        {
+            $"[25/12/2024, 09:15:00] {lrm}System{lrm}: {lrm}Rudi Anderson added you{lrm}",
+            "[25/12/2024, 09:16:00] John Smith: Regular message"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(2);
+        result.Messages[0].Sender.Should().Be("System");
+        result.Messages[0].Content.Should().Be("Rudi Anderson added you");
+        result.Messages[0].Content.Should().NotContain(lrm);
+    }
 }
