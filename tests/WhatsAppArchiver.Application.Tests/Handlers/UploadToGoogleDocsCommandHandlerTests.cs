@@ -448,7 +448,8 @@ public class UploadToGoogleDocsCommandHandlerTests
             x => x.AppendRichAsync(
                 command.DocumentId,
                 It.Is<GoogleDocsDocument>(doc =>
-                    doc.Sections.OfType<HeadingSection>().Any(h => h.Text.Contains("Alice")) &&
+                    doc.Sections.OfType<HeadingSection>().Any(h => h.Level == 2) &&  // Has date heading
+                    doc.Sections.OfType<HeadingSection>().Any(h => h.Level == 3) &&  // Has timestamp heading
                     doc.Sections.OfType<ParagraphSection>().Any(p => p.Text.Contains("Hello")) &&
                     doc.Sections.OfType<ParagraphSection>().Any(p => p.Text.Contains("How are you?"))),
                 It.IsAny<CancellationToken>()),

@@ -20,7 +20,7 @@ namespace WhatsAppArchiver.Domain.Formatting;
 /// <description>Page breaks between date sections for improved navigation</description>
 /// </item>
 /// <item>
-/// <description>Individual messages with bold timestamps in 24-hour format (HH:mm) followed by a plain text newline</description>
+/// <description>Individual messages with H3 timestamp headers in 24-hour format (HH:mm)</description>
 /// </item>
 /// <item>
 /// <description>Double empty lines separating messages for readability</description>
@@ -51,7 +51,7 @@ public sealed class GoogleDocsDocumentFormatter : IGoogleDocsFormatter, IMessage
     /// <description>For each date group, adds a page break (except first), then an H2 header with the date in MMMM d, yyyy format</description>
     /// </item>
     /// <item>
-    /// <description>For each message, adds a bold timestamp (HH:mm) with newline, content, and double empty line separator</description>
+    /// <description>For each message, adds an H3 timestamp header (HH:mm), content, and double empty line separator</description>
     /// </item>
     /// </list>
     /// <para>
@@ -94,11 +94,8 @@ public sealed class GoogleDocsDocumentFormatter : IGoogleDocsFormatter, IMessage
             // Process each message in the date group
             foreach (var message in dateGroup.OrderBy(m => m.Timestamp))
             {
-                // Add bold timestamp (24-hour format)
-                document.Add(new BoldTextSection(message.Timestamp.ToString("HH:mm")));
-                
-                // Add newline as plain text to prevent bold bleeding
-                document.Add(new PlainTextSection("\n"));
+                // Add timestamp as H3 heading (24-hour format)
+                document.Add(new HeadingSection(3, message.Timestamp.ToString("HH:mm")));
 
                 // Add message content (preserve line breaks)
                 document.Add(new ParagraphSection(message.Content));
