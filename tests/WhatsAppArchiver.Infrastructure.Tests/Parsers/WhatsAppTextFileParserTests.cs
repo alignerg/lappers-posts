@@ -760,4 +760,30 @@ public class WhatsAppTextFileParserTests
         result.Messages[1].Content.Should().Be("Some text");
         result.Messages[2].Content.Should().Be("Goodbye");
     }
+
+    [Fact(DisplayName = "ParseAsync handles whitespace-only content with edited tag")]
+    public async Task ParseAsync_WhitespaceAndEditedTag_FiltersAsEmptyMessage()
+    {
+        var testLines = new[]
+        {
+            "[25/12/2024, 09:15:00] John Smith: Hello",
+            "[25/12/2024, 09:16:00] Maria Garcia:    <This message was edited>",
+            "[25/12/2024, 09:17:00] John Smith: Goodbye"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        // After removing the edited tag from "   <This message was edited>", 
+        // we get empty string which will fail ChatMessage.Create validation
+        // so the message should be counted as failed
+        result.Messages.Should().HaveCount(2);
+        result.Messages[0].Content.Should().Be("Hello");
+        result.Messages[1].Content.Should().Be("Goodbye");
+        result.Metadata.FailedLineCount.Should().Be(1, "message with only whitespace and edited tag should fail validation");
+    }
 }

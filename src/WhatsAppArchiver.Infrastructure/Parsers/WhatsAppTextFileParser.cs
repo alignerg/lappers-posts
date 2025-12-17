@@ -263,7 +263,7 @@ public sealed class WhatsAppTextFileParser : IChatParser
         if (content.EndsWith(editedTag, StringComparison.Ordinal))
         {
             // Remove the tag and trim any trailing whitespace
-            return content.Substring(0, content.Length - editedTag.Length).TrimEnd();
+            return content[..^editedTag.Length].TrimEnd();
         }
         
         return content;
