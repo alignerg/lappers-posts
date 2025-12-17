@@ -741,4 +741,29 @@ public class WhatsAppTextFileParserTests
         result.Messages[0].Content.Should().Be("Hello!");
         result.Messages[1].Content.Should().Be("Goodbye!");
     }
+
+    [Fact(DisplayName = "ParseAsync does not filter malformed attached patterns")]
+    public async Task ParseAsync_MalformedAttachedPatterns_DoesNotFilter()
+    {
+        var testLines = new[]
+        {
+            "[25/12/2024, 09:15:00] John Smith: <attached:>",
+            "[25/12/2024, 09:16:00] John Smith: <attached: >",
+            "[25/12/2024, 09:17:00] John Smith: <attached:file.txt>",
+            "[25/12/2024, 09:18:00] John Smith: Valid message"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(4, "malformed patterns should not be filtered");
+        result.Messages[0].Content.Should().Be("<attached:>");
+        result.Messages[1].Content.Should().Be("<attached: >");
+        result.Messages[2].Content.Should().Be("<attached:file.txt>");
+        result.Messages[3].Content.Should().Be("Valid message");
+    }
 }
