@@ -85,6 +85,9 @@ public sealed class GoogleDocsDocumentFormatter : IGoogleDocsFormatter, IMessage
             if (!isFirstDate)
             {
                 document.Add(new PageBreakSection());
+                // Add empty line after page break to separate it from the heading
+                // This ensures the heading anchor is positioned at the heading text, not at the page break
+                document.Add(new EmptyLineSection());
             }
             isFirstDate = false;
 

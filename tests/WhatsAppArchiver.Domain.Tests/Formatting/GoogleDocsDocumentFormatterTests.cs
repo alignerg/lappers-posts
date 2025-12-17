@@ -208,4 +208,36 @@ public class GoogleDocsDocumentFormatterTests
         var nextSection = sections[timestampIndex + 1];
         Assert.IsType<ParagraphSection>(nextSection);
     }
+
+    [Fact(DisplayName = "FormatDocument with page breaks has empty line after page break before heading")]
+    public void FormatDocument_WithPageBreaks_HasEmptyLineAfterPageBreakBeforeHeading()
+    {
+        var messages = new[]
+        {
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 0, 0, TimeSpan.Zero), "John", "Day 1 message"),
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 16, 10, 0, 0, TimeSpan.Zero), "John", "Day 2 message")
+        };
+        var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 1, 17, 12, 0, 0, TimeSpan.Zero), 2, 2, 0);
+        var chatExport = ChatExport.Create(messages, metadata);
+
+        var result = _formatter.FormatDocument(chatExport);
+
+        var sections = result.Sections.ToList();
+
+        // Find the page break section
+        var pageBreakIndex = sections.FindIndex(s => s is PageBreakSection);
+        Assert.True(pageBreakIndex >= 0, "Should have a page break");
+
+        // Verify that immediately after the page break is an empty line
+        Assert.True(pageBreakIndex + 1 < sections.Count, "Should have a section after page break");
+        Assert.IsType<EmptyLineSection>(sections[pageBreakIndex + 1]);
+
+        // Verify that after the empty line is the H2 date heading
+        Assert.True(pageBreakIndex + 2 < sections.Count, "Should have a section after empty line");
+        var headingAfterPageBreak = sections[pageBreakIndex + 2];
+        Assert.IsType<HeadingSection>(headingAfterPageBreak);
+        var heading = (HeadingSection)headingAfterPageBreak;
+        Assert.Equal(2, heading.Level);
+        Assert.Contains("January 16, 2024", heading.Text);
+    }
 }

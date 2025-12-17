@@ -1362,6 +1362,74 @@ public class GoogleDocsServiceAccountAdapterTests
         insertTextRequests[2]!.Text.Should().Be("End\n");
     }
 
+    [Fact(DisplayName = "InsertRichAsync with page break followed by empty line and heading positions correctly")]
+    public async Task InsertRichAsync_WithPageBreakEmptyLineHeading_PositionsCorrectly()
+    {
+        var documentId = "test-doc-123";
+        var document = new GoogleDocsDocument();
+        document.Add(new PageBreakSection());
+        document.Add(new EmptyLineSection());
+        document.Add(new HeadingSection(2, "January 15, 2024"));
+
+        IList<Request>? capturedRequests = null;
+
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(
+                documentId,
+                It.IsAny<IList<Request>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<string, IList<Request>, CancellationToken>((_, requests, _) =>
+            {
+                capturedRequests = requests;
+            })
+            .Returns(Task.CompletedTask);
+
+        await _adapter.InsertRichAsync(documentId, document);
+
+        capturedRequests.Should().NotBeNull();
+
+        var pageBreakRequests = capturedRequests!
+            .Where(r => r.InsertPageBreak != null)
+            .Select(r => r.InsertPageBreak)
+            .ToList();
+
+        var insertTextRequests = capturedRequests!
+            .Where(r => r.InsertText != null)
+            .Select(r => r.InsertText)
+            .ToList();
+
+        var paragraphStyleRequests = capturedRequests!
+            .Where(r => r.UpdateParagraphStyle != null)
+            .Select(r => r.UpdateParagraphStyle)
+            .ToList();
+
+        // Verify request counts
+        pageBreakRequests.Should().HaveCount(1);
+        insertTextRequests.Should().HaveCount(2); // Empty line + heading text
+        paragraphStyleRequests.Should().HaveCount(1);
+
+        // Verify index progression
+        var currentIndex = 1;
+
+        // PageBreakSection at index 1 (1 character)
+        pageBreakRequests[0]!.Location.Index.Should().Be(currentIndex);
+        currentIndex += 1;
+
+        // EmptyLineSection at index 2 (1 character)
+        insertTextRequests[0]!.Location.Index.Should().Be(currentIndex);
+        insertTextRequests[0]!.Text.Should().Be("\n");
+        currentIndex += 1;
+
+        // HeadingSection "January 15, 2024\n" at index 3 (17 characters)
+        insertTextRequests[1]!.Location.Index.Should().Be(currentIndex);
+        insertTextRequests[1]!.Text.Should().Be("January 15, 2024\n");
+
+        // Heading style should start at index 3 (where the heading text begins, not at the page break)
+        paragraphStyleRequests[0]!.Range.StartIndex.Should().Be(currentIndex);
+        paragraphStyleRequests[0]!.Range.EndIndex.Should().Be(currentIndex + 17);
+        paragraphStyleRequests[0]!.ParagraphStyle.NamedStyleType.Should().Be("HEADING_2");
+    }
+
     #endregion
 
     #region AppendRichAsync Tests
