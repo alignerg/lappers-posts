@@ -60,6 +60,9 @@ public sealed class WhatsAppTextFileParser : IChatParser
         "This message was deleted."
     };
 
+    // Attachment pattern prefix for dynamic filename matching
+    private const string AttachedPrefix = "<attached: ";
+
     private readonly ResiliencePipeline _resiliencePipeline;
     private readonly ILogger<WhatsAppTextFileParser> _logger;
     private readonly Func<string, CancellationToken, Task<string[]>>? _fileReader;
@@ -328,12 +331,12 @@ public sealed class WhatsAppTextFileParser : IChatParser
         
         // Check for attachment patterns with filenames: <attached: FILENAME>
         // Requires a space after the colon and non-empty content before the closing bracket
-        if (trimmed.StartsWith("<attached: ", StringComparison.OrdinalIgnoreCase) && 
-            trimmed.EndsWith(">", StringComparison.OrdinalIgnoreCase) &&
-            trimmed.Length > "<attached: >".Length)
+        if (trimmed.StartsWith(AttachedPrefix, StringComparison.OrdinalIgnoreCase) && 
+            trimmed.EndsWith(">", StringComparison.Ordinal) &&
+            trimmed.Length > AttachedPrefix.Length + 1)
         {
             // Verify there's actual content between the space and closing bracket
-            var filename = trimmed.Substring("<attached: ".Length, trimmed.Length - "<attached: >".Length);
+            var filename = trimmed[AttachedPrefix.Length..^1];
             if (!string.IsNullOrWhiteSpace(filename))
             {
                 return true;
