@@ -63,6 +63,11 @@ public sealed class WhatsAppTextFileParser : IChatParser
     // Attachment pattern prefix for dynamic filename matching
     private const string AttachedPrefix = "<attached: ";
 
+    // Regex pattern to match Unicode bidirectional control characters
+    private static readonly Regex BidirectionalControlCharsPattern = new(
+        @"[\u200E\u200F\u202A-\u202E]",
+        RegexOptions.Compiled);
+
     private readonly ResiliencePipeline _resiliencePipeline;
     private readonly ILogger<WhatsAppTextFileParser> _logger;
     private readonly Func<string, CancellationToken, Task<string[]>>? _fileReader;
@@ -171,7 +176,7 @@ public sealed class WhatsAppTextFileParser : IChatParser
             {
                 // This is a continuation line
                 currentContent.AppendLine();
-                currentContent.Append(StripLRMCharacters(line));
+                currentContent.Append(StripBidirectionalControlCharacters(line));
             }
             else
             {
@@ -265,20 +270,14 @@ public sealed class WhatsAppTextFileParser : IChatParser
     /// <item><description>U+202E - Right-to-Left Override (RLO)</description></item>
     /// </list>
     /// </remarks>
-    private static string StripLRMCharacters(string text)
+    private static string StripBidirectionalControlCharacters(string text)
     {
         if (string.IsNullOrEmpty(text))
         {
             return text;
         }
 
-        return text.Replace("\u200E", "")
-                   .Replace("\u200F", "")
-                   .Replace("\u202A", "")
-                   .Replace("\u202B", "")
-                   .Replace("\u202C", "")
-                   .Replace("\u202D", "")
-                   .Replace("\u202E", "");
+        return BidirectionalControlCharsPattern.Replace(text, string.Empty);
     }
 
     /// <summary>
@@ -357,9 +356,8 @@ public sealed class WhatsAppTextFileParser : IChatParser
             return false;
         }
         
-        // Trim both standard whitespace AND Unicode bidirectional control characters
-        // This is a defensive measure in case any control characters weren't stripped earlier
-        var trimmed = content.Trim().Trim('\u200E', '\u200F', '\u202A', '\u202B', '\u202C', '\u202D', '\u202E');
+        // Trim standard whitespace and strip Unicode bidirectional control characters
+        var trimmed = StripBidirectionalControlCharacters(content.Trim());
         
         // Check for common media placeholder patterns using HashSet for O(1) lookup
         if (MediaPlaceholderPatterns.Contains(trimmed))
@@ -428,8 +426,8 @@ public sealed class WhatsAppTextFileParser : IChatParser
     {
         var dateStr = match.Groups[1].Value;
         var timeStr = match.Groups[2].Value;
-        var sender = StripLRMCharacters(match.Groups[3].Value.Trim());
-        var content = StripLRMCharacters(match.Groups[4].Value);
+        var sender = StripBidirectionalControlCharacters(match.Groups[3].Value.Trim());
+        var content = StripBidirectionalControlCharacters(match.Groups[4].Value);
 
         if (!TryParseDateTime(dateStr, timeStr, is24HourFormat, offset, out var timestamp))
         {
