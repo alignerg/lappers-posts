@@ -1495,6 +1495,208 @@ public class GoogleDocsServiceAccountAdapterTests
         insertRequest!.Location.Index.Should().Be(0);
     }
 
+    [Fact(DisplayName = "AppendRichAsync with plain text section inserts text without formatting")]
+    public async Task AppendRichAsync_WithPlainTextSection_AppendsTextWithoutFormatting()
+    {
+        var documentId = "doc-123";
+        var document = new GoogleDocsDocument();
+        document.Add(new PlainTextSection("Plain text content"));
+
+        var mockGoogleDoc = new Document
+        {
+            Body = new Body
+            {
+                Content = new List<StructuralElement>
+                {
+                    new() { StartIndex = 1, EndIndex = 100 }
+                }
+            }
+        };
+
+        _clientWrapperMock
+            .Setup(x => x.GetDocumentAsync(documentId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockGoogleDoc);
+
+        IList<Request>? capturedRequests = null;
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(documentId, It.IsAny<IList<Request>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, IList<Request>, CancellationToken>((_, r, _) => capturedRequests = r)
+            .Returns(Task.CompletedTask);
+
+        await _adapter.AppendRichAsync(documentId, document);
+
+        capturedRequests.Should().NotBeNull();
+        
+        var insertTextRequests = capturedRequests!
+            .Where(r => r.InsertText != null)
+            .Select(r => r.InsertText)
+            .ToList();
+
+        insertTextRequests.Should().HaveCount(1);
+        insertTextRequests[0]!.Text.Should().Be("Plain text content");
+        insertTextRequests[0]!.Location.Index.Should().Be(99);
+
+        var textStyleRequests = capturedRequests!
+            .Where(r => r.UpdateTextStyle != null)
+            .ToList();
+
+        textStyleRequests.Should().BeEmpty();
+    }
+
+    [Fact(DisplayName = "AppendRichAsync with page break section inserts page break")]
+    public async Task AppendRichAsync_WithPageBreakSection_AppendsPageBreak()
+    {
+        var documentId = "doc-123";
+        var document = new GoogleDocsDocument();
+        document.Add(new PageBreakSection());
+
+        var mockGoogleDoc = new Document
+        {
+            Body = new Body
+            {
+                Content = new List<StructuralElement>
+                {
+                    new() { StartIndex = 1, EndIndex = 100 }
+                }
+            }
+        };
+
+        _clientWrapperMock
+            .Setup(x => x.GetDocumentAsync(documentId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockGoogleDoc);
+
+        IList<Request>? capturedRequests = null;
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(documentId, It.IsAny<IList<Request>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, IList<Request>, CancellationToken>((_, r, _) => capturedRequests = r)
+            .Returns(Task.CompletedTask);
+
+        await _adapter.AppendRichAsync(documentId, document);
+
+        capturedRequests.Should().NotBeNull();
+        
+        var pageBreakRequests = capturedRequests!
+            .Where(r => r.InsertPageBreak != null)
+            .Select(r => r.InsertPageBreak)
+            .ToList();
+
+        pageBreakRequests.Should().HaveCount(1);
+        pageBreakRequests[0]!.Location.Index.Should().Be(99);
+    }
+
+    [Fact(DisplayName = "AppendRichAsync with empty line section inserts newline")]
+    public async Task AppendRichAsync_WithEmptyLineSection_AppendsNewline()
+    {
+        var documentId = "doc-123";
+        var document = new GoogleDocsDocument();
+        document.Add(new EmptyLineSection());
+
+        var mockGoogleDoc = new Document
+        {
+            Body = new Body
+            {
+                Content = new List<StructuralElement>
+                {
+                    new() { StartIndex = 1, EndIndex = 100 }
+                }
+            }
+        };
+
+        _clientWrapperMock
+            .Setup(x => x.GetDocumentAsync(documentId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockGoogleDoc);
+
+        IList<Request>? capturedRequests = null;
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(documentId, It.IsAny<IList<Request>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, IList<Request>, CancellationToken>((_, r, _) => capturedRequests = r)
+            .Returns(Task.CompletedTask);
+
+        await _adapter.AppendRichAsync(documentId, document);
+
+        capturedRequests.Should().NotBeNull();
+        
+        var insertTextRequests = capturedRequests!
+            .Where(r => r.InsertText != null)
+            .Select(r => r.InsertText)
+            .ToList();
+
+        insertTextRequests.Should().HaveCount(1);
+        insertTextRequests[0]!.Text.Should().Be("\n");
+        insertTextRequests[0]!.Location.Index.Should().Be(99);
+    }
+
+    [Fact(DisplayName = "AppendRichAsync with multiple section types calculates indices correctly")]
+    public async Task AppendRichAsync_WithMultipleSectionTypes_CalculatesIndicesCorrectly()
+    {
+        var documentId = "doc-123";
+        var document = new GoogleDocsDocument();
+        document.Add(new PlainTextSection("Start"));
+        document.Add(new PageBreakSection());
+        document.Add(new EmptyLineSection());
+        document.Add(new ParagraphSection("End"));
+
+        var mockGoogleDoc = new Document
+        {
+            Body = new Body
+            {
+                Content = new List<StructuralElement>
+                {
+                    new() { StartIndex = 1, EndIndex = 100 }
+                }
+            }
+        };
+
+        _clientWrapperMock
+            .Setup(x => x.GetDocumentAsync(documentId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockGoogleDoc);
+
+        IList<Request>? capturedRequests = null;
+        _clientWrapperMock
+            .Setup(x => x.BatchUpdateAsync(documentId, It.IsAny<IList<Request>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, IList<Request>, CancellationToken>((_, r, _) => capturedRequests = r)
+            .Returns(Task.CompletedTask);
+
+        await _adapter.AppendRichAsync(documentId, document);
+
+        capturedRequests.Should().NotBeNull();
+
+        var insertTextRequests = capturedRequests!
+            .Where(r => r.InsertText != null)
+            .Select(r => r.InsertText)
+            .ToList();
+
+        var pageBreakRequests = capturedRequests!
+            .Where(r => r.InsertPageBreak != null)
+            .Select(r => r.InsertPageBreak)
+            .ToList();
+
+        // Verify request count
+        insertTextRequests.Should().HaveCount(3);
+        pageBreakRequests.Should().HaveCount(1);
+
+        // Verify index progression
+        var currentIndex = 99;
+        
+        // PlainTextSection "Start" (5 characters)
+        insertTextRequests[0]!.Location.Index.Should().Be(currentIndex);
+        insertTextRequests[0]!.Text.Should().Be("Start");
+        currentIndex += 5;
+        
+        // PageBreakSection (1 character)
+        pageBreakRequests[0]!.Location.Index.Should().Be(currentIndex);
+        currentIndex += 1;
+        
+        // EmptyLineSection "\n" (1 character)
+        insertTextRequests[1]!.Location.Index.Should().Be(currentIndex);
+        insertTextRequests[1]!.Text.Should().Be("\n");
+        currentIndex += 1;
+        
+        // ParagraphSection "End\n" (4 characters)
+        insertTextRequests[2]!.Location.Index.Should().Be(currentIndex);
+        insertTextRequests[2]!.Text.Should().Be("End\n");
+    }
+
     #endregion
 
     #region Logging Tests
