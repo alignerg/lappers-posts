@@ -293,7 +293,7 @@ public sealed class WhatsAppTextFileParser : IChatParser
         
         // Check for attachment patterns with filenames: <attached: FILENAME>
         if (trimmed.StartsWith("<attached:", StringComparison.OrdinalIgnoreCase) && 
-            trimmed.EndsWith(">", StringComparison.Ordinal))
+            trimmed.EndsWith(">", StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
