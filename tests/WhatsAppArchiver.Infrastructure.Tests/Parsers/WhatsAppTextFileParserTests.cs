@@ -1081,4 +1081,26 @@ public class WhatsAppTextFileParserTests
         // This creates a multi-line message that should NOT be filtered (has content beyond just link)
         result.Messages.Should().HaveCount(2, "Multi-line link+image messages should be preserved");
     }
+
+    [Fact(DisplayName = "ParseAsync filters link posts with zero-width spaces")]
+    public async Task ParseAsync_LinkPostsWithZeroWidthSpaces_FiltersCorrectly()
+    {
+        var zwsp = "\u200B"; // Zero-Width Space
+        var testLines = new[]
+        {
+            $"[20/07/2025, 05:25:34] Rudi Anderson: {zwsp}https://www.facebook.com/share/v/1LedjeswZu/?mibextid=wwXIfr{zwsp}",
+            "[20/07/2025, 05:51:42] Rudi Anderson: <attached: 00000394-PHOTO-2025-07-20-05-51-42.jpg>"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        // Zero-width spaces are invisible but IndexOf(' ') won't detect them since they're U+200B not U+0020
+        // So the link should be filtered (ZWSP doesn't count as a space in the filtering logic)
+        result.Messages.Should().BeEmpty("Both link and image should be filtered even with ZWSP");
+    }
 }
