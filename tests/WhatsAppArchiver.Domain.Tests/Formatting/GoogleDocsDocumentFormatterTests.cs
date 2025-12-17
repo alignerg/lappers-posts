@@ -23,13 +23,6 @@ public class GoogleDocsDocumentFormatterTests
 
         var result = _formatter.FormatDocument(chatExport);
 
-        // Header section (H1)
-        Assert.Contains(result.Sections, s => s is HeadingSection h && h.Level == 1 && h.Text.Contains("John Doe"));
-        
-        // Metadata sections (plain text paragraphs)
-        Assert.Contains(result.Sections, s => s is ParagraphSection p && p.Text.Contains("Export Date"));
-        Assert.Contains(result.Sections, s => s is ParagraphSection p && p.Text.Contains("Total Messages: 3"));
-        
         // Date header (H2)
         Assert.Contains(result.Sections, s => s is HeadingSection h && h.Level == 2 && h.Text.Contains("January 15, 2024"));
         
@@ -101,8 +94,8 @@ public class GoogleDocsDocumentFormatterTests
         Assert.Equal(multiLineContent, paragraphSection.Text);
     }
 
-    [Fact(DisplayName = "FormatDocument with empty export returns header only")]
-    public void FormatDocument_EmptyExport_ReturnsHeaderOnly()
+    [Fact(DisplayName = "FormatDocument with empty export returns empty document")]
+    public void FormatDocument_EmptyExport_ReturnsEmptyDocument()
     {
         var messages = Array.Empty<ChatMessage>();
         var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 1, 15, 12, 0, 0, TimeSpan.Zero), 0, 0, 0);
@@ -110,13 +103,8 @@ public class GoogleDocsDocumentFormatterTests
 
         var result = _formatter.FormatDocument(chatExport);
 
-        // Should have H1, 2 metadata sections (as paragraphs), and 1 horizontal rule
-        Assert.Contains(result.Sections, s => s is HeadingSection h && h.Level == 1 && h.Text.Contains("Unknown"));
-        Assert.Contains(result.Sections, s => s is ParagraphSection p && p.Text.Contains("Total Messages: 0"));
-        Assert.Single(result.Sections.OfType<HorizontalRuleSection>());
-        
-        // Should NOT have any H2 sections (date headers)
-        Assert.DoesNotContain(result.Sections, s => s is HeadingSection h && h.Level == 2);
+        // Should be empty - no sections at all
+        Assert.Empty(result.Sections);
     }
 
     [Fact(DisplayName = "FormatDocument with special characters preserves content")]
@@ -152,9 +140,7 @@ public class GoogleDocsDocumentFormatterTests
 
         var result = _formatter.FormatDocument(chatExport);
 
-        // Verify presence of all expected section types
-        Assert.Contains(result.Sections, s => s is HeadingSection h && h.Level == 1);
-        Assert.Contains(result.Sections, s => s is ParagraphSection p && p.Text.Contains("Export Date"));
+        // Verify presence of all expected section types (no H1 or metadata sections)
         Assert.Contains(result.Sections, s => s is HeadingSection h && h.Level == 2);
         Assert.Contains(result.Sections, s => s is HeadingSection h && h.Level == 3);
         Assert.Contains(result.Sections, s => s is ParagraphSection p && p.Text == "Test message");
