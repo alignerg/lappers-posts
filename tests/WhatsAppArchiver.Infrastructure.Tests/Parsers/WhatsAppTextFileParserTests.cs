@@ -1015,4 +1015,70 @@ public class WhatsAppTextFileParserTests
         result.Messages[0].Content.Should().Be("Rudi Anderson added you");
         result.Messages[0].Content.Should().NotContain(lrm);
     }
+
+    [Fact(DisplayName = "ParseAsync filters link posts followed by image posts")]
+    public async Task ParseAsync_LinkPostsFollowedByImagePosts_FiltersBoth()
+    {
+        var testLines = new[]
+        {
+            "[20/07/2025, 05:25:34] Rudi Anderson: https://www.facebook.com/share/v/1LedjeswZu/?mibextid=wwXIfr",
+            "[20/07/2025, 05:51:42] Rudi Anderson: <attached: 00000394-PHOTO-2025-07-20-05-51-42.jpg>",
+            "[23/07/2025, 03:33:19] Rudi Anderson: https://www.facebook.com/share/v/1EJKYbrLqK/?mibextid=wwXIfr",
+            "[23/07/2025, 04:53:29] Rudi Anderson: <attached: 00000411-PHOTO-2025-07-23-04-53-29.jpg>"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().BeEmpty("All messages should be filtered (both link-only and image attachments)");
+    }
+
+    [Fact(DisplayName = "ParseAsync filters link posts with LRM characters followed by image posts")]
+    public async Task ParseAsync_LinkPostsWithLRMFollowedByImagePosts_FiltersBoth()
+    {
+        var lrm = "\u200E";
+        var testLines = new[]
+        {
+            $"[20/07/2025, 05:25:34] {lrm}Rudi Anderson{lrm}: {lrm}https://www.facebook.com/share/v/1LedjeswZu/?mibextid=wwXIfr{lrm}",
+            $"[20/07/2025, 05:51:42] {lrm}Rudi Anderson{lrm}: {lrm}<attached: 00000394-PHOTO-2025-07-20-05-51-42.jpg>{lrm}",
+            $"[23/07/2025, 03:33:19] {lrm}Rudi Anderson{lrm}: {lrm}https://www.facebook.com/share/v/1EJKYbrLqK/?mibextid=wwXIfr{lrm}",
+            $"[23/07/2025, 04:53:29] {lrm}Rudi Anderson{lrm}: {lrm}<attached: 00000411-PHOTO-2025-07-23-04-53-29.jpg>{lrm}"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().BeEmpty("All messages should be filtered (both link-only and image attachments) even with LRM characters");
+    }
+
+    [Fact(DisplayName = "ParseAsync handles link followed by image attachment without timestamp as multi-line")]
+    public async Task ParseAsync_LinkFollowedByImageWithoutTimestamp_TreatsAsMultiLine()
+    {
+        var testLines = new[]
+        {
+            "[20/07/2025, 05:25:34] Rudi Anderson: https://www.facebook.com/share/v/1LedjeswZu/?mibextid=wwXIfr",
+            "<attached: 00000394-PHOTO-2025-07-20-05-51-42.jpg>",
+            "[23/07/2025, 03:33:19] Rudi Anderson: https://www.facebook.com/share/v/1EJKYbrLqK/?mibextid=wwXIfr",
+            "<attached: 00000411-PHOTO-2025-07-23-04-53-29.jpg>"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        // When image attachment appears without timestamp, it's treated as continuation of link message
+        // This creates a multi-line message that should NOT be filtered (has content beyond just link)
+        result.Messages.Should().HaveCount(2, "Multi-line link+image messages should be preserved");
+    }
 }
