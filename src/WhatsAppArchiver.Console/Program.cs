@@ -92,6 +92,12 @@ try
     };
     formatOption.DefaultValueFactory = _ => MessageFormatType.Default;
 
+    var suppressTimestampsOption = new Option<bool>("--suppress-timestamps")
+    {
+        Description = "Suppress timestamp (Heading 3) entries in the output document. Multiple posts on the same day will appear as consecutive paragraphs under a single date heading."
+    };
+    suppressTimestampsOption.DefaultValueFactory = _ => false;
+
     var stateFileOption = new Option<string?>("--state-file")
     {
         Description = "Path to state file (only directory portion is used; filename auto-generated). Overrides --state-dir and config defaults."
@@ -147,6 +153,7 @@ try
     rootCommand.Add(senderFilterOption);
     rootCommand.Add(docIdOption);
     rootCommand.Add(formatOption);
+    rootCommand.Add(suppressTimestampsOption);
     rootCommand.Add(stateFileOption);
     rootCommand.Add(stateDirOption);
     rootCommand.Add(configOption);
@@ -158,6 +165,7 @@ try
         var senderFilter = parseResult.GetValue(senderFilterOption)!;
         var docId = parseResult.GetValue(docIdOption)!;
         var format = parseResult.GetValue(formatOption);
+        var suppressTimestamps = parseResult.GetValue(suppressTimestampsOption);
         var stateFile = parseResult.GetValue(stateFileOption);
         var stateDir = parseResult.GetValue(stateDirOption);
         var configFile = parseResult.GetValue(configOption);
@@ -344,7 +352,8 @@ try
                 Sender: senderFilter,
                 DocumentId: docId,
                 FormatterType: format,
-                CachedChatExport: chatExport);
+                CachedChatExport: chatExport,
+                SuppressTimestamps: suppressTimestamps);
 
             Log.Information("Uploading messages from {ChatFile} by sender '{Sender}' to document {DocumentId} with format {Format}",
                 chatFile, senderFilter, docId, format);

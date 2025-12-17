@@ -208,4 +208,124 @@ public class GoogleDocsDocumentFormatterTests
         var nextSection = sections[timestampIndex + 1];
         Assert.IsType<ParagraphSection>(nextSection);
     }
+
+    [Fact(DisplayName = "FormatDocument with suppressTimestamps true omits H3 timestamp headings")]
+    public void FormatDocument_SuppressTimestampsTrue_OmitsTimestampHeadings()
+    {
+        var messages = new[]
+        {
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 30, 0, TimeSpan.Zero), "John", "First message"),
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 14, 45, 0, TimeSpan.Zero), "John", "Second message")
+        };
+        var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 1, 15, 18, 0, 0, TimeSpan.Zero), 2, 2, 0);
+        var chatExport = ChatExport.Create(messages, metadata);
+
+        var result = _formatter.FormatDocument(chatExport, suppressTimestamps: true);
+
+        // Should have no H3 headings (timestamps)
+        var timestampHeadings = result.Sections.OfType<HeadingSection>().Where(h => h.Level == 3).ToList();
+        Assert.Empty(timestampHeadings);
+
+        // Should still have H2 date heading
+        var dateHeading = result.Sections.OfType<HeadingSection>().FirstOrDefault(h => h.Level == 2);
+        Assert.NotNull(dateHeading);
+        Assert.Contains("January 15, 2024", dateHeading.Text);
+
+        // Should have paragraph sections for messages
+        var paragraphs = result.Sections.OfType<ParagraphSection>().ToList();
+        Assert.Equal(2, paragraphs.Count);
+        Assert.Equal("First message", paragraphs[0].Text);
+        Assert.Equal("Second message", paragraphs[1].Text);
+    }
+
+    [Fact(DisplayName = "FormatDocument with suppressTimestamps false includes H3 timestamp headings")]
+    public void FormatDocument_SuppressTimestampsFalse_IncludesTimestampHeadings()
+    {
+        var messages = new[]
+        {
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 30, 0, TimeSpan.Zero), "John", "First message"),
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 14, 45, 0, TimeSpan.Zero), "John", "Second message")
+        };
+        var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 1, 15, 18, 0, 0, TimeSpan.Zero), 2, 2, 0);
+        var chatExport = ChatExport.Create(messages, metadata);
+
+        var result = _formatter.FormatDocument(chatExport, suppressTimestamps: false);
+
+        // Should have H3 headings (timestamps)
+        var timestampHeadings = result.Sections.OfType<HeadingSection>().Where(h => h.Level == 3).ToList();
+        Assert.Equal(2, timestampHeadings.Count);
+        Assert.Equal("10:30", timestampHeadings[0].Text);
+        Assert.Equal("14:45", timestampHeadings[1].Text);
+    }
+
+    [Fact(DisplayName = "FormatDocument with suppressTimestamps maintains spacing between messages")]
+    public void FormatDocument_SuppressTimestamps_MaintainsSpacing()
+    {
+        var messages = new[]
+        {
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 30, 0, TimeSpan.Zero), "John", "First message"),
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 14, 45, 0, TimeSpan.Zero), "John", "Second message")
+        };
+        var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 1, 15, 18, 0, 0, TimeSpan.Zero), 2, 2, 0);
+        var chatExport = ChatExport.Create(messages, metadata);
+
+        var result = _formatter.FormatDocument(chatExport, suppressTimestamps: true);
+
+        // Should still have double empty lines (2 per message)
+        var emptyLines = result.Sections.OfType<EmptyLineSection>().Count();
+        Assert.Equal(4, emptyLines); // 2 messages × 2 empty lines each
+    }
+
+    [Fact(DisplayName = "FormatDocument with suppressTimestamps and multiple days groups by date")]
+    public void FormatDocument_SuppressTimestamps_MultipleDays_GroupsByDate()
+    {
+        var messages = new[]
+        {
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 0, 0, TimeSpan.Zero), "John", "Day 1 morning"),
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 14, 0, 0, TimeSpan.Zero), "John", "Day 1 afternoon"),
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 16, 10, 0, 0, TimeSpan.Zero), "John", "Day 2 message")
+        };
+        var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 1, 17, 12, 0, 0, TimeSpan.Zero), 3, 3, 0);
+        var chatExport = ChatExport.Create(messages, metadata);
+
+        var result = _formatter.FormatDocument(chatExport, suppressTimestamps: true);
+
+        // Should have 2 H2 date headings
+        var dateHeadings = result.Sections.OfType<HeadingSection>().Where(h => h.Level == 2).ToList();
+        Assert.Equal(2, dateHeadings.Count);
+        Assert.Contains("January 15, 2024", dateHeadings[0].Text);
+        Assert.Contains("January 16, 2024", dateHeadings[1].Text);
+
+        // Should have no H3 timestamp headings
+        var timestampHeadings = result.Sections.OfType<HeadingSection>().Where(h => h.Level == 3).ToList();
+        Assert.Empty(timestampHeadings);
+
+        // Should have 3 paragraph sections
+        var paragraphs = result.Sections.OfType<ParagraphSection>().ToList();
+        Assert.Equal(3, paragraphs.Count);
+
+        // Should have page break between dates
+        var pageBreaks = result.Sections.OfType<PageBreakSection>().Count();
+        Assert.Equal(1, pageBreaks);
+    }
+
+    [Fact(DisplayName = "FormatDocument default parameter includes timestamps for backward compatibility")]
+    public void FormatDocument_DefaultParameter_IncludesTimestamps()
+    {
+        var messages = new[]
+        {
+            ChatMessage.Create(new DateTimeOffset(2024, 1, 15, 10, 30, 0, TimeSpan.Zero), "John", "Test message")
+        };
+        var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 1, 15, 12, 0, 0, TimeSpan.Zero), 1, 1, 0);
+        var chatExport = ChatExport.Create(messages, metadata);
+
+        // Call without parameter (should default to false, meaning timestamps are included)
+        var result = _formatter.FormatDocument(chatExport);
+
+        // Should have H3 timestamp heading
+        var timestampHeadings = result.Sections.OfType<HeadingSection>().Where(h => h.Level == 3).ToList();
+        Assert.Single(timestampHeadings);
+        Assert.Equal("10:30", timestampHeadings[0].Text);
+    }
 }
+

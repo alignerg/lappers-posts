@@ -9,7 +9,7 @@ public class IGoogleDocsFormatterTests
 {
     private sealed class TestGoogleDocsFormatter : IGoogleDocsFormatter
     {
-        public GoogleDocsDocument FormatDocument(ChatExport chatExport)
+        public GoogleDocsDocument FormatDocument(ChatExport chatExport, bool suppressTimestamps = false)
         {
             ArgumentNullException.ThrowIfNull(chatExport);
 
