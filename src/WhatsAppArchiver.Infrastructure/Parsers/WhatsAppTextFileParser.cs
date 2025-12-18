@@ -63,9 +63,9 @@ public sealed class WhatsAppTextFileParser : IChatParser
     // Attachment pattern prefix for dynamic filename matching
     private const string AttachedPrefix = "<attached: ";
 
-    // Regex pattern to match Unicode bidirectional control characters
+    // Regex pattern to match Unicode format control characters (bidirectional marks and zero-width space)
     private static readonly Regex BidirectionalControlCharsPattern = new(
-        @"[\u200E\u200F\u202A-\u202E]",
+        @"[\u200B\u200E\u200F\u202A-\u202E]",
         RegexOptions.Compiled);
 
     private readonly ResiliencePipeline _resiliencePipeline;
@@ -257,8 +257,14 @@ public sealed class WhatsAppTextFileParser : IChatParser
     /// <returns>The text with all format control characters removed.</returns>
     /// <remarks>
     /// WhatsApp chat exports contain invisible format control characters throughout the text:
-    /// - LRM (U+200E): Left-to-Right Mark
     /// - ZWSP (U+200B): Zero-Width Space
+    /// - LRM (U+200E): Left-to-Right Mark
+    /// - RLM (U+200F): Right-to-Left Mark
+    /// - LRE (U+202A): Left-to-Right Embedding
+    /// - RLE (U+202B): Right-to-Left Embedding
+    /// - PDF (U+202C): Pop Directional Formatting
+    /// - LRO (U+202D): Left-to-Right Override
+    /// - RLO (U+202E): Right-to-Left Override
     /// These characters appear in sender names, message content, system messages, and media placeholders.
     /// This method removes these characters to ensure clean text processing and accurate filtering.
     /// </remarks>
@@ -269,7 +275,7 @@ public sealed class WhatsAppTextFileParser : IChatParser
             return text;
         }
 
-        return text.Replace("\u200E", "").Replace("\u200B", "");
+        return BidirectionalControlCharsPattern.Replace(text, string.Empty);
     }
 
     /// <summary>

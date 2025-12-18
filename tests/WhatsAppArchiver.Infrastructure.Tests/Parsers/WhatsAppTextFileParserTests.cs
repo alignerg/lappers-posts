@@ -1130,8 +1130,8 @@ public class WhatsAppTextFileParserTests
         var result = await parser.ParseAsync("test.txt");
 
         result.Should().NotBeNull();
-        // Zero-width spaces are invisible but IndexOf(' ') won't detect them since they're U+200B not U+0020
-        // So the link should be filtered (ZWSP doesn't count as a space in the filtering logic)
+        // Zero-width spaces are removed by StripFormatControlCharacters before link-only filtering is applied
+        // This ensures ZWSP cannot interfere with link detection, so the link is still filtered correctly
         result.Messages.Should().BeEmpty("Both link and image should be filtered even with ZWSP");
     }
 }
