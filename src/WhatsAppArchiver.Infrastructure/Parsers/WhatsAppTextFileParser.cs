@@ -171,7 +171,7 @@ public sealed class WhatsAppTextFileParser : IChatParser
             {
                 // This is a continuation line
                 currentContent.AppendLine();
-                currentContent.Append(StripLRMCharacters(line));
+                currentContent.Append(StripFormatControlCharacters(line));
             }
             else
             {
@@ -246,10 +246,10 @@ public sealed class WhatsAppTextFileParser : IChatParser
     }
 
     /// <summary>
-    /// Strips invisible Left-to-Right Mark (LRM) and Zero-Width Space (ZWSP) characters from text.
+    /// Strips invisible format control characters from text.
     /// </summary>
     /// <param name="text">The text to clean.</param>
-    /// <returns>The text with all LRM and ZWSP characters removed.</returns>
+    /// <returns>The text with all format control characters removed.</returns>
     /// <remarks>
     /// WhatsApp chat exports contain invisible format control characters throughout the text:
     /// - LRM (U+200E): Left-to-Right Mark
@@ -257,7 +257,7 @@ public sealed class WhatsAppTextFileParser : IChatParser
     /// These characters appear in sender names, message content, system messages, and media placeholders.
     /// This method removes these characters to ensure clean text processing and accurate filtering.
     /// </remarks>
-    private static string StripLRMCharacters(string text)
+    private static string StripFormatControlCharacters(string text)
     {
         if (string.IsNullOrEmpty(text))
         {
@@ -412,8 +412,8 @@ public sealed class WhatsAppTextFileParser : IChatParser
     {
         var dateStr = match.Groups[1].Value;
         var timeStr = match.Groups[2].Value;
-        var sender = StripLRMCharacters(match.Groups[3].Value.Trim());
-        var content = StripLRMCharacters(match.Groups[4].Value);
+        var sender = StripFormatControlCharacters(match.Groups[3].Value.Trim());
+        var content = StripFormatControlCharacters(match.Groups[4].Value);
 
         if (!TryParseDateTime(dateStr, timeStr, is24HourFormat, offset, out var timestamp))
         {

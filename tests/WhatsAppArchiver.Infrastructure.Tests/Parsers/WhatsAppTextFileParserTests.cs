@@ -1037,8 +1037,8 @@ public class WhatsAppTextFileParserTests
         result.Messages.Should().BeEmpty("All messages should be filtered (both link-only and image attachments)");
     }
 
-    [Fact(DisplayName = "ParseAsync filters link posts with LRM characters followed by image posts")]
-    public async Task ParseAsync_LinkPostsWithLRMFollowedByImagePosts_FiltersBoth()
+    [Fact(DisplayName = "ParseAsync filters link posts with Unicode control characters followed by image posts")]
+    public async Task ParseAsync_LinkPostsWithUnicodeControlCharactersFollowedByImagePosts_FiltersBoth()
     {
         var lrm = "\u200E";
         var testLines = new[]
