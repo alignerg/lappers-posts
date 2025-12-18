@@ -861,6 +861,37 @@ public class WhatsAppTextFileParserTests
         result.Messages[1].Content.Should().Be("Goodbye!");
     }
 
+    [Fact(DisplayName = "ParseAsync filters out attached messages with Unicode control characters")]
+    public async Task ParseAsync_AttachedMessagesWithUnicodeControlChars_FiltersOut()
+    {
+        // Test with all Unicode bidirectional control characters in message content
+        // U+200E (LRM), U+200F (RLM), U+202A (LRE), U+202B (RLE), U+202C (PDF), U+202D (LRO), U+202E (RLO)
+        var testLines = new[]
+        {
+            "[19/07/2025, 08:43:57] Rudi Anderson: Good morning!",
+            "[19/07/2025, 08:43:57] Rudi Anderson: \u200E<attached: 00000387-PHOTO-2025-07-19-08-43-56.jpg>",
+            "[20/07/2025, 05:51:42] Rudi Anderson: \u200F<attached: 00000394-PHOTO-2025-07-20-05-51-42.jpg>",
+            "[20/07/2025, 06:00:00] Rudi Anderson: \u202A<attached: file-with-lre.jpg>",
+            "[20/07/2025, 06:01:00] Rudi Anderson: \u202B<attached: file-with-rle.jpg>",
+            "[20/07/2025, 06:02:00] Rudi Anderson: \u202C<attached: file-with-pdf.jpg>",
+            "[20/07/2025, 06:03:00] Rudi Anderson: \u202D<attached: file-with-lro.jpg>",
+            "[20/07/2025, 06:04:00] Rudi Anderson: \u202E<attached: file-with-rlo.jpg>",
+            "[20/07/2025, 06:05:00] Rudi Anderson: Have a great day!"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(2);
+        result.Messages[0].Content.Should().Be("Good morning!");
+        result.Messages[1].Content.Should().Be("Have a great day!");
+        result.Messages.Should().NotContain(m => m.Content.Contains("<attached:"));
+    }
+
     [Fact(DisplayName = "ParseAsync does not filter malformed attached patterns")]
     public async Task ParseAsync_MalformedAttachedPatterns_DoesNotFilter()
     {
