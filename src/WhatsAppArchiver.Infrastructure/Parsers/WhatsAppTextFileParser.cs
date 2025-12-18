@@ -63,6 +63,11 @@ public sealed class WhatsAppTextFileParser : IChatParser
     // Attachment pattern prefix for dynamic filename matching
     private const string AttachedPrefix = "<attached: ";
 
+    // Regex pattern to match Unicode bidirectional control characters
+    private static readonly Regex BidirectionalControlCharsPattern = new(
+        @"[\u200E\u200F\u202A-\u202E]",
+        RegexOptions.Compiled);
+
     private readonly ResiliencePipeline _resiliencePipeline;
     private readonly ILogger<WhatsAppTextFileParser> _logger;
     private readonly Func<string, CancellationToken, Task<string[]>>? _fileReader;
@@ -171,7 +176,7 @@ public sealed class WhatsAppTextFileParser : IChatParser
             {
                 // This is a continuation line
                 currentContent.AppendLine();
-                currentContent.Append(StripLRMCharacters(line));
+                currentContent.Append(StripBidirectionalControlCharacters(line));
             }
             else
             {
@@ -246,23 +251,33 @@ public sealed class WhatsAppTextFileParser : IChatParser
     }
     
     /// <summary>
-    /// Strips invisible Left-to-Right Mark (LRM) characters from text.
+    /// Strips invisible Unicode bidirectional control characters from text.
     /// </summary>
     /// <param name="text">The text to clean.</param>
-    /// <returns>The text with all LRM characters removed.</returns>
+    /// <returns>The text with all Unicode bidirectional control characters removed.</returns>
     /// <remarks>
-    /// WhatsApp chat exports contain invisible LRM characters (Unicode U+200E) throughout the text,
+    /// WhatsApp chat exports contain invisible Unicode control characters throughout the text,
     /// appearing in sender names, message content, system messages, and media placeholders.
     /// This method removes these characters to ensure clean text processing.
+    /// Common control characters removed:
+    /// <list type="bullet">
+    /// <item><description>U+200E - Left-to-Right Mark (LRM)</description></item>
+    /// <item><description>U+200F - Right-to-Left Mark (RLM)</description></item>
+    /// <item><description>U+202A - Left-to-Right Embedding (LRE)</description></item>
+    /// <item><description>U+202B - Right-to-Left Embedding (RLE)</description></item>
+    /// <item><description>U+202C - Pop Directional Formatting (PDF)</description></item>
+    /// <item><description>U+202D - Left-to-Right Override (LRO)</description></item>
+    /// <item><description>U+202E - Right-to-Left Override (RLO)</description></item>
+    /// </list>
     /// </remarks>
-    private static string StripLRMCharacters(string text)
+    private static string StripBidirectionalControlCharacters(string text)
     {
         if (string.IsNullOrEmpty(text))
         {
             return text;
         }
 
-        return text.Replace("\u200E", "");
+        return BidirectionalControlCharsPattern.Replace(text, string.Empty);
     }
 
     /// <summary>
@@ -341,7 +356,8 @@ public sealed class WhatsAppTextFileParser : IChatParser
             return false;
         }
         
-        var trimmed = content.Trim();
+        // Trim standard whitespace and strip Unicode bidirectional control characters
+        var trimmed = StripBidirectionalControlCharacters(content.Trim());
         
         // Check for common media placeholder patterns using HashSet for O(1) lookup
         if (MediaPlaceholderPatterns.Contains(trimmed))
@@ -410,8 +426,8 @@ public sealed class WhatsAppTextFileParser : IChatParser
     {
         var dateStr = match.Groups[1].Value;
         var timeStr = match.Groups[2].Value;
-        var sender = StripLRMCharacters(match.Groups[3].Value.Trim());
-        var content = StripLRMCharacters(match.Groups[4].Value);
+        var sender = StripBidirectionalControlCharacters(match.Groups[3].Value.Trim());
+        var content = StripBidirectionalControlCharacters(match.Groups[4].Value);
 
         if (!TryParseDateTime(dateStr, timeStr, is24HourFormat, offset, out var timestamp))
         {
