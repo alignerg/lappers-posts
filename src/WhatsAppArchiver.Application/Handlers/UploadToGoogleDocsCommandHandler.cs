@@ -124,7 +124,7 @@ public sealed class UploadToGoogleDocsCommandHandler
         {
             // Rich Google Docs formatting
             var exportToFormat = ChatExport.Create(unprocessedMessages, chatExport.Metadata);
-            var richDocument = googleDocsFormatter.FormatDocument(exportToFormat);
+            var richDocument = googleDocsFormatter.FormatDocument(exportToFormat, command.SuppressTimestamps);
             await _googleDocsService.AppendRichAsync(command.DocumentId, richDocument, cancellationToken);
         }
         else

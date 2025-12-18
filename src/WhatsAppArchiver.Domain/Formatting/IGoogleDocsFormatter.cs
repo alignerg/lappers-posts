@@ -17,7 +17,12 @@ public interface IGoogleDocsFormatter
     /// Formats an entire chat export as a structured Google Docs document.
     /// </summary>
     /// <param name="chatExport">The chat export to format.</param>
+    /// <param name="suppressTimestamps">
+    /// When true, suppresses timestamp (Heading 3) entries in the generated document,
+    /// allowing multiple posts on the same day to appear as consecutive paragraphs.
+    /// Defaults to false to maintain backward compatibility.
+    /// </param>
     /// <returns>A structured Google Docs document with rich text sections.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="chatExport"/> is null.</exception>
-    GoogleDocsDocument FormatDocument(ChatExport chatExport);
+    GoogleDocsDocument FormatDocument(ChatExport chatExport, bool suppressTimestamps = false);
 }
