@@ -456,6 +456,109 @@ public class UploadToGoogleDocsCommandHandlerTests
             Times.Once);
     }
 
+    [Fact(DisplayName = "HandleAsync with SuppressTimestamps true passes flag to formatter")]
+    public async Task HandleAsync_WithSuppressTimestampsTrue_PassesFlagToFormatter()
+    {
+        var command = new UploadToGoogleDocsCommand(
+            "/path/to/chat.txt",
+            "Alice",
+            "doc-123",
+            MessageFormatType.GoogleDocs,
+            CachedChatExport: null,
+            SuppressTimestamps: true);
+        var now = DateTimeOffset.Now;
+        var messages = new[]
+        {
+            ChatMessage.Create(now, "Alice", "First message"),
+            ChatMessage.Create(now.AddMinutes(5), "Alice", "Second message")
+        };
+        var metadata = new ParsingMetadata("chat.txt", now, 2, 2, 0);
+        var chatExport = new ChatExport(Guid.NewGuid(), messages, metadata);
+        var checkpoint = ProcessingCheckpoint.Create(command.DocumentId, SenderFilter.Create(command.Sender));
+
+        SetupMocks(command, chatExport, checkpoint);
+
+        await _handler.HandleAsync(command);
+
+        _googleDocsServiceMock.Verify(
+            x => x.AppendRichAsync(
+                command.DocumentId,
+                It.Is<GoogleDocsDocument>(doc =>
+                    doc.Sections.OfType<HeadingSection>().Any(h => h.Level == 2) &&  // Has date heading
+                    !doc.Sections.OfType<HeadingSection>().Any(h => h.Level == 3) && // No timestamp headings
+                    doc.Sections.OfType<ParagraphSection>().Any(p => p.Text.Contains("First message")) &&
+                    doc.Sections.OfType<ParagraphSection>().Any(p => p.Text.Contains("Second message"))),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact(DisplayName = "HandleAsync with SuppressTimestamps false includes timestamp headings")]
+    public async Task HandleAsync_WithSuppressTimestampsFalse_IncludesTimestampHeadings()
+    {
+        var command = new UploadToGoogleDocsCommand(
+            "/path/to/chat.txt",
+            "Alice",
+            "doc-123",
+            MessageFormatType.GoogleDocs,
+            CachedChatExport: null,
+            SuppressTimestamps: false);
+        var now = DateTimeOffset.Now;
+        var messages = new[]
+        {
+            ChatMessage.Create(now, "Alice", "First message"),
+            ChatMessage.Create(now.AddMinutes(5), "Alice", "Second message")
+        };
+        var metadata = new ParsingMetadata("chat.txt", now, 2, 2, 0);
+        var chatExport = new ChatExport(Guid.NewGuid(), messages, metadata);
+        var checkpoint = ProcessingCheckpoint.Create(command.DocumentId, SenderFilter.Create(command.Sender));
+
+        SetupMocks(command, chatExport, checkpoint);
+
+        await _handler.HandleAsync(command);
+
+        _googleDocsServiceMock.Verify(
+            x => x.AppendRichAsync(
+                command.DocumentId,
+                It.Is<GoogleDocsDocument>(doc =>
+                    doc.Sections.OfType<HeadingSection>().Any(h => h.Level == 2) &&  // Has date heading
+                    doc.Sections.OfType<HeadingSection>().Any(h => h.Level == 3) &&  // Has timestamp headings
+                    doc.Sections.OfType<ParagraphSection>().Any(p => p.Text.Contains("First message")) &&
+                    doc.Sections.OfType<ParagraphSection>().Any(p => p.Text.Contains("Second message"))),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact(DisplayName = "HandleAsync with SuppressTimestamps default includes timestamp headings")]
+    public async Task HandleAsync_WithSuppressTimestampsDefault_IncludesTimestampHeadings()
+    {
+        var command = new UploadToGoogleDocsCommand(
+            "/path/to/chat.txt",
+            "Alice",
+            "doc-123",
+            MessageFormatType.GoogleDocs);
+        var now = DateTimeOffset.Now;
+        var messages = new[]
+        {
+            ChatMessage.Create(now, "Alice", "Test message")
+        };
+        var metadata = new ParsingMetadata("chat.txt", now, 1, 1, 0);
+        var chatExport = new ChatExport(Guid.NewGuid(), messages, metadata);
+        var checkpoint = ProcessingCheckpoint.Create(command.DocumentId, SenderFilter.Create(command.Sender));
+
+        SetupMocks(command, chatExport, checkpoint);
+
+        await _handler.HandleAsync(command);
+
+        // Default should include timestamps (backward compatibility)
+        _googleDocsServiceMock.Verify(
+            x => x.AppendRichAsync(
+                command.DocumentId,
+                It.Is<GoogleDocsDocument>(doc =>
+                    doc.Sections.OfType<HeadingSection>().Any(h => h.Level == 3)), // Has timestamp heading
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
     private void SetupMocks(
         UploadToGoogleDocsCommand command,
         ChatExport chatExport,

@@ -37,6 +37,10 @@ public sealed class GoogleDocsDocumentFormatter : IGoogleDocsFormatter, IMessage
     /// Formats an entire chat export as a structured Google Docs document.
     /// </summary>
     /// <param name="chatExport">The chat export to format.</param>
+    /// <param name="suppressTimestamps">
+    /// When true, suppresses timestamp (Heading 3) entries in the generated document,
+    /// allowing multiple posts on the same day to appear as consecutive paragraphs.
+    /// </param>
     /// <returns>A structured Google Docs document with rich text sections.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="chatExport"/> is null.</exception>
     /// <remarks>
@@ -51,7 +55,7 @@ public sealed class GoogleDocsDocumentFormatter : IGoogleDocsFormatter, IMessage
     /// <description>For each date group, adds a page break (except first), then an H2 header with the date in MMMM d, yyyy format</description>
     /// </item>
     /// <item>
-    /// <description>For each message, adds an H3 timestamp header (HH:mm), content, and double empty line separator</description>
+    /// <description>For each message, adds an H3 timestamp header (HH:mm) unless suppressTimestamps is true, content, and double empty line separator</description>
     /// </item>
     /// </list>
     /// <para>
@@ -59,7 +63,7 @@ public sealed class GoogleDocsDocumentFormatter : IGoogleDocsFormatter, IMessage
     /// Empty exports (no messages) return an empty document.
     /// </para>
     /// </remarks>
-    public GoogleDocsDocument FormatDocument(ChatExport chatExport)
+    public GoogleDocsDocument FormatDocument(ChatExport chatExport, bool suppressTimestamps = false)
     {
         ArgumentNullException.ThrowIfNull(chatExport);
 
@@ -94,8 +98,11 @@ public sealed class GoogleDocsDocumentFormatter : IGoogleDocsFormatter, IMessage
             // Process each message in the date group
             foreach (var message in dateGroup.OrderBy(m => m.Timestamp))
             {
-                // Add timestamp as H3 heading (24-hour format)
-                document.Add(new HeadingSection(3, message.Timestamp.ToString("HH:mm")));
+                // Add timestamp as H3 heading (24-hour format) unless suppressed
+                if (!suppressTimestamps)
+                {
+                    document.Add(new HeadingSection(3, message.Timestamp.ToString("HH:mm")));
+                }
 
                 // Add message content (preserve line breaks)
                 document.Add(new ParagraphSection(message.Content));

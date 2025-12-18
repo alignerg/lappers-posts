@@ -46,10 +46,16 @@ namespace WhatsAppArchiver.Application.Commands;
 /// Optional pre-parsed chat export to avoid re-parsing the file.
 /// If provided, the handler will use this instead of parsing the file again.
 /// </param>
+/// <param name="SuppressTimestamps">
+/// When true, suppresses timestamp (Heading 3) entries in the generated document,
+/// allowing multiple posts on the same day to appear as consecutive paragraphs.
+/// Defaults to false to maintain backward compatibility.
+/// </param>
 public sealed record UploadToGoogleDocsCommand(
     string FilePath,
     string Sender,
     string DocumentId,
     MessageFormatType FormatterType = MessageFormatType.Default,
-    ChatExport? CachedChatExport = null
+    ChatExport? CachedChatExport = null,
+    bool SuppressTimestamps = false
 );
