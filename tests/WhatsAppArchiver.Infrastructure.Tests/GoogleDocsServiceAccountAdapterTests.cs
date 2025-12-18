@@ -1362,8 +1362,8 @@ public class GoogleDocsServiceAccountAdapterTests
         insertTextRequests[2]!.Text.Should().Be("End\n");
     }
 
-    [Fact(DisplayName = "InsertRichAsync with page break followed by empty line and heading positions correctly")]
-    public async Task InsertRichAsync_WithPageBreakEmptyLineHeading_PositionsCorrectly()
+    [Fact(DisplayName = "InsertRichAsync with page break followed by empty line and heading calculates indices correctly")]
+    public async Task InsertRichAsync_WithPageBreakEmptyLineHeading_CalculatesIndicesCorrectly()
     {
         var documentId = "test-doc-123";
         var document = new GoogleDocsDocument();

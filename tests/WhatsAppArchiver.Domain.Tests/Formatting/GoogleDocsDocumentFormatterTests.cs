@@ -209,8 +209,8 @@ public class GoogleDocsDocumentFormatterTests
         Assert.IsType<ParagraphSection>(nextSection);
     }
 
-    [Fact(DisplayName = "FormatDocument with page breaks has empty line after page break before heading")]
-    public void FormatDocument_WithPageBreaks_HasEmptyLineAfterPageBreakBeforeHeading()
+    [Fact(DisplayName = "FormatDocument with page breaks inserts empty line after page break before heading")]
+    public void FormatDocument_WithPageBreaks_InsertsEmptyLineAfterPageBreakBeforeHeading()
     {
         var messages = new[]
         {
