@@ -29,7 +29,7 @@ public sealed class WhatsAppTextFileParser : IChatParser
     /// Groups: 1=date (DD/MM/YYYY), 2=time (HH:mm:ss), 3=sender, 4=content.
     /// Example match: [25/12/2024, 09:15:00] John Smith: Hello everyone!
     /// Allows optional Unicode format control characters before the opening bracket.
-    /// Content group allows empty messages (e.g., messages with no text after colon).
+    /// Content group allows empty messages (e.g., messages with no text after colon), but these are treated as parsing failures.
     /// </summary>
     private static readonly Regex DatePattern24Hour = new(
         @"^[\u200B\u200E\u200F\u202A-\u202E]*\[(\d{1,2}/\d{1,2}/\d{4}),\s*(\d{1,2}:\d{2}:\d{2})\]\s*([^:]+):\s*(.*)$",
@@ -40,7 +40,7 @@ public sealed class WhatsAppTextFileParser : IChatParser
     /// Groups: 1=date (M/D/YY), 2=time (h:mm:ss AM/PM), 3=sender, 4=content.
     /// Example match: [1/5/24, 8:30:00 AM] Sarah Wilson: Good morning!
     /// Allows optional Unicode format control characters before the opening bracket.
-    /// Content group allows empty messages (e.g., messages with no text after colon).
+    /// Content group allows empty messages (e.g., messages with no text after colon), but these are treated as parsing failures.
     /// </summary>
     private static readonly Regex DatePattern12Hour = new(
         @"^[\u200B\u200E\u200F\u202A-\u202E]*\[(\d{1,2}/\d{1,2}/\d{2,4}),\s*(\d{1,2}:\d{2}:\d{2}\s*(?:AM|PM))\]\s*([^:]+):\s*(.*)$",
@@ -187,12 +187,6 @@ public sealed class WhatsAppTextFileParser : IChatParser
                     currentMessage = message;
                     currentContent.Clear();
                     currentContent.Append(message.Content);
-                }
-                else if (isSuccess && message is null)
-                {
-                    // Successfully parsed but filtered out (e.g., empty content)
-                    currentMessage = null;
-                    currentContent.Clear();
                 }
                 else
                 {
@@ -609,11 +603,12 @@ public sealed class WhatsAppTextFileParser : IChatParser
         var sender = StripFormatControlCharacters(match.Groups[3].Value.Trim());
         var content = StripFormatControlCharacters(match.Groups[4].Value);
 
-        // Filter out messages with empty content (e.g., "[timestamp] Sender:" with nothing after)
+        // Reject messages with empty content (e.g., "[timestamp] Sender:" with nothing after)
+        // This ensures consistency with messages that become empty after post-processing
         if (string.IsNullOrWhiteSpace(content))
         {
-            _logger.LogDebug("Filtered out empty message at line {LineNumber}", lineNumber);
-            return (null, true); // Return true to indicate successful parsing (but filtered)
+            _logger.LogDebug("Rejected empty message at line {LineNumber}", lineNumber);
+            return (null, false); // Return false to count as parsing failure
         }
 
         if (!TryParseDateTime(dateStr, timeStr, is24HourFormat, offset, out var timestamp))
