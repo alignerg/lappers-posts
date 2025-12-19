@@ -1413,4 +1413,30 @@ public class WhatsAppTextFileParserTests
         result.Messages.Should().HaveCount(1, "System message should be filtered");
         result.Messages[0].Content.Should().Be("Only admins can post now");
     }
+
+    [Fact(DisplayName = "ParseAsync filters exact examples from issue #1 - system messages with LRM")]
+    public async Task ParseAsync_IssueExamples_FiltersSystemMessagesCorrectly()
+    {
+        var lrm = "\u200E";
+        var testLines = new[]
+        {
+            $"[19/10/2025, 01:02:19] Lappers: {lrm}Rudi Anderson added you",
+            $"[01/12/2025, 05:57:35] Prayer Group: {lrm}John Smith changed this group's icon",
+            "[19/10/2025, 09:05:19] Rudi Anderson: Hello everyone!"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(1, "Only the regular message should remain after filtering system messages");
+        result.Messages[0].Sender.Should().Be("Rudi Anderson");
+        result.Messages[0].Content.Should().Be("Hello everyone!");
+        result.Metadata.FailedLineCount.Should().Be(0, "System messages should be filtered, not failed");
+        result.Metadata.TotalLines.Should().Be(3);
+        result.Metadata.ParsedMessageCount.Should().Be(1);
+    }
 }
