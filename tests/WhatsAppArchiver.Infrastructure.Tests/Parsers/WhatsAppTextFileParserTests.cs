@@ -1134,4 +1134,54 @@ public class WhatsAppTextFileParserTests
         // This ensures ZWSP cannot interfere with link detection, so the link is still filtered correctly
         result.Messages.Should().BeEmpty("Both link and image should be filtered even with ZWSP");
     }
+
+    [Fact(DisplayName = "ParseAsync recognizes messages with leading LRM before timestamp as separate messages")]
+    public async Task ParseAsync_LeadingLRMBeforeTimestamp_RecognizesAsSeparateMessages()
+    {
+        var lrm = "\u200E"; // LEFT-TO-RIGHT MARK
+        var testLines = new[]
+        {
+            "[20/07/2025, 05:25:34] Rudi Anderson: https://www.facebook.com/share/v/1LedjeswZu/?mibextid=wwXIfr",
+            $"{lrm}[20/07/2025, 05:51:42] Rudi Anderson: <attached: 00000394-PHOTO-2025-07-20-05-51-42.jpg>"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        // Both messages should be filtered separately (link-only and image attachment)
+        // The LRM before the timestamp should not cause the second line to be treated as a continuation
+        result.Messages.Should().BeEmpty("Both link and image should be filtered as separate messages despite leading LRM");
+    }
+
+    [Fact(DisplayName = "ParseAsync recognizes messages with multiple leading format control characters")]
+    public async Task ParseAsync_MultipleLeadingFormatControlCharacters_RecognizesAsSeparateMessages()
+    {
+        var lrm = "\u200E"; // LEFT-TO-RIGHT MARK
+        var zwsp = "\u200B"; // ZERO-WIDTH SPACE
+        var rlm = "\u200F"; // RIGHT-TO-LEFT MARK
+        var testLines = new[]
+        {
+            "[20/07/2025, 05:25:34] Rudi Anderson: First message",
+            $"{lrm}{zwsp}[20/07/2025, 05:26:00] Rudi Anderson: Second message with LRM+ZWSP",
+            $"{rlm}[20/07/2025, 05:27:00] Rudi Anderson: Third message with RLM",
+            $"{lrm}{lrm}{zwsp}[20/07/2025, 05:28:00] Rudi Anderson: Fourth message with multiple control chars"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(4, "All four messages should be recognized as separate messages");
+        result.Messages[0].Content.Should().Be("First message");
+        result.Messages[1].Content.Should().Be("Second message with LRM+ZWSP");
+        result.Messages[2].Content.Should().Be("Third message with RLM");
+        result.Messages[3].Content.Should().Be("Fourth message with multiple control chars");
+    }
 }
