@@ -439,9 +439,10 @@ public sealed class WhatsAppTextFileParser : IChatParser
     /// 
     /// <para><strong>Pattern Matching Limitations:</strong></para>
     /// <list type="bullet">
-    /// <item><description>The "added" pattern requires capitalized names (e.g., "John added Mary") and may not
-    /// match names with special characters (e.g., "O'Brien"), lowercase usernames, or non-English scripts.
-    /// This is based on typical WhatsApp system message formatting.</description></item>
+    /// <item><description>The "added" pattern requires capitalized names (e.g., "John added Mary") and supports
+    /// names containing apostrophes and hyphens (e.g., "O'Brien", "Anne-Marie") but may not match names with
+    /// other special characters, lowercase usernames, or non-English scripts. This is based on typical WhatsApp
+    /// system message formatting.</description></item>
     /// <item><description>The "removed" pattern may filter some conversational messages like "Alice removed Bob"
     /// if they don't contain common pronouns or articles. Messages like "Alice removed Bob from the list" would
     /// still be filtered unless they contain excluded patterns like "removed the".</description></item>
@@ -503,11 +504,6 @@ public sealed class WhatsAppTextFileParser : IChatParser
             !lowerContent.Contains(" added some ", StringComparison.Ordinal) &&
             AddedSystemMessagePattern.IsMatch(trimmedContent))
         {
-            // Use the original (non-lowercased) content to detect name-like patterns,
-            // which are typical of WhatsApp system messages such as "John added Mary".
-            // This helps avoid false positives in normal conversational sentences.
-            // Note: This pattern requires capitalized names and may not match names with
-            // special characters, lowercase usernames, or non-English scripts.
             return true;
         }
 
