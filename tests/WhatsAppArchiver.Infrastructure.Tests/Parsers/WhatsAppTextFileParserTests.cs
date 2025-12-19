@@ -1354,6 +1354,63 @@ public class WhatsAppTextFileParserTests
         result.Messages[3].Content.Should().Be("The new member who joined is very helpful");
     }
 
+    [Fact(DisplayName = "ParseAsync does not filter conversational messages with action words")]
+    public async Task ParseAsync_ConversationalMessagesWithActionWords_DoesNotFilter()
+    {
+        var testLines = new[]
+        {
+            "[15/03/2024, 10:00:00] Alice: He added sugar to the coffee",
+            "[15/03/2024, 10:01:00] Bob: She removed her shoes at the door",
+            "[15/03/2024, 10:02:00] Charlie: The team added a new feature yesterday",
+            "[15/03/2024, 10:03:00] Dave: We created group activities for the kids",
+            "[15/03/2024, 10:04:00] Eve: I removed the old files from my computer",
+            "[15/03/2024, 10:05:00] Frank: He changed the subject to politics during dinner",
+            "[15/03/2024, 10:06:00] Grace: Mary added a comment to the document"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(7, "Conversational messages with action words should not be filtered");
+        result.Messages[0].Content.Should().Be("He added sugar to the coffee");
+        result.Messages[1].Content.Should().Be("She removed her shoes at the door");
+        result.Messages[2].Content.Should().Be("The team added a new feature yesterday");
+        result.Messages[3].Content.Should().Be("We created group activities for the kids");
+        result.Messages[4].Content.Should().Be("I removed the old files from my computer");
+        result.Messages[5].Content.Should().Be("He changed the subject to politics during dinner");
+        result.Messages[6].Content.Should().Be("Mary added a comment to the document");
+    }
+
+    [Fact(DisplayName = "ParseAsync filters proper name system messages but not conversational ones")]
+    public async Task ParseAsync_ProperNameSystemMessages_FiltersCorrectly()
+    {
+        var testLines = new[]
+        {
+            "[15/03/2024, 10:00:00] Group: John Smith added Mary Johnson",
+            "[15/03/2024, 10:01:00] Alice: The team added a new feature",
+            "[15/03/2024, 10:02:00] Group: Alice Brown removed Bob Davis",
+            "[15/03/2024, 10:03:00] Bob: I removed the old files",
+            "[15/03/2024, 10:04:00] Group: Charlie Wilson created group \"Study Group\"",
+            "[15/03/2024, 10:05:00] Charlie: We created group activities"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(3, "Only conversational messages should remain");
+        result.Messages[0].Content.Should().Be("The team added a new feature");
+        result.Messages[1].Content.Should().Be("I removed the old files");
+        result.Messages[2].Content.Should().Be("We created group activities");
+    }
+
     [Fact(DisplayName = "ParseAsync filters system message 'you're now an admin'")]
     public async Task ParseAsync_SystemMessageYouAreNowAdmin_FiltersMessage()
     {

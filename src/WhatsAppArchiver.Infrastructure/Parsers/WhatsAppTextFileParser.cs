@@ -406,8 +406,16 @@ public sealed class WhatsAppTextFileParser : IChatParser
     /// - Admin changes ("You're now an admin", "John is now an admin")
     /// 
     /// These messages don't contain user-generated content and are filtered out during parsing.
-    /// Pattern matching requires the message to END with or closely match the system message pattern
-    /// to avoid filtering legitimate user messages that happen to contain these keywords.
+    /// 
+    /// The pattern matching in this method is intentionally heuristic and relatively broad: it looks for
+    /// messages that END with or closely match known system-message phrases and keywords in order to catch
+    /// variations across different WhatsApp exports and locales.
+    /// 
+    /// As a consequence, very short user messages that structurally resemble system notifications (for example,
+    /// "John added sugar" or "Mary added a comment") may be classified as system messages and
+    /// filtered out as edge cases. If this behavior is undesirable for a particular dataset, the patterns in
+    /// this method should be refined to better fit that usage.
+    /// 
     /// User messages with punctuation like "?", "!", or conversational indicators are not filtered.
     /// </remarks>
     private static bool IsSystemMessage(string content)
@@ -427,53 +435,89 @@ public sealed class WhatsAppTextFileParser : IChatParser
         }
 
         // Check for conversational indicators that suggest user-generated content
-        if (lowerContent.Contains("someone ", StringComparison.OrdinalIgnoreCase) ||
-            lowerContent.Contains("yesterday", StringComparison.OrdinalIgnoreCase) ||
-            lowerContent.Contains("the new member", StringComparison.OrdinalIgnoreCase) ||
-            lowerContent.Contains("who ", StringComparison.OrdinalIgnoreCase))
+        if (lowerContent.Contains("someone ", StringComparison.Ordinal) ||
+            lowerContent.Contains("yesterday", StringComparison.Ordinal) ||
+            lowerContent.Contains("the new member", StringComparison.Ordinal) ||
+            Regex.IsMatch(lowerContent, @"\bwho\b", RegexOptions.IgnoreCase))
         {
             return false;
         }
 
         // Check for patterns that typically appear at the end of system messages
         // or are very specific to system messages
-        if (lowerContent.EndsWith("added you", StringComparison.OrdinalIgnoreCase) ||
-            lowerContent.EndsWith("left", StringComparison.OrdinalIgnoreCase) ||
-            lowerContent.EndsWith("joined", StringComparison.OrdinalIgnoreCase) ||
-            lowerContent.Contains("joined using this group's invite link", StringComparison.OrdinalIgnoreCase) ||
-            lowerContent.Contains("changed this group's icon", StringComparison.OrdinalIgnoreCase) ||
-            lowerContent.Contains("changed the group description", StringComparison.OrdinalIgnoreCase) ||
-            lowerContent.Contains("changed this group's settings", StringComparison.OrdinalIgnoreCase) ||
+        if (lowerContent.EndsWith("added you", StringComparison.Ordinal) ||
+            lowerContent.EndsWith("left", StringComparison.Ordinal) ||
+            lowerContent.EndsWith("joined", StringComparison.Ordinal) ||
+            lowerContent.Contains("joined using this group's invite link", StringComparison.Ordinal) ||
+            lowerContent.Contains("changed this group's icon", StringComparison.Ordinal) ||
+            lowerContent.Contains("changed the group description", StringComparison.Ordinal) ||
+            lowerContent.Contains("changed this group's settings", StringComparison.Ordinal) ||
             lowerContent == "you're now an admin" ||
-            lowerContent.EndsWith("is now an admin", StringComparison.OrdinalIgnoreCase))
+            lowerContent.EndsWith("is now an admin", StringComparison.Ordinal))
         {
             return true;
         }
 
         // Check for "added" pattern: typically "Person1 added Person2"
-        // Must be in a specific format to avoid filtering "I added you to my contacts"
-        if (lowerContent.Contains(" added ", StringComparison.OrdinalIgnoreCase) &&
-            !lowerContent.Contains("i added", StringComparison.OrdinalIgnoreCase) &&
-            !lowerContent.Contains("to my", StringComparison.OrdinalIgnoreCase) &&
-            !lowerContent.Contains("contacts", StringComparison.OrdinalIgnoreCase))
+        // Must be in a specific format to avoid filtering conversational messages like
+        // "I added you to my contacts" or "The team added a new feature".
+        if (lowerContent.Contains(" added ", StringComparison.Ordinal) &&
+            !lowerContent.Contains("i added", StringComparison.Ordinal) &&
+            !lowerContent.Contains("to my", StringComparison.Ordinal) &&
+            !lowerContent.Contains("contacts", StringComparison.Ordinal) &&
+            !lowerContent.Contains(" added a ", StringComparison.Ordinal) &&
+            !lowerContent.Contains(" added the ", StringComparison.Ordinal) &&
+            !lowerContent.Contains(" added some ", StringComparison.Ordinal) &&
+            !lowerContent.Contains(" added sugar", StringComparison.Ordinal) &&
+            !lowerContent.Contains(" added comment", StringComparison.Ordinal))
         {
-            return true;
+            // Use the original (non-lowercased) content to detect name-like patterns,
+            // which are typical of WhatsApp system messages such as "John added Mary".
+            // This helps avoid false positives in normal conversational sentences.
+            var addedSystemMessageRegex = new Regex(
+                @"^\s*([A-Z][^\s]*\s+)+added\s+[A-Z][^\s]*(?:\s+[A-Z][^\s]*)?\s*$",
+                RegexOptions.CultureInvariant);
+
+            if (addedSystemMessageRegex.IsMatch(trimmedContent))
+            {
+                return true;
+            }
         }
 
         // Check for "removed" pattern: typically "Person1 removed Person2"
-        if (lowerContent.Contains(" removed ", StringComparison.OrdinalIgnoreCase))
+        // Avoid filtering conversational messages like "I removed the old files"
+        if (lowerContent.Contains(" removed ", StringComparison.Ordinal) &&
+            !lowerContent.StartsWith("i ", StringComparison.Ordinal) &&
+            !lowerContent.StartsWith("he ", StringComparison.Ordinal) &&
+            !lowerContent.StartsWith("she ", StringComparison.Ordinal) &&
+            !lowerContent.StartsWith("they ", StringComparison.Ordinal) &&
+            !lowerContent.StartsWith("we ", StringComparison.Ordinal) &&
+            !lowerContent.StartsWith("you ", StringComparison.Ordinal) &&
+            !lowerContent.Contains(" removed the ", StringComparison.Ordinal) &&
+            !lowerContent.Contains(" removed my ", StringComparison.Ordinal) &&
+            !lowerContent.Contains(" removed your ", StringComparison.Ordinal) &&
+            !lowerContent.Contains(" removed our ", StringComparison.Ordinal) &&
+            !lowerContent.Contains(" removed their ", StringComparison.Ordinal) &&
+            !lowerContent.Contains(" removed his ", StringComparison.Ordinal) &&
+            !lowerContent.Contains(" removed her ", StringComparison.Ordinal))
         {
             return true;
         }
 
-        // Check for "created group" pattern
-        if (lowerContent.Contains("created group", StringComparison.OrdinalIgnoreCase))
+        // Check for "created group" system message pattern: typically "[name] created group "Group name""
+        // Using a regex here ensures we only match the exact WhatsApp-style system message format
+        if (Regex.IsMatch(trimmedContent, @"^.+ created group ""[^""]+""$", RegexOptions.CultureInvariant))
         {
             return true;
         }
 
-        // Check for "changed the subject" pattern
-        if (lowerContent.Contains("changed the subject", StringComparison.OrdinalIgnoreCase))
+        // Check for "changed the subject" pattern in the specific WhatsApp system message format
+        // This avoids classifying conversational sentences like "He changed the subject to politics"
+        // as system messages by requiring quoted group names.
+        if (lowerContent.Contains("changed the subject from \"", StringComparison.Ordinal) ||
+            lowerContent.Contains("changed the subject to \"", StringComparison.Ordinal) ||
+            lowerContent.Contains("changed the subject from '", StringComparison.Ordinal) ||
+            lowerContent.Contains("changed the subject to '", StringComparison.Ordinal))
         {
             return true;
         }
