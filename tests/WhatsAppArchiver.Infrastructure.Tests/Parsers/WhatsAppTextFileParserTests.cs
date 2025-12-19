@@ -1048,7 +1048,7 @@ public class WhatsAppTextFileParserTests
     }
 
     [Fact(DisplayName = "ParseAsync filters link posts followed by image posts")]
-    public async Task ParseAsync_LinkPostsFollowedByImagePosts_FiltersBoth()
+    public async Task ParseAsync_LinkPostsFollowedByImagePosts_FiltersAllMessages()
     {
         var testLines = new[]
         {
@@ -1069,7 +1069,7 @@ public class WhatsAppTextFileParserTests
     }
 
     [Fact(DisplayName = "ParseAsync filters link posts with Unicode control characters followed by image posts")]
-    public async Task ParseAsync_LinkPostsWithUnicodeControlCharactersFollowedByImagePosts_FiltersBoth()
+    public async Task ParseAsync_LinkPostsWithUnicodeControlCharactersFollowedByImagePosts_FiltersAllMessages()
     {
         var lrm = "\u200E";
         var testLines = new[]
@@ -1087,7 +1087,7 @@ public class WhatsAppTextFileParserTests
         var result = await parser.ParseAsync("test.txt");
 
         result.Should().NotBeNull();
-        result.Messages.Should().BeEmpty("All messages should be filtered (both link-only and image attachments) even with LRM characters");
+        result.Messages.Should().BeEmpty("All messages should be filtered (both link-only and image attachments) even with Unicode format control characters");
     }
 
     [Fact(DisplayName = "ParseAsync handles link followed by image attachment without timestamp as multi-line")]
@@ -1114,7 +1114,7 @@ public class WhatsAppTextFileParserTests
     }
 
     [Fact(DisplayName = "ParseAsync filters link posts with zero-width spaces")]
-    public async Task ParseAsync_LinkPostsWithZeroWidthSpaces_FiltersCorrectly()
+    public async Task ParseAsync_LinkPostsWithZeroWidthSpaces_FiltersLinkAndImage()
     {
         var zwsp = "\u200B"; // Zero-Width Space
         var testLines = new[]

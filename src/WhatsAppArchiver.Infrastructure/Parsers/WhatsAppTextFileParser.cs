@@ -63,8 +63,8 @@ public sealed class WhatsAppTextFileParser : IChatParser
     // Attachment pattern prefix for dynamic filename matching
     private const string AttachedPrefix = "<attached: ";
 
-    // Regex pattern to match Unicode format control characters (bidirectional marks and zero-width space)
-    private static readonly Regex BidirectionalControlCharsPattern = new(
+    // Regex pattern to match Unicode format control characters (zero-width space and bidirectional control characters)
+    private static readonly Regex FormatControlCharsPattern = new(
         @"[\u200B\u200E\u200F\u202A-\u202E]",
         RegexOptions.Compiled);
 
@@ -275,7 +275,7 @@ public sealed class WhatsAppTextFileParser : IChatParser
             return text;
         }
 
-        return BidirectionalControlCharsPattern.Replace(text, string.Empty);
+        return FormatControlCharsPattern.Replace(text, string.Empty);
     }
 
     /// <summary>
