@@ -29,9 +29,10 @@ public sealed class WhatsAppTextFileParser : IChatParser
     /// Groups: 1=date (DD/MM/YYYY), 2=time (HH:mm:ss), 3=sender, 4=content.
     /// Example match: [25/12/2024, 09:15:00] John Smith: Hello everyone!
     /// Allows optional Unicode format control characters before the opening bracket.
+    /// Content group allows empty messages (e.g., messages with no text after colon).
     /// </summary>
     private static readonly Regex DatePattern24Hour = new(
-        @"^[\u200B\u200E\u200F\u202A-\u202E]*\[(\d{1,2}/\d{1,2}/\d{4}),\s*(\d{1,2}:\d{2}:\d{2})\]\s*([^:]+):\s*(.+)$",
+        @"^[\u200B\u200E\u200F\u202A-\u202E]*\[(\d{1,2}/\d{1,2}/\d{4}),\s*(\d{1,2}:\d{2}:\d{2})\]\s*([^:]+):\s*(.*)$",
         RegexOptions.Compiled);
 
     /// <summary>
@@ -39,9 +40,10 @@ public sealed class WhatsAppTextFileParser : IChatParser
     /// Groups: 1=date (M/D/YY), 2=time (h:mm:ss AM/PM), 3=sender, 4=content.
     /// Example match: [1/5/24, 8:30:00 AM] Sarah Wilson: Good morning!
     /// Allows optional Unicode format control characters before the opening bracket.
+    /// Content group allows empty messages (e.g., messages with no text after colon).
     /// </summary>
     private static readonly Regex DatePattern12Hour = new(
-        @"^[\u200B\u200E\u200F\u202A-\u202E]*\[(\d{1,2}/\d{1,2}/\d{2,4}),\s*(\d{1,2}:\d{2}:\d{2}\s*(?:AM|PM))\]\s*([^:]+):\s*(.+)$",
+        @"^[\u200B\u200E\u200F\u202A-\u202E]*\[(\d{1,2}/\d{1,2}/\d{2,4}),\s*(\d{1,2}:\d{2}:\d{2}\s*(?:AM|PM))\]\s*([^:]+):\s*(.*)$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     // Pattern to detect if a line starts with a timestamp (for continuation detection)
@@ -186,9 +188,17 @@ public sealed class WhatsAppTextFileParser : IChatParser
                     currentContent.Clear();
                     currentContent.Append(message.Content);
                 }
+                else if (isSuccess && message is null)
+                {
+                    // Successfully parsed but filtered out (e.g., empty content)
+                    currentMessage = null;
+                    currentContent.Clear();
+                }
                 else
                 {
                     // Line starts with timestamp but couldn't be parsed as a message
+                    _logger.LogWarning("Line {LineNumber} starts with timestamp but could not be parsed: {Line}",
+                        i + 1, line.Length > 100 ? line[..100] + "..." : line);
                     currentMessage = null;
                     currentContent.Clear();
                     failedLineCount++;
@@ -203,6 +213,8 @@ public sealed class WhatsAppTextFileParser : IChatParser
             else
             {
                 // Orphan line (no current message to attach to)
+                _logger.LogWarning("Orphan line {LineNumber} (no message context): {Line}",
+                    i + 1, line.Length > 100 ? line[..100] + "..." : line);
                 failedLineCount++;
             }
         }
@@ -596,6 +608,13 @@ public sealed class WhatsAppTextFileParser : IChatParser
         var timeStr = match.Groups[2].Value;
         var sender = StripFormatControlCharacters(match.Groups[3].Value.Trim());
         var content = StripFormatControlCharacters(match.Groups[4].Value);
+
+        // Filter out messages with empty content (e.g., "[timestamp] Sender:" with nothing after)
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            _logger.LogDebug("Filtered out empty message at line {LineNumber}", lineNumber);
+            return (null, true); // Return true to indicate successful parsing (but filtered)
+        }
 
         if (!TryParseDateTime(dateStr, timeStr, is24HourFormat, offset, out var timestamp))
         {
