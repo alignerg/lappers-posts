@@ -1052,7 +1052,7 @@ public class WhatsAppTextFileParserTests
         result.Messages[1].Content.Should().Be("Normal message");
     }
 
-    [Fact(DisplayName = "ParseAsync strips LRM from system messages")]
+    [Fact(DisplayName = "ParseAsync strips LRM from system messages before filtering them")]
     public async Task ParseAsync_LRMInSystemMessage_StripsCharacters()
     {
         var lrm = "\u200E";
@@ -1069,10 +1069,9 @@ public class WhatsAppTextFileParserTests
         var result = await parser.ParseAsync("test.txt");
 
         result.Should().NotBeNull();
-        result.Messages.Should().HaveCount(2);
-        result.Messages[0].Sender.Should().Be("System");
-        result.Messages[0].Content.Should().Be("Rudi Anderson added you");
-        result.Messages[0].Content.Should().NotContain(lrm);
+        result.Messages.Should().HaveCount(1, "System message should be filtered");
+        result.Messages[0].Sender.Should().Be("John Smith");
+        result.Messages[0].Content.Should().Be("Regular message");
     }
 
     [Fact(DisplayName = "ParseAsync filters link posts followed by image posts")]
@@ -1211,5 +1210,367 @@ public class WhatsAppTextFileParserTests
         result.Messages[1].Content.Should().Be("Second message with LRM+ZWSP");
         result.Messages[2].Content.Should().Be("Third message with RLM");
         result.Messages[3].Content.Should().Be("Fourth message with multiple control chars");
+    }
+
+    [Fact(DisplayName = "ParseAsync filters system message 'added you'")]
+    public async Task ParseAsync_SystemMessageAddedYou_FiltersMessage()
+    {
+        var lrm = "\u200E";
+        var testLines = new[]
+        {
+            $"[19/10/2025, 01:02:19] Lappers: {lrm}Rudi Anderson added you",
+            "[19/10/2025, 09:05:19] Rudi Anderson: Hello everyone!"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(1, "System message should be filtered");
+        result.Messages[0].Sender.Should().Be("Rudi Anderson");
+        result.Messages[0].Content.Should().Be("Hello everyone!");
+    }
+
+    [Fact(DisplayName = "ParseAsync filters system message 'changed this group's icon'")]
+    public async Task ParseAsync_SystemMessageChangedGroupIcon_FiltersMessage()
+    {
+        var lrm = "\u200E";
+        var testLines = new[]
+        {
+            $"[01/12/2025, 05:57:35] Prayer Group: {lrm}John Smith changed this group's icon",
+            "[01/12/2025, 06:00:00] John Smith: New icon looks great!"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(1, "System message should be filtered");
+        result.Messages[0].Sender.Should().Be("John Smith");
+        result.Messages[0].Content.Should().Be("New icon looks great!");
+    }
+
+    [Fact(DisplayName = "ParseAsync filters multiple system message patterns")]
+    public async Task ParseAsync_MultipleSystemMessages_FiltersAllSystemMessages()
+    {
+        var lrm = "\u200E";
+        var testLines = new[]
+        {
+            $"[15/03/2024, 10:00:00] Group: {lrm}Alice added Bob",
+            "[15/03/2024, 10:01:00] Alice: Welcome Bob!",
+            $"[15/03/2024, 10:02:00] Group: {lrm}Charlie left",
+            "[15/03/2024, 10:03:00] Alice: Bye Charlie!",
+            $"[15/03/2024, 10:04:00] Group: {lrm}Dave joined using this group's invite link",
+            "[15/03/2024, 10:05:00] Dave: Hello everyone!",
+            $"[15/03/2024, 10:06:00] Group: {lrm}Alice changed the subject to \"New Topic\"",
+            $"[15/03/2024, 10:07:00] Group: {lrm}Bob is now an admin",
+            "[15/03/2024, 10:08:00] Bob: Thanks for the admin privileges!"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(4, "All system messages should be filtered, only user messages remain");
+        result.Messages[0].Content.Should().Be("Welcome Bob!");
+        result.Messages[1].Content.Should().Be("Bye Charlie!");
+        result.Messages[2].Content.Should().Be("Hello everyone!");
+        result.Messages[3].Content.Should().Be("Thanks for the admin privileges!");
+    }
+
+    [Fact(DisplayName = "ParseAsync filters system message 'removed'")]
+    public async Task ParseAsync_SystemMessageRemoved_FiltersMessage()
+    {
+        var testLines = new[]
+        {
+            "[15/03/2024, 10:00:00] Group: Alice removed Bob",
+            "[15/03/2024, 10:01:00] Alice: He violated the rules"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(1, "System message should be filtered");
+        result.Messages[0].Content.Should().Be("He violated the rules");
+    }
+
+    [Fact(DisplayName = "ParseAsync filters system message 'created group'")]
+    public async Task ParseAsync_SystemMessageCreatedGroup_FiltersMessage()
+    {
+        var testLines = new[]
+        {
+            "[15/03/2024, 10:00:00] Alice: I'll create a group now",
+            "[15/03/2024, 10:01:00] Group: Alice created group \"Study Group\"",
+            "[15/03/2024, 10:02:00] Alice: Welcome everyone!"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(2, "System message should be filtered");
+        result.Messages[0].Content.Should().Be("I'll create a group now");
+        result.Messages[1].Content.Should().Be("Welcome everyone!");
+    }
+
+    [Fact(DisplayName = "ParseAsync does not filter user message containing system message keywords")]
+    public async Task ParseAsync_UserMessageWithSystemKeywords_DoesNotFilter()
+    {
+        var testLines = new[]
+        {
+            "[15/03/2024, 10:00:00] Alice: I added you to my contacts",
+            "[15/03/2024, 10:01:00] Bob: Thanks! I left my old phone at home",
+            "[15/03/2024, 10:02:00] Charlie: Someone changed this group's icon yesterday, right?",
+            "[15/03/2024, 10:03:00] Dave: The new member who joined is very helpful"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(4, "User messages with system keywords should not be filtered");
+        result.Messages[0].Content.Should().Be("I added you to my contacts");
+        result.Messages[1].Content.Should().Be("Thanks! I left my old phone at home");
+        result.Messages[2].Content.Should().Be("Someone changed this group's icon yesterday, right?");
+        result.Messages[3].Content.Should().Be("The new member who joined is very helpful");
+    }
+
+    [Fact(DisplayName = "ParseAsync does not filter conversational messages with action words")]
+    public async Task ParseAsync_ConversationalMessagesWithActionWords_DoesNotFilter()
+    {
+        var testLines = new[]
+        {
+            "[15/03/2024, 10:00:00] Alice: He added sugar to the coffee",
+            "[15/03/2024, 10:01:00] Bob: She removed her shoes at the door",
+            "[15/03/2024, 10:02:00] Charlie: The team added a new feature yesterday",
+            "[15/03/2024, 10:03:00] Dave: We created group activities for the kids",
+            "[15/03/2024, 10:04:00] Eve: I removed the old files from my computer",
+            "[15/03/2024, 10:05:00] Frank: He changed the subject to politics during dinner",
+            "[15/03/2024, 10:06:00] Grace: Mary added a comment to the document"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(7, "Conversational messages with action words should not be filtered");
+        result.Messages[0].Content.Should().Be("He added sugar to the coffee");
+        result.Messages[1].Content.Should().Be("She removed her shoes at the door");
+        result.Messages[2].Content.Should().Be("The team added a new feature yesterday");
+        result.Messages[3].Content.Should().Be("We created group activities for the kids");
+        result.Messages[4].Content.Should().Be("I removed the old files from my computer");
+        result.Messages[5].Content.Should().Be("He changed the subject to politics during dinner");
+        result.Messages[6].Content.Should().Be("Mary added a comment to the document");
+    }
+
+    [Fact(DisplayName = "ParseAsync filters proper name system messages but not conversational ones")]
+    public async Task ParseAsync_ProperNameSystemMessages_FiltersCorrectly()
+    {
+        var testLines = new[]
+        {
+            "[15/03/2024, 10:00:00] Group: John Smith added Mary Johnson",
+            "[15/03/2024, 10:01:00] Alice: The team added a new feature",
+            "[15/03/2024, 10:02:00] Group: Alice Brown removed Bob Davis",
+            "[15/03/2024, 10:03:00] Bob: I removed the old files",
+            "[15/03/2024, 10:04:00] Group: Charlie Wilson created group \"Study Group\"",
+            "[15/03/2024, 10:05:00] Charlie: We created group activities"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(3, "Only conversational messages should remain");
+        result.Messages[0].Content.Should().Be("The team added a new feature");
+        result.Messages[1].Content.Should().Be("I removed the old files");
+        result.Messages[2].Content.Should().Be("We created group activities");
+    }
+
+    [Fact(DisplayName = "ParseAsync filters system messages with trailing punctuation")]
+    public async Task ParseAsync_SystemMessagesWithPunctuation_FiltersMessage()
+    {
+        var testLines = new[]
+        {
+            "[15/03/2024, 10:00:00] Group: John left.",
+            "[15/03/2024, 10:01:00] Alice: Did John leave?",
+            "[15/03/2024, 10:02:00] Group: Mary joined.",
+            "[15/03/2024, 10:03:00] Bob: Great! Mary joined us",
+            "[15/03/2024, 10:04:00] Group: Alice added you.",
+            "[15/03/2024, 10:05:00] Charlie: I'm glad you're here"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(3, "System messages with punctuation should be filtered");
+        result.Messages[0].Content.Should().Be("Did John leave?");
+        result.Messages[1].Content.Should().Be("Great! Mary joined us");
+        result.Messages[2].Content.Should().Be("I'm glad you're here");
+    }
+
+    [Fact(DisplayName = "ParseAsync handles names with apostrophes and hyphens")]
+    public async Task ParseAsync_NamesWithSpecialCharacters_HandlesCorrectly()
+    {
+        var testLines = new[]
+        {
+            "[15/03/2024, 10:00:00] Group: O'Brien added Smith",
+            "[15/03/2024, 10:01:00] Alice: O'Brien added a comment",
+            "[15/03/2024, 10:02:00] Group: Mary-Jane removed Bob",
+            "[15/03/2024, 10:03:00] Bob: Mary-Jane removed the files",
+            "[15/03/2024, 10:04:00] Charlie: Jean-Luc is a great captain"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(3, "System messages with special character names should be filtered");
+        result.Messages[0].Content.Should().Be("O'Brien added a comment");
+        result.Messages[1].Content.Should().Be("Mary-Jane removed the files");
+        result.Messages[2].Content.Should().Be("Jean-Luc is a great captain");
+    }
+
+    [Fact(DisplayName = "ParseAsync does not filter conversational 'created group' messages")]
+    public async Task ParseAsync_ConversationalCreatedGroup_DoesNotFilter()
+    {
+        var testLines = new[]
+        {
+            "[15/03/2024, 10:00:00] Group: Alice created group \"Study Group\"",
+            "[15/03/2024, 10:01:00] Bob: We created group activities for the kids",
+            "[15/03/2024, 10:02:00] Charlie: I created group chat settings",
+            "[15/03/2024, 10:03:00] Dave: They created group \"Fun Times\"",
+            "[15/03/2024, 10:04:00] Eve: You created group discussions last week"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(4, "Conversational 'created group' messages should not be filtered");
+        result.Messages[0].Content.Should().Be("We created group activities for the kids");
+        result.Messages[1].Content.Should().Be("I created group chat settings");
+        result.Messages[2].Content.Should().Be("They created group \"Fun Times\"");
+        result.Messages[3].Content.Should().Be("You created group discussions last week");
+    }
+
+    [Fact(DisplayName = "ParseAsync filters system message 'you're now an admin'")]
+    public async Task ParseAsync_SystemMessageYouAreNowAdmin_FiltersMessage()
+    {
+        var testLines = new[]
+        {
+            "[15/03/2024, 10:00:00] Group: You're now an admin",
+            "[15/03/2024, 10:01:00] Alice: Congratulations on becoming admin!"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(1, "System message should be filtered");
+        result.Messages[0].Content.Should().Be("Congratulations on becoming admin!");
+    }
+
+    [Fact(DisplayName = "ParseAsync filters system message 'changed the group description'")]
+    public async Task ParseAsync_SystemMessageChangedGroupDescription_FiltersMessage()
+    {
+        var testLines = new[]
+        {
+            "[15/03/2024, 10:00:00] Group: Alice changed the group description",
+            "[15/03/2024, 10:01:00] Bob: Nice description!"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(1, "System message should be filtered");
+        result.Messages[0].Content.Should().Be("Nice description!");
+    }
+
+    [Fact(DisplayName = "ParseAsync filters system message 'changed this group's settings'")]
+    public async Task ParseAsync_SystemMessageChangedGroupSettings_FiltersMessage()
+    {
+        var testLines = new[]
+        {
+            "[15/03/2024, 10:00:00] Group: Alice changed this group's settings to allow only admins to send messages",
+            "[15/03/2024, 10:01:00] Alice: Only admins can post now"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(1, "System message should be filtered");
+        result.Messages[0].Content.Should().Be("Only admins can post now");
+    }
+
+    [Fact(DisplayName = "ParseAsync filters exact examples from issue #1 - system messages with LRM")]
+    public async Task ParseAsync_IssueExamples_FiltersSystemMessagesCorrectly()
+    {
+        var lrm = "\u200E";
+        var testLines = new[]
+        {
+            $"[19/10/2025, 01:02:19] Lappers: {lrm}Rudi Anderson added you",
+            $"[01/12/2025, 05:57:35] Prayer Group: {lrm}John Smith changed this group's icon",
+            "[19/10/2025, 09:05:19] Rudi Anderson: Hello everyone!"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(1, "Only the regular message should remain after filtering system messages");
+        result.Messages[0].Sender.Should().Be("Rudi Anderson");
+        result.Messages[0].Content.Should().Be("Hello everyone!");
+        result.Metadata.FailedLineCount.Should().Be(0, "System messages should be filtered, not failed");
+        result.Metadata.TotalLines.Should().Be(3);
+        result.Metadata.ParsedMessageCount.Should().Be(1);
     }
 }
