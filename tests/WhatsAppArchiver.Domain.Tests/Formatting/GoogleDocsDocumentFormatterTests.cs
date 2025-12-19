@@ -34,9 +34,9 @@ public class GoogleDocsDocumentFormatterTests
         Assert.Contains(result.Sections, s => s is HeadingSection h && h.Level == 3 && h.Text == "10:40");
         Assert.Contains(result.Sections, s => s is ParagraphSection p && p.Text == "Third message");
         
-        // Empty lines (double empty lines after each message)
+        // Empty lines (single empty line after each message)
         var emptyLines = result.Sections.OfType<EmptyLineSection>().Count();
-        Assert.True(emptyLines >= 6, "Should have at least 6 empty lines (2 per message for 3 messages)");
+        Assert.True(emptyLines >= 3, "Should have at least 3 empty lines (1 per message for 3 messages)");
         
         // No page breaks for single day
         var pageBreaks = result.Sections.OfType<PageBreakSection>().Count();
@@ -303,9 +303,9 @@ public class GoogleDocsDocumentFormatterTests
 
         var result = _formatter.FormatDocument(chatExport, suppressTimestamps: true);
 
-        // Should still have double empty lines (2 per message)
+        // Should still have single empty lines (1 per message)
         var emptyLines = result.Sections.OfType<EmptyLineSection>().Count();
-        Assert.Equal(4, emptyLines); // 2 messages × 2 empty lines each
+        Assert.Equal(2, emptyLines); // 2 messages × 1 empty line each
     }
 
     [Fact(DisplayName = "FormatDocument with suppressTimestamps and multiple days groups by date")]
@@ -358,6 +358,58 @@ public class GoogleDocsDocumentFormatterTests
         var timestampHeadings = result.Sections.OfType<HeadingSection>().Where(h => h.Level == 3).ToList();
         Assert.Single(timestampHeadings);
         Assert.Equal("10:30", timestampHeadings[0].Text);
+    }
+
+    [Fact(DisplayName = "FormatDocument with multiple messages on same day has exactly one blank line between entries")]
+    public void FormatDocument_MultipleMessagesOnSameDay_HasExactlyOneBlankLineBetweenEntries()
+    {
+        var messages = new[]
+        {
+            ChatMessage.Create(new DateTimeOffset(2024, 11, 22, 9, 15, 0, TimeSpan.Zero), "User", "Message content here"),
+            ChatMessage.Create(new DateTimeOffset(2024, 11, 22, 14, 30, 0, TimeSpan.Zero), "User", "Another message here"),
+            ChatMessage.Create(new DateTimeOffset(2024, 11, 22, 16, 45, 0, TimeSpan.Zero), "User", "Third message here")
+        };
+        var metadata = ParsingMetadata.Create("test.txt", new DateTimeOffset(2024, 11, 22, 18, 0, 0, TimeSpan.Zero), 3, 3, 0);
+        var chatExport = ChatExport.Create(messages, metadata);
+
+        var result = _formatter.FormatDocument(chatExport);
+
+        var sections = result.Sections.ToList();
+        
+        // Verify we have the correct number of each section type
+        var dateHeadings = sections.OfType<HeadingSection>().Where(h => h.Level == 2).ToList();
+        var timestampHeadings = sections.OfType<HeadingSection>().Where(h => h.Level == 3).ToList();
+        var paragraphs = sections.OfType<ParagraphSection>().ToList();
+        var emptyLines = sections.OfType<EmptyLineSection>().ToList();
+        
+        Assert.Single(dateHeadings); // One date heading for November 22, 2024
+        Assert.Equal(3, timestampHeadings.Count); // Three timestamp headings (09:15, 14:30, 16:45)
+        Assert.Equal(3, paragraphs.Count); // Three message contents
+        Assert.Equal(3, emptyLines.Count); // Exactly ONE empty line per message (not two)
+        
+        // Verify the structure pattern for each message: H3 -> Paragraph -> EmptyLine
+        var h3Indices = sections.Select((s, i) => new { Section = s, Index = i })
+            .Where(x => x.Section is HeadingSection h && h.Level == 3)
+            .Select(x => x.Index)
+            .ToList();
+        
+        foreach (var h3Index in h3Indices)
+        {
+            // After H3 heading, should be a paragraph
+            Assert.IsType<ParagraphSection>(sections[h3Index + 1]);
+            // After paragraph, should be exactly one empty line
+            Assert.IsType<EmptyLineSection>(sections[h3Index + 2]);
+        }
+        
+        // Verify plain text shows correct spacing
+        var plainText = result.ToPlainText();
+        Assert.Contains("November 22, 2024", plainText);
+        Assert.Contains("09:15", plainText);
+        Assert.Contains("14:30", plainText);
+        Assert.Contains("16:45", plainText);
+        Assert.Contains("Message content here", plainText);
+        Assert.Contains("Another message here", plainText);
+        Assert.Contains("Third message here", plainText);
     }
 }
 
