@@ -345,9 +345,11 @@ public sealed class WhatsAppTextFileParser : IChatParser
     /// - <c>[image omitted]</c>, <c>[video omitted]</c>, <c>[audio omitted]</c>
     /// - <c>&lt;attached: image&gt;</c>, <c>&lt;attached: video&gt;</c>, <c>&lt;attached: audio&gt;</c>
     /// - <c>&lt;attached: FILENAME&gt;</c> (e.g., <c>&lt;attached: 00000387-PHOTO-2025-07-19-08-43-56.jpg&gt;</c>)
+    /// - <c>&lt;attached: FILENAME&gt;</c> with negative file numbers (e.g., <c>&lt;attached: -0000013-AUDIO-2025-12-05-03-47-56.opus&gt;</c>)
     /// - <c>This message was deleted.</c>
     /// 
     /// For attachment patterns with filenames, a space after the colon is required and the filename must be non-empty.
+    /// This includes both valid positive file numbers and invalid negative file numbers from WhatsApp export bugs.
     /// All comparisons are case-insensitive.
     /// </remarks>
     private static bool ShouldFilterMessage(string content)

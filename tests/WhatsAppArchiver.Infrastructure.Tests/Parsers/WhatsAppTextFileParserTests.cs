@@ -861,6 +861,34 @@ public class WhatsAppTextFileParserTests
         result.Messages[1].Content.Should().Be("Goodbye!");
     }
 
+    [Fact(DisplayName = "ParseAsync filters out attached messages with negative file numbers")]
+    public async Task ParseAsync_AttachedMessagesWithNegativeFileNumbers_FiltersOut()
+    {
+        var testLines = new[]
+        {
+            "[05/12/2025, 03:47:56] Rudi Anderson: Good morning!",
+            "[05/12/2025, 03:47:56] Rudi Anderson: <attached: -0000013-AUDIO-2025-12-05-03-47-56.opus>",
+            "[06/12/2025, 09:23:16] Rudi Anderson: <attached: -0000003-AUDIO-2025-12-06-09-23-16.opus>",
+            "[06/12/2025, 10:57:07] ~ James Ryan: <attached: -0000001-PHOTO-2025-12-06-10-57-07.jpg>",
+            "[19/12/2025, 04:39:29] Rudi Anderson: <attached: 00000120-AUDIO-2025-12-19-04-39-29.opus>",
+            "[19/12/2025, 04:57:21] ~ Gevork Papikyan: <attached: 00000122-VIDEO-2025-12-19-04-57-21.mp4>",
+            "[19/12/2025, 04:57:21] ~ Gevork Papikyan: <attached: 00000124-PHOTO-2025-12-19-04-57-21.jpg>",
+            "[19/12/2025, 05:00:00] Rudi Anderson: Have a great day!"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(2);
+        result.Messages[0].Content.Should().Be("Good morning!");
+        result.Messages[1].Content.Should().Be("Have a great day!");
+        result.Messages.Should().NotContain(m => m.Content.Contains("<attached:"));
+    }
+
     [Fact(DisplayName = "ParseAsync filters out attached messages with Unicode control characters")]
     public async Task ParseAsync_AttachedMessagesWithUnicodeControlChars_FiltersOut()
     {
