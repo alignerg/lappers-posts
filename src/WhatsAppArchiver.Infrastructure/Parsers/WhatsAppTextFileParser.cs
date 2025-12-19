@@ -63,9 +63,9 @@ public sealed class WhatsAppTextFileParser : IChatParser
     // Attachment pattern prefix for dynamic filename matching
     private const string AttachedPrefix = "<attached: ";
 
-    // Regex pattern to match Unicode bidirectional control characters
-    private static readonly Regex BidirectionalControlCharsPattern = new(
-        @"[\u200E\u200F\u202A-\u202E]",
+    // Regex pattern to match Unicode format control characters (zero-width space and bidirectional control characters)
+    private static readonly Regex FormatControlCharsPattern = new(
+        @"[\u200B\u200E\u200F\u202A-\u202E]",
         RegexOptions.Compiled);
 
     private readonly ResiliencePipeline _resiliencePipeline;
@@ -176,7 +176,7 @@ public sealed class WhatsAppTextFileParser : IChatParser
             {
                 // This is a continuation line
                 currentContent.AppendLine();
-                currentContent.Append(StripBidirectionalControlCharacters(line));
+                currentContent.Append(StripFormatControlCharacters(line));
             }
             else
             {
@@ -212,24 +212,24 @@ public sealed class WhatsAppTextFileParser : IChatParser
     private MessageAddResult TryAddFinalMessage(List<ChatMessage> messages, ChatMessage currentMessage, StringBuilder currentContent, int lineNumber)
     {
         var finalContent = currentContent.ToString();
-        
+
         // Remove edited message tag if present
         finalContent = RemoveEditedMessageTag(finalContent);
-        
+
         // Filter out link-only messages
         if (IsLinkOnlyMessage(finalContent))
         {
             _logger.LogDebug("Filtered out link-only message at line {LineNumber}", lineNumber);
             return MessageAddResult.Filtered;
         }
-        
+
         // Filter out media and deleted messages
         if (ShouldFilterMessage(finalContent))
         {
             _logger.LogDebug("Filtered out placeholder message at line {LineNumber}", lineNumber);
             return MessageAddResult.Filtered;
         }
-        
+
         try
         {
             messages.Add(ChatMessage.Create(
@@ -249,35 +249,33 @@ public sealed class WhatsAppTextFileParser : IChatParser
             return MessageAddResult.Failed;
         }
     }
-    
+
     /// <summary>
-    /// Strips invisible Unicode bidirectional control characters from text.
+    /// Strips invisible format control characters from text.
     /// </summary>
     /// <param name="text">The text to clean.</param>
-    /// <returns>The text with all Unicode bidirectional control characters removed.</returns>
+    /// <returns>The text with all format control characters removed.</returns>
     /// <remarks>
-    /// WhatsApp chat exports contain invisible Unicode control characters throughout the text,
-    /// appearing in sender names, message content, system messages, and media placeholders.
-    /// This method removes these characters to ensure clean text processing.
-    /// Common control characters removed:
-    /// <list type="bullet">
-    /// <item><description>U+200E - Left-to-Right Mark (LRM)</description></item>
-    /// <item><description>U+200F - Right-to-Left Mark (RLM)</description></item>
-    /// <item><description>U+202A - Left-to-Right Embedding (LRE)</description></item>
-    /// <item><description>U+202B - Right-to-Left Embedding (RLE)</description></item>
-    /// <item><description>U+202C - Pop Directional Formatting (PDF)</description></item>
-    /// <item><description>U+202D - Left-to-Right Override (LRO)</description></item>
-    /// <item><description>U+202E - Right-to-Left Override (RLO)</description></item>
-    /// </list>
+    /// WhatsApp chat exports contain invisible format control characters throughout the text:
+    /// - ZWSP (U+200B): Zero-Width Space
+    /// - LRM (U+200E): Left-to-Right Mark
+    /// - RLM (U+200F): Right-to-Left Mark
+    /// - LRE (U+202A): Left-to-Right Embedding
+    /// - RLE (U+202B): Right-to-Left Embedding
+    /// - PDF (U+202C): Pop Directional Formatting
+    /// - LRO (U+202D): Left-to-Right Override
+    /// - RLO (U+202E): Right-to-Left Override
+    /// These characters appear in sender names, message content, system messages, and media placeholders.
+    /// This method removes these characters to ensure clean text processing and accurate filtering.
     /// </remarks>
-    private static string StripBidirectionalControlCharacters(string text)
+    private static string StripFormatControlCharacters(string text)
     {
         if (string.IsNullOrEmpty(text))
         {
             return text;
         }
 
-        return BidirectionalControlCharsPattern.Replace(text, string.Empty);
+        return FormatControlCharsPattern.Replace(text, string.Empty);
     }
 
     /// <summary>
@@ -295,19 +293,19 @@ public sealed class WhatsAppTextFileParser : IChatParser
         {
             return content;
         }
-        
+
         const string editedTag = "<This message was edited>";
-        
+
         // Check if the content ends with the edited tag
         if (content.EndsWith(editedTag, StringComparison.Ordinal))
         {
             // Remove the tag and trim any trailing whitespace
             return content[..^editedTag.Length].TrimEnd();
         }
-        
+
         return content;
     }
-    
+
     /// <summary>
     /// Determines if a message content represents a link-only message that should be filtered.
     /// </summary>
@@ -323,15 +321,15 @@ public sealed class WhatsAppTextFileParser : IChatParser
         {
             return false;
         }
-        
+
         var trimmed = content.Trim();
-        
+
         // Check if the entire message is a URL (http:// or https://)
         return (trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
                 trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) &&
                trimmed.IndexOf(' ') == -1;
     }
-    
+
     /// <summary>
     /// Determines if a message content represents a placeholder that should be filtered out.
     /// </summary>
@@ -355,19 +353,18 @@ public sealed class WhatsAppTextFileParser : IChatParser
         {
             return false;
         }
-        
-        // Trim standard whitespace and strip Unicode bidirectional control characters
-        var trimmed = StripBidirectionalControlCharacters(content.Trim());
-        
+
+        var trimmed = content.Trim();
+
         // Check for common media placeholder patterns using HashSet for O(1) lookup
         if (MediaPlaceholderPatterns.Contains(trimmed))
         {
             return true;
         }
-        
+
         // Check for attachment patterns with filenames: <attached: FILENAME>
         // Requires a space after the colon and non-empty content before the closing bracket
-        if (trimmed.StartsWith(AttachedPrefix, StringComparison.OrdinalIgnoreCase) && 
+        if (trimmed.StartsWith(AttachedPrefix, StringComparison.OrdinalIgnoreCase) &&
             trimmed.EndsWith(">", StringComparison.Ordinal) &&
             trimmed.Length > AttachedPrefix.Length + 1)
         {
@@ -378,10 +375,10 @@ public sealed class WhatsAppTextFileParser : IChatParser
                 return true;
             }
         }
-        
+
         return false;
     }
-    
+
     /// <summary>
     /// Represents the result of attempting to add a message.
     /// </summary>
@@ -391,12 +388,12 @@ public sealed class WhatsAppTextFileParser : IChatParser
         /// The message was successfully added.
         /// </summary>
         Success,
-        
+
         /// <summary>
         /// The message was intentionally filtered out (link-only or media placeholder).
         /// </summary>
         Filtered,
-        
+
         /// <summary>
         /// The message failed to be added due to a parsing or validation error.
         /// </summary>
@@ -426,8 +423,8 @@ public sealed class WhatsAppTextFileParser : IChatParser
     {
         var dateStr = match.Groups[1].Value;
         var timeStr = match.Groups[2].Value;
-        var sender = StripBidirectionalControlCharacters(match.Groups[3].Value.Trim());
-        var content = StripBidirectionalControlCharacters(match.Groups[4].Value);
+        var sender = StripFormatControlCharacters(match.Groups[3].Value.Trim());
+        var content = StripFormatControlCharacters(match.Groups[4].Value);
 
         if (!TryParseDateTime(dateStr, timeStr, is24HourFormat, offset, out var timestamp))
         {
