@@ -23,7 +23,7 @@ namespace WhatsAppArchiver.Domain.Formatting;
 /// <description>Individual messages with H3 timestamp headers in 24-hour format (HH:mm)</description>
 /// </item>
 /// <item>
-/// <description>Double empty lines separating messages for readability</description>
+/// <description>Single empty line separating messages for readability</description>
 /// </item>
 /// </list>
 /// <para>
@@ -55,7 +55,7 @@ public sealed class GoogleDocsDocumentFormatter : IGoogleDocsFormatter, IMessage
     /// <description>For each date group, adds a page break (except first), then an H2 header with the date in MMMM d, yyyy format</description>
     /// </item>
     /// <item>
-    /// <description>For each message, adds an H3 timestamp header (HH:mm) unless suppressTimestamps is true, content, and double empty line separator</description>
+    /// <description>For each message, adds an H3 timestamp header (HH:mm) unless suppressTimestamps is true, content, and single empty line separator</description>
     /// </item>
     /// </list>
     /// <para>
@@ -110,8 +110,7 @@ public sealed class GoogleDocsDocumentFormatter : IGoogleDocsFormatter, IMessage
                 // Add message content (preserve line breaks)
                 document.Add(new ParagraphSection(message.Content));
 
-                // Add separator (double empty lines)
-                document.Add(new EmptyLineSection());
+                // Add separator (single empty line)
                 document.Add(new EmptyLineSection());
             }
         }
