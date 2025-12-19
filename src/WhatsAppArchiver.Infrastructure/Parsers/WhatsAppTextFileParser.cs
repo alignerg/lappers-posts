@@ -28,23 +28,26 @@ public sealed class WhatsAppTextFileParser : IChatParser
     /// Regex pattern for DD/MM/YYYY, HH:mm:ss format (24-hour).
     /// Groups: 1=date (DD/MM/YYYY), 2=time (HH:mm:ss), 3=sender, 4=content.
     /// Example match: [25/12/2024, 09:15:00] John Smith: Hello everyone!
+    /// Allows optional Unicode format control characters before the opening bracket.
     /// </summary>
     private static readonly Regex DatePattern24Hour = new(
-        @"^\[(\d{1,2}/\d{1,2}/\d{4}),\s*(\d{1,2}:\d{2}:\d{2})\]\s*([^:]+):\s*(.+)$",
+        @"^[\u200B\u200E\u200F\u202A-\u202E]*\[(\d{1,2}/\d{1,2}/\d{4}),\s*(\d{1,2}:\d{2}:\d{2})\]\s*([^:]+):\s*(.+)$",
         RegexOptions.Compiled);
 
     /// <summary>
     /// Regex pattern for M/D/YY, h:mm:ss AM/PM format (12-hour).
     /// Groups: 1=date (M/D/YY), 2=time (h:mm:ss AM/PM), 3=sender, 4=content.
     /// Example match: [1/5/24, 8:30:00 AM] Sarah Wilson: Good morning!
+    /// Allows optional Unicode format control characters before the opening bracket.
     /// </summary>
     private static readonly Regex DatePattern12Hour = new(
-        @"^\[(\d{1,2}/\d{1,2}/\d{2,4}),\s*(\d{1,2}:\d{2}:\d{2}\s*(?:AM|PM))\]\s*([^:]+):\s*(.+)$",
+        @"^[\u200B\u200E\u200F\u202A-\u202E]*\[(\d{1,2}/\d{1,2}/\d{2,4}),\s*(\d{1,2}:\d{2}:\d{2}\s*(?:AM|PM))\]\s*([^:]+):\s*(.+)$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     // Pattern to detect if a line starts with a timestamp (for continuation detection)
+    // Allows optional Unicode format control characters before the opening bracket
     private static readonly Regex TimestampStartPattern = new(
-        @"^\[\d{1,2}/\d{1,2}/\d{2,4},\s*\d{1,2}:\d{2}:\d{2}(?:\s*(?:AM|PM))?\]",
+        @"^[\u200B\u200E\u200F\u202A-\u202E]*\[\d{1,2}/\d{1,2}/\d{2,4},\s*\d{1,2}:\d{2}:\d{2}(?:\s*(?:AM|PM))?\]",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     // Media placeholder patterns to filter
