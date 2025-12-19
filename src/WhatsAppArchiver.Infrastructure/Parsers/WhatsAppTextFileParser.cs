@@ -71,6 +71,23 @@ public sealed class WhatsAppTextFileParser : IChatParser
         @"[\u200B\u200E\u200F\u202A-\u202E]",
         RegexOptions.Compiled);
 
+    // Regex pattern to detect WhatsApp "added" system messages with proper name patterns
+    // Matches patterns like "John Smith added Mary Johnson" where both names start with capital letters
+    private static readonly Regex AddedSystemMessagePattern = new(
+        @"^\s*([A-Z][^\s]*\s+)+added\s+[A-Z][^\s]*(?:\s+[A-Z][^\s]*)?\s*$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    // Regex pattern to detect WhatsApp word boundary for "who" to catch variations
+    private static readonly Regex WhoWordBoundaryPattern = new(
+        @"\bwho\b",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    // Regex pattern to detect WhatsApp "created group" system messages
+    // Matches exact format: "[name] created group "Group name""
+    private static readonly Regex CreatedGroupPattern = new(
+        @"^.+ created group ""[^""]+""$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
     private readonly ResiliencePipeline _resiliencePipeline;
     private readonly ILogger<WhatsAppTextFileParser> _logger;
     private readonly Func<string, CancellationToken, Task<string[]>>? _fileReader;
@@ -417,6 +434,16 @@ public sealed class WhatsAppTextFileParser : IChatParser
     /// this method should be refined to better fit that usage.
     /// 
     /// User messages with punctuation like "?", "!", or conversational indicators are not filtered.
+    /// 
+    /// <para><strong>Pattern Matching Limitations:</strong></para>
+    /// <list type="bullet">
+    /// <item><description>The "added" pattern requires capitalized names (e.g., "John added Mary") and may not
+    /// match names with special characters (e.g., "O'Brien"), lowercase usernames, or non-English scripts.
+    /// This is based on typical WhatsApp system message formatting.</description></item>
+    /// <item><description>The "removed" pattern may filter some conversational messages like "Alice removed Bob"
+    /// if they don't contain common pronouns or articles. Messages like "Alice removed Bob from the list" would
+    /// still be filtered unless they contain excluded patterns like "removed the".</description></item>
+    /// </list>
     /// </remarks>
     private static bool IsSystemMessage(string content)
     {
@@ -438,7 +465,7 @@ public sealed class WhatsAppTextFileParser : IChatParser
         if (lowerContent.Contains("someone ", StringComparison.Ordinal) ||
             lowerContent.Contains("yesterday", StringComparison.Ordinal) ||
             lowerContent.Contains("the new member", StringComparison.Ordinal) ||
-            Regex.IsMatch(lowerContent, @"\bwho\b", RegexOptions.IgnoreCase))
+            WhoWordBoundaryPattern.IsMatch(lowerContent))
         {
             return false;
         }
@@ -474,11 +501,9 @@ public sealed class WhatsAppTextFileParser : IChatParser
             // Use the original (non-lowercased) content to detect name-like patterns,
             // which are typical of WhatsApp system messages such as "John added Mary".
             // This helps avoid false positives in normal conversational sentences.
-            var addedSystemMessageRegex = new Regex(
-                @"^\s*([A-Z][^\s]*\s+)+added\s+[A-Z][^\s]*(?:\s+[A-Z][^\s]*)?\s*$",
-                RegexOptions.CultureInvariant);
-
-            if (addedSystemMessageRegex.IsMatch(trimmedContent))
+            // Note: This pattern requires capitalized names and may not match names with
+            // special characters, lowercase usernames, or non-English scripts.
+            if (AddedSystemMessagePattern.IsMatch(trimmedContent))
             {
                 return true;
             }
@@ -486,6 +511,8 @@ public sealed class WhatsAppTextFileParser : IChatParser
 
         // Check for "removed" pattern: typically "Person1 removed Person2"
         // Avoid filtering conversational messages like "I removed the old files"
+        // Note: May still filter some conversational messages like "Alice removed Bob"
+        // unless they contain excluded patterns like "removed the" or start with pronouns.
         if (lowerContent.Contains(" removed ", StringComparison.Ordinal) &&
             !lowerContent.StartsWith("i ", StringComparison.Ordinal) &&
             !lowerContent.StartsWith("he ", StringComparison.Ordinal) &&
@@ -506,7 +533,7 @@ public sealed class WhatsAppTextFileParser : IChatParser
 
         // Check for "created group" system message pattern: typically "[name] created group "Group name""
         // Using a regex here ensures we only match the exact WhatsApp-style system message format
-        if (Regex.IsMatch(trimmedContent, @"^.+ created group ""[^""]+""$", RegexOptions.CultureInvariant))
+        if (CreatedGroupPattern.IsMatch(trimmedContent))
         {
             return true;
         }
