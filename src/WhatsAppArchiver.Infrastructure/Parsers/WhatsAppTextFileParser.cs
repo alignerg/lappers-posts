@@ -72,9 +72,10 @@ public sealed class WhatsAppTextFileParser : IChatParser
         RegexOptions.Compiled);
 
     // Regex pattern to detect WhatsApp "added" system messages with proper name patterns
-    // Matches patterns like "John Smith added Mary Johnson" where both names start with capital letters
+    // Allows exactly one or two capitalized words before and after "added" to avoid over-greedy matches
+    // Matches names with apostrophes and hyphens (e.g., "O'Brien", "Mary-Jane")
     private static readonly Regex AddedSystemMessagePattern = new(
-        @"^\s*([A-Z][^\s]*\s+)+added\s+[A-Z][^\s]*(?:\s+[A-Z][^\s]*)?\s*$",
+        @"^\s*[A-Z][\w'-]*(?:\s+[A-Z][\w'-]*)?\s+added\s+[A-Z][\w'-]*(?:\s+[A-Z][\w'-]*)?\s*$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     // Regex pattern to detect WhatsApp word boundary for "who" to catch variations
@@ -83,9 +84,10 @@ public sealed class WhatsAppTextFileParser : IChatParser
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     // Regex pattern to detect WhatsApp "created group" system messages
-    // Matches exact format: "[name] created group "Group name""
+    // Matches format: "[Name] created group "Group name"" where [Name] is one or more capitalized words
+    // Excludes common pronouns (e.g., "We created group ...") to avoid matching conversational messages
     private static readonly Regex CreatedGroupPattern = new(
-        @"^.+ created group ""[^""]+""$",
+        @"^\s*(?!We\b|I\b|They\b|You\b)([A-Z][\w'-]*)(?:\s+[A-Z][\w'-]*)*\s+created group ""[^""]+""\s*$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private readonly ResiliencePipeline _resiliencePipeline;
@@ -470,17 +472,21 @@ public sealed class WhatsAppTextFileParser : IChatParser
             return false;
         }
 
+        // Normalize content for system-message suffix checks by trimming trailing whitespace
+        // and common punctuation. This makes patterns like "John left." still match "left".
+        var normalizedSystemMessageContent = lowerContent.TrimEnd().TrimEnd('.', '!', '?');
+
         // Check for patterns that typically appear at the end of system messages
         // or are very specific to system messages
-        if (lowerContent.EndsWith("added you", StringComparison.Ordinal) ||
-            lowerContent.EndsWith("left", StringComparison.Ordinal) ||
-            lowerContent.EndsWith("joined", StringComparison.Ordinal) ||
+        if (normalizedSystemMessageContent.EndsWith("added you", StringComparison.Ordinal) ||
+            normalizedSystemMessageContent.EndsWith("left", StringComparison.Ordinal) ||
+            normalizedSystemMessageContent.EndsWith("joined", StringComparison.Ordinal) ||
             lowerContent.Contains("joined using this group's invite link", StringComparison.Ordinal) ||
             lowerContent.Contains("changed this group's icon", StringComparison.Ordinal) ||
             lowerContent.Contains("changed the group description", StringComparison.Ordinal) ||
             lowerContent.Contains("changed this group's settings", StringComparison.Ordinal) ||
-            lowerContent == "you're now an admin" ||
-            lowerContent.EndsWith("is now an admin", StringComparison.Ordinal))
+            normalizedSystemMessageContent == "you're now an admin" ||
+            normalizedSystemMessageContent.EndsWith("is now an admin", StringComparison.Ordinal))
         {
             return true;
         }
@@ -495,18 +501,14 @@ public sealed class WhatsAppTextFileParser : IChatParser
             !lowerContent.Contains(" added a ", StringComparison.Ordinal) &&
             !lowerContent.Contains(" added the ", StringComparison.Ordinal) &&
             !lowerContent.Contains(" added some ", StringComparison.Ordinal) &&
-            !lowerContent.Contains(" added sugar", StringComparison.Ordinal) &&
-            !lowerContent.Contains(" added comment", StringComparison.Ordinal))
+            AddedSystemMessagePattern.IsMatch(trimmedContent))
         {
             // Use the original (non-lowercased) content to detect name-like patterns,
             // which are typical of WhatsApp system messages such as "John added Mary".
             // This helps avoid false positives in normal conversational sentences.
             // Note: This pattern requires capitalized names and may not match names with
             // special characters, lowercase usernames, or non-English scripts.
-            if (AddedSystemMessagePattern.IsMatch(trimmedContent))
-            {
-                return true;
-            }
+            return true;
         }
 
         // Check for "removed" pattern: typically "Person1 removed Person2"

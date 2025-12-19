@@ -1411,6 +1411,83 @@ public class WhatsAppTextFileParserTests
         result.Messages[2].Content.Should().Be("We created group activities");
     }
 
+    [Fact(DisplayName = "ParseAsync filters system messages with trailing punctuation")]
+    public async Task ParseAsync_SystemMessagesWithPunctuation_FiltersMessage()
+    {
+        var testLines = new[]
+        {
+            "[15/03/2024, 10:00:00] Group: John left.",
+            "[15/03/2024, 10:01:00] Alice: Did John leave?",
+            "[15/03/2024, 10:02:00] Group: Mary joined.",
+            "[15/03/2024, 10:03:00] Bob: Great! Mary joined us",
+            "[15/03/2024, 10:04:00] Group: Alice added you.",
+            "[15/03/2024, 10:05:00] Charlie: I'm glad you're here"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(3, "System messages with punctuation should be filtered");
+        result.Messages[0].Content.Should().Be("Did John leave?");
+        result.Messages[1].Content.Should().Be("Great! Mary joined us");
+        result.Messages[2].Content.Should().Be("I'm glad you're here");
+    }
+
+    [Fact(DisplayName = "ParseAsync handles names with apostrophes and hyphens")]
+    public async Task ParseAsync_NamesWithSpecialCharacters_HandlesCorrectly()
+    {
+        var testLines = new[]
+        {
+            "[15/03/2024, 10:00:00] Group: O'Brien added Smith",
+            "[15/03/2024, 10:01:00] Alice: O'Brien added a comment",
+            "[15/03/2024, 10:02:00] Group: Mary-Jane removed Bob",
+            "[15/03/2024, 10:03:00] Bob: Mary-Jane removed the files",
+            "[15/03/2024, 10:04:00] Charlie: Jean-Luc is a great captain"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(3, "System messages with special character names should be filtered");
+        result.Messages[0].Content.Should().Be("O'Brien added a comment");
+        result.Messages[1].Content.Should().Be("Mary-Jane removed the files");
+        result.Messages[2].Content.Should().Be("Jean-Luc is a great captain");
+    }
+
+    [Fact(DisplayName = "ParseAsync does not filter conversational 'created group' messages")]
+    public async Task ParseAsync_ConversationalCreatedGroup_DoesNotFilter()
+    {
+        var testLines = new[]
+        {
+            "[15/03/2024, 10:00:00] Group: Alice created group \"Study Group\"",
+            "[15/03/2024, 10:01:00] Bob: We created group activities for the kids",
+            "[15/03/2024, 10:02:00] Charlie: I created group chat settings",
+            "[15/03/2024, 10:03:00] Dave: They created group \"Fun Times\"",
+            "[15/03/2024, 10:04:00] Eve: You created group discussions last week"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        result.Messages.Should().HaveCount(4, "Conversational 'created group' messages should not be filtered");
+        result.Messages[0].Content.Should().Be("We created group activities for the kids");
+        result.Messages[1].Content.Should().Be("I created group chat settings");
+        result.Messages[2].Content.Should().Be("They created group \"Fun Times\"");
+        result.Messages[3].Content.Should().Be("You created group discussions last week");
+    }
+
     [Fact(DisplayName = "ParseAsync filters system message 'you're now an admin'")]
     public async Task ParseAsync_SystemMessageYouAreNowAdmin_FiltersMessage()
     {
