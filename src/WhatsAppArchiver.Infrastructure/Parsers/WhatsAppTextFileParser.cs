@@ -29,7 +29,7 @@ public sealed class WhatsAppTextFileParser : IChatParser
     /// Groups: 1=date (DD/MM/YYYY), 2=time (HH:mm:ss), 3=sender, 4=content.
     /// Example match: [25/12/2024, 09:15:00] John Smith: Hello everyone!
     /// Allows optional Unicode format control characters before the opening bracket.
-    /// Content group allows empty messages (e.g., messages with no text after colon), but these are treated as parsing failures.
+    /// Content group matches empty messages (e.g., messages with no text after colon) so they can be detected and rejected as parsing failures.
     /// </summary>
     private static readonly Regex DatePattern24Hour = new(
         @"^[\u200B\u200E\u200F\u202A-\u202E]*\[(\d{1,2}/\d{1,2}/\d{4}),\s*(\d{1,2}:\d{2}:\d{2})\]\s*([^:]+):\s*(.*)$",
@@ -40,7 +40,7 @@ public sealed class WhatsAppTextFileParser : IChatParser
     /// Groups: 1=date (M/D/YY), 2=time (h:mm:ss AM/PM), 3=sender, 4=content.
     /// Example match: [1/5/24, 8:30:00 AM] Sarah Wilson: Good morning!
     /// Allows optional Unicode format control characters before the opening bracket.
-    /// Content group allows empty messages (e.g., messages with no text after colon), but these are treated as parsing failures.
+    /// Content group matches empty messages (e.g., messages with no text after colon) so they can be detected and rejected as parsing failures.
     /// </summary>
     private static readonly Regex DatePattern12Hour = new(
         @"^[\u200B\u200E\u200F\u202A-\u202E]*\[(\d{1,2}/\d{1,2}/\d{2,4}),\s*(\d{1,2}:\d{2}:\d{2}\s*(?:AM|PM))\]\s*([^:]+):\s*(.*)$",
