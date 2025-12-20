@@ -971,6 +971,30 @@ public class WhatsAppTextFileParserTests
         result.Metadata.FailedLineCount.Should().Be(1, "message with only whitespace and edited tag should fail validation");
     }
 
+    [Fact(DisplayName = "ParseAsync handles messages with empty content after sender")]
+    public async Task ParseAsync_EmptyContentAfterSender_CountsAsFailure()
+    {
+        var testLines = new[]
+        {
+            "[25/12/2024, 09:15:00] John Smith: Hello",
+            "[19/12/2025, 04:57:20] ~ Gevork Papikyan:",
+            "[25/12/2024, 09:17:00] John Smith: Goodbye"
+        };
+
+        var parser = new WhatsAppTextFileParser(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppTextFileParser>.Instance,
+            (path, ct) => Task.FromResult(testLines));
+
+        var result = await parser.ParseAsync("test.txt");
+
+        result.Should().NotBeNull();
+        // Message with empty content after colon should fail validation
+        result.Messages.Should().HaveCount(2);
+        result.Messages[0].Content.Should().Be("Hello");
+        result.Messages[1].Content.Should().Be("Goodbye");
+        result.Metadata.FailedLineCount.Should().Be(1, "message with no content after colon should fail validation");
+    }
+
     [Fact(DisplayName = "ParseAsync strips LRM characters from sender names")]
     public async Task ParseAsync_LRMInSenderName_StripsCharacters()
     {
